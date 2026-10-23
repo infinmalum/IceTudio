@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"icepick/internal/storage"
+	"icetudio/internal/storage"
 )
 
 // ApproveToolCall records the user's approval of one pending call. The

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -17,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"icepick/internal/app"
-	"icepick/internal/materials"
-	"icepick/internal/storage"
+	"icetudio/internal/app"
+	"icetudio/internal/materials"
+	"icetudio/internal/storage"
 )
 
 // Server owns the host side of the IPC: one Unix socket per data directory,
@@ -131,13 +130,13 @@ func (s *Server) handleConn(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	if err := json.Unmarshal(line, &hello); err != nil || hello.Hello != "icepick" || hello.Version != ProtocolVersion || hello.Token != s.token || !samePeer(conn) {
+	if err := json.Unmarshal(line, &hello); err != nil || hello.Hello != "icetudio" || hello.Version != ProtocolVersion || hello.Token != s.token || !samePeer(conn) {
 		writeLine(conn, Response{Error: "IPC 身份校验失败"})
 		conn.Close()
 		return
 	}
 	conn.SetDeadline(time.Time{})
-	if err := writeLine(conn, Welcome{Welcome: "icepick", Version: ProtocolVersion}); err != nil {
+	if err := writeLine(conn, Welcome{Welcome: "icetudio", Version: ProtocolVersion}); err != nil {
 		conn.Close()
 		return
 	}
@@ -256,92 +255,39 @@ func (s *Server) dispatch(ctx context.Context, request Request) (any, error) {
 	switch request.Method {
 	case "skillDrafts.start", "skillDrafts.list", "skillDrafts.edit", "skillDrafts.apply", "skillDrafts.discard", "skillDrafts.withdraw":
 		return s.dispatchSkillDraft(request)
-	case "drafts.start", "drafts.list", "drafts.edit", "drafts.apply", "drafts.discard", "drafts.revert":
-		return s.dispatchProfileDraft(request)
-	case "conversations.options", "conversations.searchAvailability", "conversations.searchRecords", "conversations.list", "conversations.get", "conversations.create", "conversations.select", "conversations.start", "contexts.get", "contexts.update", "templates.list", "templates.create", "templates.restore", "components.list", "profiles.archive", "profiles.references", "profiles.replaceArchive", "profiles.exportWorkers":
+	case "conversations.options", "conversations.searchAvailability", "conversations.searchRecords", "conversations.list", "conversations.get", "conversations.create", "conversations.start", "contexts.get", "contexts.update", "components.list":
 		return s.dispatchConversation(request)
+	case "projects.list", "projects.get", "projects.query", "projects.create", "projects.delete", "projects.edit", "projects.undo", "projects.redo", "projects.transaction", "projects.history", "projects.import", "projects.export", "projects.bind":
+		return s.dispatchProjects(ctx, request)
 	case "status":
 		return s.svc.GetStatus(), nil
 
-	case "profiles.list":
-		return s.svc.ListProfiles()
-	case "profiles.get":
+	case "configs.list":
+		return s.svc.ListRuntimeConfigs()
+	case "configs.get":
 		var params struct {
 			ID string `json:"id"`
 		}
 		if err := decodeParams(request.Params, &params); err != nil {
 			return nil, err
 		}
-		return s.svc.GetProfile(params.ID)
-	case "profiles.create":
+		return s.svc.GetRuntimeConfig(params.ID)
+	case "configs.update":
 		var params struct {
-			Name   string `json:"name"`
-			FromID string `json:"fromId"`
+			Config storage.RuntimeConfig `json:"config"`
 		}
 		if err := decodeParams(request.Params, &params); err != nil {
 			return nil, err
 		}
-		return s.svc.CreateProfile(params.Name, params.FromID)
-	case "profiles.update":
-		var params struct {
-			Profile storage.Profile `json:"profile"`
-		}
-		if err := decodeParams(request.Params, &params); err != nil {
-			return nil, err
-		}
-		return s.svc.UpdateProfile(params.Profile)
-	case "profiles.restore":
+		return s.svc.UpdateRuntimeConfig(params.Config)
+	case "configs.restoreDefault":
 		var params struct {
 			Revision int `json:"revision"`
 		}
 		if err := decodeParams(request.Params, &params); err != nil {
 			return nil, err
 		}
-		return s.svc.RestoreProfileDefault(params.Revision)
-	case "profiles.delete":
-		var params struct {
-			ID string `json:"id"`
-		}
-		if err := decodeParams(request.Params, &params); err != nil {
-			return nil, err
-		}
-		return nil, s.svc.DeleteProfile(params.ID)
-	case "profiles.export":
-		var params struct {
-			ID string `json:"id"`
-		}
-		if err := decodeParams(request.Params, &params); err != nil {
-			return nil, err
-		}
-		return s.svc.ExportProfile(params.ID)
-	case "profiles.importPreview":
-		var params struct {
-			Data string `json:"data"`
-		}
-		if err := decodeParams(request.Params, &params); err != nil {
-			return nil, err
-		}
-		raw, err := base64.StdEncoding.DecodeString(params.Data)
-		if err != nil {
-			return nil, fmt.Errorf("分享包数据必须是 base64: %w", err)
-		}
-		return s.svc.PreviewProfileImport(raw)
-	case "profiles.import":
-		var params struct {
-			Data string `json:"data"`
-		}
-		if err := decodeParams(request.Params, &params); err != nil {
-			return nil, err
-		}
-		raw, err := base64.StdEncoding.DecodeString(params.Data)
-		if err != nil {
-			return nil, fmt.Errorf("分享包数据必须是 base64: %w", err)
-		}
-		created, preview, err := s.svc.ImportProfile(raw)
-		if err != nil {
-			return nil, err
-		}
-		return map[string]any{"profile": created, "preview": preview}, nil
+		return s.svc.RestoreRuntimeConfigDefault(params.Revision)
 
 	case "sessions.messages":
 		var params struct {
@@ -501,51 +447,6 @@ func (s *Server) dispatch(ctx context.Context, request Request) (any, error) {
 
 	case "credentials.status":
 		return s.svc.ListCredentialStatus()
-
-	case "memory.list":
-		var params struct {
-			ContextID string `json:"contextId"`
-		}
-		if err := decodeParams(request.Params, &params); err != nil {
-			return nil, err
-		}
-		return s.svc.ListMemories(params.ContextID)
-	case "memory.add":
-		var params struct {
-			ContextID string `json:"contextId"`
-			Content   string `json:"content"`
-		}
-		if err := decodeParams(request.Params, &params); err != nil {
-			return nil, err
-		}
-		return s.svc.AddMemory(params.ContextID, params.Content)
-	case "memory.update":
-		var params struct {
-			ContextID string `json:"contextId"`
-			ID        string `json:"id"`
-			Content   string `json:"content"`
-		}
-		if err := decodeParams(request.Params, &params); err != nil {
-			return nil, err
-		}
-		return s.svc.UpdateMemory(params.ContextID, params.ID, params.Content)
-	case "memory.delete":
-		var params struct {
-			ContextID string `json:"contextId"`
-			ID        string `json:"id"`
-		}
-		if err := decodeParams(request.Params, &params); err != nil {
-			return nil, err
-		}
-		return nil, s.svc.DeleteMemory(params.ContextID, params.ID)
-	case "memory.export":
-		var params struct {
-			ContextID string `json:"contextId"`
-		}
-		if err := decodeParams(request.Params, &params); err != nil {
-			return nil, err
-		}
-		return s.svc.ExportMemories(params.ContextID)
 
 	case "summaries.get":
 		var params struct {

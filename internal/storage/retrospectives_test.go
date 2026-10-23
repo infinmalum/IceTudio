@@ -14,7 +14,7 @@ func TestRetrospectivePersistenceUnknownEffectAndCompletionGate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { s.Close() }()
-	p, err := s.CreateTemplateProfile(ctx, "daily", "")
+	p, err := s.CreateRuntimeConfig(ctx, "日常", assistantData())
 	if err != nil {
 		t.Fatal(err)
 	}

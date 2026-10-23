@@ -1,0 +1,221 @@
+"use strict";
+
+/* eslint-disable */
+let GSUaudioCurrentContext = null;
+
+// .............................................................................
+const GSUXtoHz_a = 128;
+const GSUXtoHz_b = .945;
+const GSUXtoHz_c = GSUXtoHz_a - GSUXtoHz_b;
+/* eslint-enable */
+
+function GSUXtoHz( x ) {
+	return ( ( GSUXtoHz_a ** x ) - GSUXtoHz_b ) / GSUXtoHz_c;
+	// return 2 ** ( x * 11 - 11 );
+}
+function GSUHztoX( x ) {
+	return GSUmathLogN( GSUXtoHz_a, x * GSUXtoHz_c + GSUXtoHz_b );
+	// return ( Math.log2( x ) + 11 ) / 11;
+}
+
+// .............................................................................
+// "main.gain"
+// "main.0_filter.gain"
+function GSUaudioStringifyTarget( chanId, fxId, fxType, prop ) {
+	return prop
+		? `${ chanId }.${ fxId }_${ fxType }.${ prop }`
+		: `${ chanId }.${ fxId }`;
+}
+function GSUaudioParseTarget( target ) {
+	const arr = target.split( "." );
+	const [ chan, fx, prop ] = arr;
+
+	if ( arr.length === 3 ) {
+		const [ fxId, fxType ] = fx.split( "_" );
+
+		return {
+			$channelId: chan,
+			$effectId: fxId,
+			$effectType: fxType,
+			$prop: prop,
+		};
+	}
+	return {
+		$channelId: chan,
+		$prop: fx,
+	};
+}
+
+// .............................................................................
+function GSUaudioDelayDuration( time, gain, target = .1 ) {
+	return (
+		gain <= 0 ? 0 :
+		gain >= 1 ? Infinity :
+		Math.ceil( Math.log( target ) / Math.log( gain ) ) * time
+	);
+}
+
+// .............................................................................
+function GSUformatWavetableName( synthId, oscId )    { return `custom.s${ synthId }.o${ oscId }`; }
+function GSUformatWaveName( synthId, oscId, waveId ) { return `custom.s${ synthId }.o${ oscId }.${ waveId }`; }
+function GSUisWavetableName( name ) { return GSUisStr( name ) && name.startsWith( "custom.s" ) && GSUcountChar( name, "." ) === 2; }
+function GSUisWaveName( name )      { return GSUisStr( name ) && name.startsWith( "custom.s" ) && GSUcountChar( name, "." ) === 3; }
+
+// .............................................................................
+function GSUaudioParamCancel( aparam, when = 0 ) {
+	aparam.cancelScheduledValues( when );
+}
+function GSUaudioParamSet( aparam, val, when = 0 ) {
+	try {
+		aparam.setValueAtTime( val, when );
+	} catch ( err ) {
+		GSUaudioParamError( "GSUaudioParamSet", err );
+	}
+}
+function GSUaudioParamSetCurve( aparam, arr, when, dur ) {
+	try {
+		aparam.setValueCurveAtTime( arr, when, dur );
+	} catch ( err ) {
+		GSUaudioParamError( "GSUaudioParamSetCurve", err );
+	}
+}
+function GSUaudioParamError( from, err ) {
+	if ( __LOCALHOST__ ) {
+		if ( err.message.includes( "overlaps" ) ) {
+			const arr = err.message.split( ", " ).map( n => parseFloat( n ) );
+			const [ , a, b, c, d ] = arr;
+
+			console.warn( arr.length === 4
+				? `${ from } [${ a }] overlaps [${ b } -> ${ c }]`
+				: `${ from } [${ a } -> ${ b }] overlaps [${ c } -> ${ d }]` );
+		} else {
+			console.warn( from, err );
+		}
+	} else {
+		console.warn( "overlap" );
+	}
+}
+
+// .............................................................................
+function GSUhashBufferV1( u8buf ) {
+	const hash = new Uint8Array( 19 );
+	const len = `${ u8buf.length }`.padStart( 9, "0" );
+	let i = 0;
+	let ind = 0;
+
+	for ( const u8 of u8buf ) {
+		hash[ ind ] += u8;
+		if ( ++ind >= 19 ) {
+			ind = 0;
+		}
+		if ( ++i >= 1000000 ) {
+			break;
+		}
+	}
+	return `1-${ len }-${ Array.from( hash )
+		.map( u8 => u8.toString( 16 ).padStart( 2, "0" ) )
+		.join( "" ) }`;
+}
+
+// .............................................................................
+function GSUpanningMerge_LR( l, r ) {
+	return (
+		l > r ? -1 + r / l :
+		l < r ?  1 - l / r : 0
+	);
+}
+function GSUpanningSplit_LR( pan ) {
+	return (
+		pan < 0 ? [ 1, 1 + pan ] :
+		pan > 0 ? [ 1 - pan, 1 ] : [ 1, 1 ]
+	);
+}
+function GSUpanningMerge( ...pans ) {
+	const lr = pans.map( GSUpanningSplit_LR )
+		.reduce( ( ret, lr ) => {
+			ret[ 0 ] *= lr[ 0 ];
+			ret[ 1 ] *= lr[ 1 ];
+			return ret;
+		}, [ 1, 1 ] );
+
+	return GSUpanningMerge_LR( ...lr );
+}
+
+// .............................................................................
+const GSUbufferCreate = ( a, b, c ) => {
+	const n = new AudioBuffer( {
+		numberOfChannels: a,
+		length: Math.max( 1, b ),
+		sampleRate: c,
+	} );
+
+	if ( __LOCALHOST__ ) {
+		_GSUaudioBuffer_wm.set( n, 1 );
+	}
+	return n;
+};
+
+const GSUbufferForEach = ( buf, fn ) => {
+	for ( let i = 0; i < buf.numberOfChannels; ++i ) {
+		fn( buf.getChannelData( i ), i, buf );
+	}
+	return buf;
+};
+
+const _GSUbufferAB = ( buf, a = 0, b = 1 ) => {
+	const len = buf.length;
+	const a2 = GSUmathClamp( Math.round( a * len ), 0, len );
+	const b2 = GSUmathClamp( Math.round( ( a + b ) * len ), a2, len );
+
+	return [ a2, b2 - a2 ];
+};
+
+const GSUbufferClone = ( buf, a, b ) => {
+	if ( buf ) {
+		const [ a2, b2 ] = _GSUbufferAB( buf, a, b );
+		const buf2 = GSUbufferCreate( buf.numberOfChannels, b2, buf.sampleRate );
+
+		GSUbufferForEach( buf, ( ch, i ) => {
+			buf2.copyToChannel( ch.subarray( a2, a2 + b2 ), i );
+		} );
+		return buf2;
+	}
+	return null;
+};
+
+const GSUbufferCut = ( buf, a, b ) => {
+	const [ a2, b2 ] = _GSUbufferAB( buf, a, b );
+	const len2 = buf.length - b2;
+	const buf2 = GSUbufferCreate( buf.numberOfChannels, Math.max( 1, len2 ), buf.sampleRate );
+
+	return len2 < 2
+		? buf2
+		: GSUbufferForEach( buf2, ( ch, i ) => {
+			const src = buf.getChannelData( i );
+
+			ch.set( src.subarray( 0, a2 ), 0 );
+			ch.set( src.subarray( a2 + b2 ), a2 );
+		} );
+};
+
+const GSUbufferSilent = ( buf, a, b ) => {
+	const [ a2, b2 ] = _GSUbufferAB( buf, a, b );
+
+	return GSUbufferForEach( GSUbufferClone( buf ), ( ch, i ) => {
+		for ( let j = 0; j < b2; ++j ) {
+			ch[ a2 + j ] = 0;
+		}
+	} );
+};
+
+const GSUbufferReverse = ( buf, a, b ) => {
+	const [ a2, b2 ] = _GSUbufferAB( buf, a, b );
+
+	return GSUbufferForEach( GSUbufferClone( buf ), ( ch, i ) => {
+		const chOriginal = buf.getChannelData( i );
+
+		for ( let j = 0; j < b2; ++j ) {
+			ch[ a2 + j ] = chOriginal[ a2 + b2 - 1 - j ];
+		}
+	} );
+};

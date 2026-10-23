@@ -2,19 +2,19 @@ package app
 
 import (
 	"context"
-	"icepick/internal/storage"
+	"icetudio/internal/storage"
 )
 
 // Only the explicitly selected task trees are sent. Sensitivity metadata from
 // every process and call survives into the requesting conversation.
-func (s *Service) inheritDraftEvidence(ctx context.Context, session string, p storage.RunProfile, evidence []storage.DraftEvidence) error {
+func (s *Service) inheritDraftEvidence(ctx context.Context, session string, p storage.RunConfigSnapshot, evidence []storage.DraftEvidence) error {
 	scopes := []string{}
 	for _, item := range evidence {
 		resources, err := s.store.RunResources(ctx, item.RootRunID)
 		if err != nil {
 			return err
 		}
-		frozen := []storage.FrozenProfile{resources.Root, resources.Planner, resources.Reviewer}
+		frozen := []storage.RuntimeConfigRevision{resources.Root, resources.Planner, resources.Reviewer}
 		for _, worker := range resources.Workers {
 			frozen = append(frozen, worker)
 		}

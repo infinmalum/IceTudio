@@ -2,18 +2,16 @@ package app
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
-	"icepick/internal/testfixture"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/skills"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/skills"
+	"icetudio/internal/storage"
 )
 
 type workerScript struct {
@@ -44,9 +42,6 @@ func (m *workerScript) Chat(_ context.Context, source config.Model, messages []m
 		if source.Name != "old-worker" || !strings.Contains(messages[0].Content, "old prompt") || strings.Contains(messages[0].Content, "new prompt") {
 			m.t.Errorf("worker configuration changed: %s %s", source.Name, messages[0].Content)
 		}
-		if strings.Contains(messages[0].Content, "private memory") {
-			m.t.Error("source context memory leaked")
-		}
 		if !strings.Contains(messages[0].Content, "old description") || strings.Contains(messages[0].Content, "new description") {
 			m.t.Error("Skill metadata changed")
 		}
@@ -68,7 +63,7 @@ func (m *workerScript) Chat(_ context.Context, source config.Model, messages []m
 	}
 }
 
-func TestWorkerPinsProfileAndSkill(t *testing.T) {
+func TestWorkerPinsConfigurationAndSkill(t *testing.T) {
 	script := &workerScript{t: t}
 	svc, store := newTestService(t, script, &scriptTools{})
 	root := t.TempDir()
@@ -84,32 +79,16 @@ func TestWorkerPinsProfileAndSkill(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc.skills = catalog
-	parent, err := svc.CreateTemplateProfile("daily", "parent")
-	if err != nil {
-		t.Fatal(err)
-	}
-	source, err := svc.CreateTemplateProfile("daily", "source")
-	if err != nil {
-		t.Fatal(err)
-	}
-	source.Data.SystemPrompt = "old prompt"
-	source.Data.EnabledSkills = []string{"note"}
-	source.Data.Model = config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "old-worker"}
-	source, err = svc.UpdateProfile(source)
-	if err != nil {
-		t.Fatal(err)
-	}
-	private, err := testfixture.Context(svc.store, context.Background(), "source private", source.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.AddContextMemory(context.Background(), private.ID, "private memory", "user", "", storage.ScopePersonal); err != nil {
-		t.Fatal(err)
-	}
-	parent.Data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1}
-	parent.Data.EnabledSkills = []string{"note"}
-	parent.Data.Execution.WorkerSources = []storage.WorkerSource{{Name: "writer", ProfileID: source.ID}}
-	parent, err = svc.UpdateProfile(parent)
+	data := storage.DefaultRuntimeConfig()
+	data.AllSkills = false
+	data.EnabledSkills = []string{"note"}
+	data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1}
+	data.Execution.WorkerSources = []storage.WorkerSource{{Name: "writer", Configuration: &storage.WorkerConfiguration{
+		Name: "writer", SystemPrompt: "old prompt",
+		Model:             config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "old-worker"},
+		EnabledMCPServers: []string{"local"}, AllSkills: true, ContextBudget: 8192,
+	}}}
+	parent, err := svc.configureDefault(data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,9 +101,14 @@ func TestWorkerPinsProfileAndSkill(t *testing.T) {
 		t.Fatal(err)
 	}
 	call := waitForCallState(t, svc, conversation.ID, storage.CallPending)
-	source.Data.SystemPrompt = "new prompt"
-	source.Data.Model.Name = "new-worker"
-	if _, err := svc.UpdateProfile(source); err != nil {
+	// Editing the config, the Skill source and the global default cannot alter the frozen worker.
+	current, err := svc.GetRuntimeConfig(parent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current.Data.Execution.WorkerSources[0].Configuration.SystemPrompt = "new prompt"
+	current.Data.Execution.WorkerSources[0].Configuration.Model.Name = "new-worker"
+	if _, err := svc.UpdateRuntimeConfig(current); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte("---\nname: note\ndescription: new description\n---\nnew body"), 0600); err != nil {
@@ -142,7 +126,7 @@ func TestWorkerPinsProfileAndSkill(t *testing.T) {
 		t.Fatalf("children: %+v %v", children, err)
 	}
 	child := children[0]
-	if child.ContextID != conversation.ContextID || child.ContextID == private.ID || child.WorkerName != "writer" || child.ProfileRevision != source.Revision {
+	if child.ContextID != conversation.ContextID || child.WorkerName != "writer" || child.ConfigRevision != parent.Revision {
 		t.Fatalf("worker identity/snapshot: %+v", child)
 	}
 	resources, err := store.RunResources(context.Background(), child.ID)
@@ -154,61 +138,6 @@ func TestWorkerPinsProfileAndSkill(t *testing.T) {
 	}
 	if script.calls != 4 {
 		t.Fatal("unexpected model calls", script.calls)
-	}
-}
-
-func TestWorkerShareHasPortableConfiguration(t *testing.T) {
-	svc, _ := newShareService(t, nil)
-	root, err := svc.CreateTemplateProfile("daily", "root")
-	if err != nil {
-		t.Fatal(err)
-	}
-	source, err := svc.CreateTemplateProfile("writing", "source")
-	if err != nil {
-		t.Fatal(err)
-	}
-	root.Data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1}
-	root.Data.Execution.WorkerSources = []storage.WorkerSource{{Name: "writer", ProfileID: source.ID}}
-	root, err = svc.UpdateProfile(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.ExportProfile(root.ID); err == nil {
-		t.Fatal("dependency included without explicit choice")
-	}
-	exported, err := svc.ExportProfileIncludingWorkers(root.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	raw, err := base64.StdEncoding.DecodeString(exported.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	files, err := readShareFiles(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(files["profile.json"]), source.ID) {
-		t.Fatal("local dependency identity exported")
-	}
-	copy, preview, err := svc.ImportProfile(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	slot := copy.Data.Execution.WorkerSources[0]
-	if slot.ProfileID != "" || slot.Configuration == nil || slot.Configuration.SystemPrompt != source.Data.SystemPrompt || len(preview.Workers) != 1 {
-		t.Fatalf("portable worker: %+v %+v", slot, preview)
-	}
-	malicious := zipBytes(t, map[string]string{"manifest.json": `{"formatVersion":3,"name":"x"}`, "profile.json": `{"execution":{"workflow":"direct","workerSources":[{"name":"x","profileId":"local-id"}]}}`})
-	if _, _, err := svc.ImportProfile(malicious); err == nil {
-		t.Fatal("import bound an unreviewed local Profile")
-	}
-	encoded, err := json.Marshal(copy.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(encoded), "source private") {
-		t.Fatal("private data transported")
 	}
 }
 

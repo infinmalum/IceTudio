@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"icepick/internal/model"
+	"icetudio/internal/model"
 )
 
 type discoveryTools struct {
@@ -33,7 +33,7 @@ func toolFingerprint(t model.Tool) string {
 func toolSearchDefinition() model.Tool {
 	t := model.Tool{Type: "function"}
 	t.Function.Name = "local__tool_search"
-	t.Function.Description = "按名称或用途搜索当前 Profile 允许的 MCP 工具，并加载匹配工具的真实参数定义到下一轮请求。基础本机工具已直接可用。搜索不执行目标工具；先搜索，下一轮再调用。"
+	t.Function.Description = "按名称或用途搜索当前执行配置允许的 MCP 工具，并加载匹配工具的真实参数定义到下一轮请求。基础本机工具已直接可用。搜索不执行目标工具；先搜索，下一轮再调用。"
 	t.Function.Parameters = json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","maxLength":200},"limit":{"type":"integer","minimum":1,"maximum":5}},"required":["query"],"additionalProperties":false}`)
 	return t
 }

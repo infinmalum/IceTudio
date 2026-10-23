@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-func fixedData() ProfileData {
-	d := BlankProfile()
+func fixedData() RuntimeConfigData {
+	d := BlankRuntimeConfig()
 	d.EnabledMCPServers = []string{"local"}
 	d.Execution.Workflow = "fixed"
 	d.Execution.WorkerSources = []WorkerSource{{Name: "worker"}}
@@ -19,34 +19,34 @@ func fixedData() ProfileData {
 func TestFixedWorkflowValidation(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
-		mutate func(*ProfileData)
+		mutate func(*RuntimeConfigData)
 	}{
-		{"empty", func(d *ProfileData) { d.Execution.Stages = nil }},
-		{"duplicate", func(d *ProfileData) { d.Execution.Stages[1].ID = "collect" }},
-		{"missing dependency", func(d *ProfileData) { d.Execution.Stages[1].DependsOn = []string{"missing"} }},
-		{"cycle", func(d *ProfileData) { d.Execution.Stages[0].DependsOn = []string{"report"} }},
-		{"unknown worker", func(d *ProfileData) { d.Execution.Stages[0].Worker = "missing" }},
-		{"undeclared mode", func(d *ProfileData) { d.Execution.Stages[0].AccessMode = "" }},
-		{"unknown mode", func(d *ProfileData) { d.Execution.Stages[0].AccessMode = "script" }},
-		{"retry", func(d *ProfileData) { d.Execution.Budget.AutoRetry = true }},
-		{"replacement", func(d *ProfileData) { d.Execution.Stages[0].Replaces = "report" }},
-		{"delegation disabled", func(d *ProfileData) { d.Delegation.Enabled = false }},
-		{"depth", func(d *ProfileData) { d.Delegation.MaxDepth = 0 }},
-		{"tools", func(d *ProfileData) { d.AllowedTools = []string{"local__read_file"} }},
-		{"main subset", func(d *ProfileData) { d.Execution.Main.RestrictTools = true }},
-		{"attempt budget", func(d *ProfileData) { d.Execution.Budget.MaxAttempts = 1 }},
-		{"model budget", func(d *ProfileData) { d.Execution.Budget.MaxModelCalls = 2 }},
-		{"review budget", func(d *ProfileData) { d.Execution.Review.Mode = "required"; d.Execution.Budget.MaxModelCalls = 3 }},
+		{"empty", func(d *RuntimeConfigData) { d.Execution.Stages = nil }},
+		{"duplicate", func(d *RuntimeConfigData) { d.Execution.Stages[1].ID = "collect" }},
+		{"missing dependency", func(d *RuntimeConfigData) { d.Execution.Stages[1].DependsOn = []string{"missing"} }},
+		{"cycle", func(d *RuntimeConfigData) { d.Execution.Stages[0].DependsOn = []string{"report"} }},
+		{"unknown worker", func(d *RuntimeConfigData) { d.Execution.Stages[0].Worker = "missing" }},
+		{"undeclared mode", func(d *RuntimeConfigData) { d.Execution.Stages[0].AccessMode = "" }},
+		{"unknown mode", func(d *RuntimeConfigData) { d.Execution.Stages[0].AccessMode = "script" }},
+		{"retry", func(d *RuntimeConfigData) { d.Execution.Budget.AutoRetry = true }},
+		{"replacement", func(d *RuntimeConfigData) { d.Execution.Stages[0].Replaces = "report" }},
+		{"delegation disabled", func(d *RuntimeConfigData) { d.Delegation.Enabled = false }},
+		{"depth", func(d *RuntimeConfigData) { d.Delegation.MaxDepth = 0 }},
+		{"tools", func(d *RuntimeConfigData) { d.AllowedTools = []string{"local__read_file"} }},
+		{"main subset", func(d *RuntimeConfigData) { d.Execution.Main.RestrictTools = true }},
+		{"attempt budget", func(d *RuntimeConfigData) { d.Execution.Budget.MaxAttempts = 1 }},
+		{"model budget", func(d *RuntimeConfigData) { d.Execution.Budget.MaxModelCalls = 2 }},
+		{"review budget", func(d *RuntimeConfigData) { d.Execution.Review.Mode = "required"; d.Execution.Budget.MaxModelCalls = 3 }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			d := fixedData()
 			tc.mutate(&d)
-			if err := validateProfileData(d); err == nil {
+			if err := validateRuntimeConfigData(d); err == nil {
 				t.Fatal("invalid fixed configuration accepted")
 			}
 		})
 	}
-	if err := validateProfileData(fixedData()); err != nil {
+	if err := validateRuntimeConfigData(fixedData()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -54,7 +54,7 @@ func TestFixedWorkflowValidation(t *testing.T) {
 func TestFixedGraphAtomicCreationAndRecovery(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
-	p, err := s.CreateProfile(ctx, "fixed", fixedData())
+	p, err := s.CreateRuntimeConfig(ctx, "fixed", fixedData())
 	if err != nil {
 		t.Fatal(err)
 	}

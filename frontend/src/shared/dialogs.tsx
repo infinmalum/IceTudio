@@ -22,16 +22,15 @@ type Question = {
   choices?: { label: string; value: string }[];
 };
 type Request = { question: Question; resolve: (value: string | null) => void };
-const DialogContext = createContext<(q: Question) => Promise<string | null>>(
-  () => Promise.resolve(null),
-);
+type Ask = ((q: Question) => Promise<string | null>) & { hasPending: () => boolean };
+const DialogContext = createContext<Ask>(Object.assign(() => Promise.resolve(null), { hasPending: () => false }));
 export function DialogProvider({ children }: { children: ReactNode }) {
   const [request, setRequest] = useState<Request | null>(null);
   const queue = useRef<Request[]>([]);
   const current = useRef<Request | null>(null);
   const [value, setValue] = useState("");
   const box = useRef<HTMLDialogElement>(null);
-  const ask = (question: Question) =>
+  const ask = Object.assign((question: Question) =>
     new Promise<string | null>((resolve) => {
       const next = { question, resolve };
       if (current.current) queue.current.push(next);
@@ -40,7 +39,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
         setRequest(next);
         setValue(question.initial ?? "");
       }
-    });
+    }), { hasPending: () => current.current !== null });
   const finish = (value: string | null) => {
     current.current?.resolve(value);
     const next = queue.current.shift() ?? null;

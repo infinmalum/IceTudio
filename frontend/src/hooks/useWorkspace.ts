@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { StatusService } from "../../bindings/icepick";
-import type { Conversation } from "../../bindings/icepick/internal/storage";
+import { StatusService } from "../../bindings/icetudio";
+import type { Conversation } from "../../bindings/icetudio/internal/storage";
 import { useDialog } from "../shared/dialogs";
 import { clearDraftFiles } from "../shared/draftFiles";
 export function useWorkspace() {
@@ -19,7 +19,7 @@ export function useWorkspace() {
     setContextID(item.contextId);
     setSelected(item.id);
     try {
-      localStorage.setItem("icepick.lastConversation", item.id);
+      localStorage.setItem("icetudio.lastConversation", item.id);
     } catch {}
   }
   async function refreshConversations() {
@@ -27,17 +27,15 @@ export function useWorkspace() {
     setSessions(items);
     return items;
   }
-  async function createSession(profileID: string | null) {
+  async function createSession(configID?: string) {
     if (creatingRef.current) return null;
     creatingRef.current = true;
     setCreating(true);
     try {
-      let id = profileID;
+      let id = configID ?? "";
       if (!id) {
-        const profiles = (await StatusService.ListProfiles()) ?? [];
-        id =
-          (profiles.find((p) => p.isDefault) ?? profiles[0])?.id ??
-          (await StatusService.CreateTemplateProfile("daily", "日常助手")).id;
+        const configs = (await StatusService.ListRuntimeConfigs()) ?? [];
+        id = (configs.find((p) => p.isDefault) ?? configs[0])?.id ?? "";
       }
       const item = await StatusService.CreateConversation(
         id,
@@ -80,7 +78,7 @@ export function useWorkspace() {
     if (
       !(await dialog.confirm({
         title: "删除这个对话？",
-        body: "将删除此对话、附件、执行记录和未采用的建议，无法恢复。助手配置和独立管理的记忆不会删除。",
+        body: "将删除此对话、附件、执行记录和未采用的建议，无法恢复。执行配置与本机权限不会删除。",
         confirm: "删除对话",
         danger: true,
       }))
@@ -89,7 +87,7 @@ export function useWorkspace() {
     try {
       await StatusService.DeleteConversation(item.id);
       try {
-        localStorage.removeItem("icepick.draft." + item.id);
+        localStorage.removeItem("icetudio.draft." + item.id);
       } catch {}
       void clearDraftFiles(item.id);
       const items = await refreshConversations();
@@ -102,7 +100,7 @@ export function useWorkspace() {
           setSelected(null);
           setContextID("");
           try {
-            localStorage.removeItem("icepick.lastConversation");
+            localStorage.removeItem("icetudio.lastConversation");
           } catch {}
         }
       }
@@ -118,7 +116,7 @@ export function useWorkspace() {
         setSessions(items ?? []);
         let lastID = "";
         try {
-          lastID = localStorage.getItem("icepick.lastConversation") ?? "";
+          lastID = localStorage.getItem("icetudio.lastConversation") ?? "";
         } catch {}
         const last = (items ?? []).find(
           (i) => i.id === lastID && i.kind === "normal",

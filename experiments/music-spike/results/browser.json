@@ -1,0 +1,171 @@
+{
+  "scripts": [
+    "gs-utils/gs-utils.js",
+    "gs-utils/gs-utils-jquery.js",
+    "gs-utils/gs-utils-func.js",
+    "gs-utils/gs-utils-json.js",
+    "gs-utils/gs-utils-math.js",
+    "gs-utils/gs-utils-files.js",
+    "gs-utils/gs-utils-audio.js",
+    "gs-utils/gs-utils-audio-nodes.js",
+    "gs-utils/gs-utils-models.js",
+    "gsui-texts.js",
+    "gsui-constantes.js",
+    "gsui0ne/gsui0ne.js",
+    "gsuiBeatlines/gsuiBeatlines.js",
+    "gsuiBlocksManager/gsuiBlocksManager.js",
+    "gsuiKeys/gsuiKeys.html.js",
+    "gsuiKeys/gsuiKeys.js",
+    "gsuiPropSelect/gsuiPropSelect.js",
+    "gsuiScrollShadow/gsuiScrollShadow.js",
+    "gsuiSlider/gsuiSlider.html.js",
+    "gsuiSlider/gsuiSlider.js",
+    "gsuiSliderGroup/gsuiSliderGroup.html.js",
+    "gsuiSliderGroup/gsuiSliderGroup.js",
+    "gsuiStepSelect/gsuiStepSelect.html.js",
+    "gsuiStepSelect/gsuiStepSelect.js",
+    "gsuiTimeline/gsuiTimeline.html.js",
+    "gsuiTimeline/gsuiTimeline.js",
+    "gsuiTimewindow/gsuiTimewindow.html.js",
+    "gsuiTimewindow/gsuiTimewindow.js",
+    "gsuiTimeCursors/gsuiTimeCursors.js",
+    "gsuiDragline/gsuiDragline.html.js",
+    "gsuiDragline/gsuiDragline.js",
+    "gsuiPianoroll/gsuiPianoroll.html.js",
+    "gsuiPianoroll/gsuiPianoroll.js"
+  ],
+  "results": [
+    {
+      "name": "GridSound mounts",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "GridSound real mouse drag emits command",
+      "ok": true,
+      "detail": {
+        "data": {
+          "n1": {
+            "key": 60,
+            "when": 2,
+            "duration": 1,
+            "gain": 0.8,
+            "pan": 0,
+            "lowpass": 1,
+            "highpass": 1,
+            "selected": false
+          }
+        },
+        "calls": [
+          [
+            "move",
+            [
+              "n1"
+            ],
+            1,
+            0
+          ]
+        ],
+        "revision": 1
+      }
+    },
+    {
+      "name": "GridSound host undo",
+      "ok": true
+    },
+    {
+      "name": "GridSound external edit visible",
+      "ok": true
+    },
+    {
+      "name": "Host stale revision rejected",
+      "ok": true
+    },
+    {
+      "name": "GridSound external edit undo",
+      "ok": true
+    },
+    {
+      "name": "GridSound real resize emits command",
+      "ok": true
+    },
+    {
+      "name": "GridSound batch timing",
+      "count": 1000,
+      "insertMs": 132.30000000004657,
+      "updateMs": 10.699999999953434,
+      "nodes": 11240
+    },
+    {
+      "name": "GridSound batch timing",
+      "count": 10000,
+      "insertMs": 1126.5999999998603,
+      "updateMs": 104.30000000004657,
+      "nodes": 110240
+    },
+    {
+      "name": "React unmount removes editor",
+      "ok": true
+    },
+    {
+      "name": "React remount restores one editor",
+      "ok": true
+    },
+    {
+      "name": "webaudio mounts",
+      "ok": true
+    },
+    {
+      "name": "webaudio mutates notes on real drag",
+      "ok": true,
+      "detail": {
+        "sequence": [
+          {
+            "id": "n1",
+            "t": 598,
+            "g": 480,
+            "n": 60,
+            "v": 100,
+            "f": 1,
+            "on": 60,
+            "ot": 480,
+            "og": 480
+          }
+        ],
+        "events": []
+      }
+    },
+    {
+      "name": "webaudio edit has no change/input notification",
+      "ok": true,
+      "detail": {
+        "sequence": [
+          {
+            "id": "n1",
+            "t": 598,
+            "g": 480,
+            "n": 60,
+            "v": 100,
+            "f": 1,
+            "on": 60,
+            "ot": 480,
+            "og": 480
+          }
+        ],
+        "events": []
+      }
+    },
+    {
+      "name": "webaudio external snapshot restore",
+      "ok": true
+    }
+  ],
+  "errors": [],
+  "rect": {
+    "x": 164,
+    "y": 233,
+    "w": 64,
+    "h": 18,
+    "hit": "<div class=\"gsuiBlocksManager-block gsuiPianoroll-block\" data-action=\"move\" data-id=\"n1\" data-key-note=\"60\" style=\"left: 1em; width: 1em;\" data-when=\"1\" data-duration=\"1\"><span></span><div class=\"gsuiDragline-drop\"></div><div data-action=\"cropB\"></div><gsui-dragline tabindex=\"-1\"><div class=\"gsuiDragline-main\" style=\"top: 0px; left: 0px; width: 0px; height: 0px;\"><svg class=\"gsuiDragline-line\" style=\"width: 0px; height: 0px; margin: 0px;\"><polyline></polyline></svg><div class=\"gsuiDragline-to\"></div></div></gsui-dragline></div>"
+  }
+}

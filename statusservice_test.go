@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"icepick/internal/testfixture"
+	"icetudio/internal/testfixture"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/agent"
-	"icepick/internal/app"
-	"icepick/internal/config"
-	"icepick/internal/mcptools"
-	"icepick/internal/model"
-	"icepick/internal/skills"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/app"
+	"icetudio/internal/config"
+	"icetudio/internal/mcptools"
+	"icetudio/internal/model"
+	"icetudio/internal/skills"
+	"icetudio/internal/storage"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -100,7 +100,7 @@ func TestTaskPersistenceAndCancellation(t *testing.T) {
 		Store: store, Runs: runs, Tools: registry, Skills: catalog,
 		Chat: finishedModel{}, Config: config.Config{Model: source}, ConfigPath: filepath.Join(t.TempDir(), "config.json"),
 	})}
-	session, err := svc.CreateConversation(storage.DefaultProfileID, "", "")
+	session, err := svc.CreateConversation(storage.DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestServiceResolvesContextFromSession(t *testing.T) {
 	}
 	defer store.Close()
 	svc := &StatusService{svc: app.New(app.Options{Store: store})}
-	c, err := svc.CreateConversation(storage.DefaultProfileID, "", "test")
+	c, err := svc.CreateConversation(storage.DefaultConfigID, "", "test")
 	if err != nil {
 		t.Fatal(err)
 	}

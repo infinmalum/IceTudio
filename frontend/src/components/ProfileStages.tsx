@@ -1,21 +1,21 @@
-import type { Profiles } from "../hooks/useProfiles";
+import type { Configs } from "../hooks/useConfigs";
 
 type Props = {
-  profileState: Pick<Profiles, "profileDraft" | "setProfileDraft">;
+  configState: Pick<Configs, "configDraft" | "setConfigDraft">;
 };
 
-export function ProfileStages({ profileState }: Props) {
-  const { profileDraft, setProfileDraft } = profileState;
-  if (!profileDraft || profileDraft.data.execution.workflow !== "fixed")
+export function ProfileStages({ configState }: Props) {
+  const { configDraft, setConfigDraft } = configState;
+  if (!configDraft || configDraft.data.execution.workflow !== "fixed")
     return null;
-  const stages = profileDraft.data.execution.stages ?? [];
-  const workers = profileDraft.data.execution.workerSources ?? [];
+  const stages = configDraft.data.execution.stages ?? [];
+  const workers = configDraft.data.execution.workerSources ?? [];
   const setStages = (next: typeof stages) =>
-    setProfileDraft({
-      ...profileDraft,
+    setConfigDraft({
+      ...configDraft,
       data: {
-        ...profileDraft.data,
-        execution: { ...profileDraft.data.execution, stages: next },
+        ...configDraft.data,
+        execution: { ...configDraft.data.execution, stages: next },
       },
     });
   const update = (index: number, patch: Partial<(typeof stages)[number]>) =>

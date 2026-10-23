@@ -8,15 +8,12 @@ import (
 func TestConversationNamingDeletionAndSharedContext(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
-	a, err := s.CreateConversation(ctx, DefaultProfileID, "", "")
+	a, err := s.CreateConversation(ctx, DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := s.CreateConversation(ctx, DefaultProfileID, a.ID, "other")
+	b, err := s.CreateConversation(ctx, DefaultConfigID, a.ID, "other")
 	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = s.AddContextMemory(ctx, a.ContextID, "remember", "user", b.ID, ScopePersonal); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = s.AddMessage(ctx, a.ID, "", RoleUser, "  整理\n这些材料  "); err != nil {
@@ -48,16 +45,12 @@ func TestConversationNamingDeletionAndSharedContext(t *testing.T) {
 	if _, err = s.GetConversation(ctx, b.ID); err != nil {
 		t.Fatal("shared conversation removed", err)
 	}
-	memories, err := s.ListContextMemories(ctx, b.ContextID, 0)
-	if err != nil || len(memories) != 1 {
-		t.Fatal("shared memory removed", memories, err)
-	}
 }
 
 func TestConversationDeletionRejectsActiveAndRemovesFinishedTaskGraph(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
-	p, err := s.CreateProfile(ctx, "fixed", fixedData())
+	p, err := s.CreateRuntimeConfig(ctx, "fixed", fixedData())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +106,7 @@ func TestConversationDeletionWithContinuationInput(t *testing.T) {
 func TestChatMessagePaginationStableOrderAndToolExclusion(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
-	c, err := s.CreateConversation(ctx, DefaultProfileID, "", "")
+	c, err := s.CreateConversation(ctx, DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,31 +144,4 @@ func TestDeletionRetainsUnknownNativeRequest(t *testing.T) {
 	if err := s.DeleteConversation(ctx, c.ID); err == nil {
 		t.Fatal("unknown native request erased")
 	}
-}
-
-func TestConversationDeletionCleansUnadoptedSuggestionsAndProtectsPublishedSources(t *testing.T) {
-	ctx := context.Background()
-	t.Run("unadopted", func(t *testing.T) {
-		s := openTestStore(t)
-		_, c, _, draft := storageDraftFixture(t, s)
-		if err := s.DeleteConversation(ctx, c.ID); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := s.GetProfileDraft(ctx, draft.ID); err == nil {
-			t.Fatal("unadopted suggestion retained")
-		}
-	})
-	t.Run("published", func(t *testing.T) {
-		s := openTestStore(t)
-		_, c, _, draft := storageDraftFixture(t, s)
-		if _, err := s.ApplyProfileDraft(ctx, draft.ID, draft.Revision); err != nil {
-			t.Fatal(err)
-		}
-		if err := s.DeleteConversation(ctx, c.ID); err == nil {
-			t.Fatal("published source removed")
-		}
-		if _, err := s.GetConversation(ctx, c.ID); err != nil {
-			t.Fatal("partial deletion", err)
-		}
-	})
 }

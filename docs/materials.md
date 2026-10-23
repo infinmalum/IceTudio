@@ -1,3 +1,5 @@
+> 历史实现参考，不是删除授权。当前范围由 [P0 执行契约](p0-refactor-contract.md)、[逐项清单](p0-api-storage-inventory.md)及[实施计划](../IMPLEMENTATION_PLAN.md)规定。材料、附件及来源权限保留；旧产品配置引用按新契约适配。
+
 # 对话材料：附件、网页与本地目录
 
 直接在输入框旁点“添加附件”，支持 PNG/JPEG/GIF/WebP、PDF、UTF-8 文本和 DOCX。可只附文件后发送，也可说明要分析什么。发送前可以移除附件，发送失败保留待发送文件；切换对话清空输入草稿。Profile 的 ZIP 分享包请使用“Profile 管理”中的“导入 Profile / 导出 Profile”，不作为对话附件。

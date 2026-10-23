@@ -1,28 +1,31 @@
-// Package host boots the single ICEPick host for an executable-local data directory:
+// Package host boots the single IceTudio host for an executable-local data directory:
 // configuration, the ownership lock, the SQLite store, run recovery, the
 // skills catalog, the MCP hub and the application service. The desktop
-// entry point and the headless `icepick serve` host share this path so both
+// entry point and the headless `icetudio serve` host share this path so both
 // expose identical behavior to clients.
 package host
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 
-	"icepick/internal/agent"
-	"icepick/internal/app"
-	"icepick/internal/config"
-	"icepick/internal/mcptools"
-	"icepick/internal/model"
-	"icepick/internal/skills"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/app"
+	"icetudio/internal/config"
+	"icetudio/internal/mcptools"
+	"icetudio/internal/model"
+	"icetudio/internal/playback"
+	"icetudio/internal/skills"
+	"icetudio/internal/storage"
 )
 
-// Host holds everything a running ICEPick host owns. Close tears the
+// Host holds everything a running IceTudio host owns. Close tears the
 // process-owned resources down in reverse order.
 type Host struct {
+	Playback *playback.Manager
 	Service  *app.Service
 	Store    *storage.Store
 	Runs     *agent.Runs
@@ -52,7 +55,7 @@ func Start() (*Host, error) {
 	if err := config.EnsureDirs(paths); err != nil {
 		initErr = err
 	} else {
-		logFile, err := os.OpenFile(filepath.Join(paths.Data, "icepick.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+		logFile, err := os.OpenFile(filepath.Join(paths.Data, "icetudio.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
 			initErr = err
 		} else {
@@ -71,7 +74,7 @@ func Start() (*Host, error) {
 	if initErr != nil {
 		log.Printf("startup: %v", initErr)
 	} else {
-		store, err := storage.Open(filepath.Join(paths.Data, "icepick.db"))
+		store, err := storage.Open(filepath.Join(paths.Data, "icetudio.db"))
 		if err != nil {
 			log.Printf("startup: %v", err)
 			initErr = err
@@ -106,8 +109,15 @@ func Start() (*Host, error) {
 	// compat servers and the three official remote SDKs, whose credentials
 	// are resolved per request from the protected credential store.
 	modelClient := model.Client{Keys: config.FileCredentialLookup(host.CredPath)}
+	host.Playback = playback.New(paths.Data, func(id string) (playback.Snapshot, error) {
+		if host.Store == nil {
+			return playback.Snapshot{}, fmt.Errorf("工程存储未就绪")
+		}
+		item, err := host.Store.GetProject(context.Background(), id)
+		return playback.Snapshot{ID: item.ID, Revision: item.Revision, State: item.State}, err
+	})
 	host.Service = app.New(app.Options{
-		Store: host.Store, Runs: host.Runs, Tools: hub, Skills: catalog,
+		Playback: host.Playback, Store: host.Store, Runs: host.Runs, Tools: hub, Skills: catalog,
 		Chat: modelClient, Discovery: modelClient, Config: host.Config, ConfigPath: paths.Config,
 		DataDir: paths.Data, MCPEndpoints: hub, MCPManager: hub, InitError: host.InitError, CredentialPath: host.CredPath,
 	})
@@ -124,6 +134,10 @@ func Start() (*Host, error) {
 func (h *Host) Close() {
 	if h == nil {
 		return
+	}
+	if h.Playback != nil {
+		h.Playback.Close()
+		h.Playback = nil
 	}
 	if h.Hub != nil {
 		h.Hub.Close()

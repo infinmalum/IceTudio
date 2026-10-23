@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"icepick/internal/skills"
+	"icetudio/internal/skills"
 )
 
 func TestLocalMCPToolDiscoveryAndCall(t *testing.T) {

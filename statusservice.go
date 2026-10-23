@@ -1,12 +1,10 @@
 package main
 
 import (
-	"encoding/base64"
-
-	"icepick/internal/app"
-	"icepick/internal/config"
-	"icepick/internal/skills"
-	"icepick/internal/storage"
+	"icetudio/internal/app"
+	"icetudio/internal/config"
+	"icetudio/internal/skills"
+	"icetudio/internal/storage"
 )
 
 // StatusService is the Wails binding surface. It owns no run state: every
@@ -22,33 +20,28 @@ func (s *StatusService) SaveModelConfig(next config.Model) (AppStatus, error) {
 	return s.svc.SaveModelConfig(next)
 }
 
-// ListProfiles returns every profile (the shareable, versioned combinations),
-// built-in default first.
-func (s *StatusService) ListProfiles() ([]storage.Profile, error) {
-	return s.svc.ListProfiles()
+// ListRuntimeConfigs returns every RuntimeConfig (执行配置; the shareable,
+// versioned combinations), built-in default first.
+func (s *StatusService) ListRuntimeConfigs() ([]storage.RuntimeConfig, error) {
+	return s.svc.ListRuntimeConfigs()
 }
 
-// CreateProfile saves a new profile: blank template when fromID is empty,
-// otherwise an independent copy of the referenced profile.
-func (s *StatusService) CreateProfile(name, fromID string) (storage.Profile, error) {
-	return s.svc.CreateProfile(name, fromID)
+// CreateRuntimeConfig saves a new config: blank when fromID is empty,
+// otherwise an independent copy of the referenced config.
+func (s *StatusService) CreateRuntimeConfig(name, fromID string) (storage.RuntimeConfig, error) {
+	return s.svc.CreateRuntimeConfig(name, fromID)
 }
 
-// UpdateProfile saves a new combination atomically and checks that the
+// UpdateRuntimeConfig saves a new combination atomically and checks that the
 // selected skills and MCP servers actually exist on this host.
-func (s *StatusService) UpdateProfile(p storage.Profile) (storage.Profile, error) {
-	return s.svc.UpdateProfile(p)
+func (s *StatusService) UpdateRuntimeConfig(c storage.RuntimeConfig) (storage.RuntimeConfig, error) {
+	return s.svc.UpdateRuntimeConfig(c)
 }
 
-// RestoreProfileDefault resets the built-in default profile to the shipped
-// combination.
-func (s *StatusService) RestoreProfileDefault(revision int) (storage.Profile, error) {
-	return s.svc.RestoreProfileDefault(revision)
-}
-
-// DeleteProfile archives a profile while preserving existing history.
-func (s *StatusService) DeleteProfile(id string) error {
-	return s.svc.DeleteProfile(id)
+// RestoreRuntimeConfigDefault resets the built-in default config (执行配置)
+// to the shipped combination.
+func (s *StatusService) RestoreRuntimeConfigDefault(revision int) (storage.RuntimeConfig, error) {
+	return s.svc.RestoreRuntimeConfigDefault(revision)
 }
 
 // ListMessages returns the display projection of a session: persisted
@@ -117,32 +110,6 @@ func (s *StatusService) PendingStreamText(runID string) (string, error) {
 	return s.svc.PendingStreamText(runID)
 }
 
-// ListMemories returns one context's long-term memories, newest first.
-func (s *StatusService) ListMemories(contextID string) ([]storage.Memory, error) {
-	return s.svc.ListMemories(contextID)
-}
-
-// AddMemory records a user-authored memory for the agent.
-func (s *StatusService) AddMemory(contextID, content string) (storage.Memory, error) {
-	return s.svc.AddMemory(contextID, content)
-}
-
-// UpdateMemory edits the content of one memory.
-func (s *StatusService) UpdateMemory(contextID, id, content string) (storage.Memory, error) {
-	return s.svc.UpdateMemory(contextID, id, content)
-}
-
-// DeleteMemory removes one memory after the user's explicit decision.
-func (s *StatusService) DeleteMemory(contextID, id string) error {
-	return s.svc.DeleteMemory(contextID, id)
-}
-
-// ExportMemories renders the context's memory as a portable markdown document
-// that keeps the source and scope annotations.
-func (s *StatusService) ExportMemories(contextID string) (string, error) {
-	return s.svc.ExportMemories(contextID)
-}
-
 // GetSessionSummary returns the session's compaction summary with its
 // covered range and scope; an absent summary is an error.
 func (s *StatusService) GetSessionSummary(sessionID string) (storage.SessionSummary, error) {
@@ -199,7 +166,7 @@ func (s *StatusService) ListSkills() ([]app.SkillInfo, error) {
 }
 
 // ReadHostLogs returns the recent lines of the host log, oldest first —
-// the desktop counterpart of `icepick logs`.
+// the desktop counterpart of `icetudio logs`.
 func (s *StatusService) ReadHostLogs(limit int) ([]string, error) {
 	return s.svc.ReadHostLogs(limit)
 }
@@ -231,60 +198,8 @@ func (s *StatusService) PendingApprovals(contextID string) ([]storage.ToolCall, 
 	return s.svc.PendingApprovals(contextID)
 }
 
-// ExportProfile bundles one profile into a zip share package (base64).
-// Identity, policy, sessions, memories, credentials and approvals never
-// enter the package; the pinned delegation target is stripped.
-func (s *StatusService) ExportProfile(profileID string) (app.ExportResult, error) {
-	return s.svc.ExportProfile(profileID)
-}
-
-// PreviewProfileImport parses a share package (base64) and reports the
-// combination it would create plus its missing dependencies and
-// authorization recommendations.
-func (s *StatusService) PreviewProfileImport(dataBase64 string) (app.ImportPreview, error) {
-	raw, err := base64.StdEncoding.DecodeString(dataBase64)
-	if err != nil {
-		return app.ImportPreview{}, err
-	}
-	return s.svc.PreviewProfileImport(raw)
-}
-
-// ImportProfile creates a new profile from a share package (base64). It
-// never creates or switches contexts, never installs resources and never
-// grants authorization.
-func (s *StatusService) ImportProfile(dataBase64 string) (app.ImportResult, error) {
-	raw, err := base64.StdEncoding.DecodeString(dataBase64)
-	if err != nil {
-		return app.ImportResult{}, err
-	}
-	profile, preview, err := s.svc.ImportProfile(raw)
-	if err != nil {
-		return app.ImportResult{}, err
-	}
-	return app.ImportResult{Profile: profile, Preview: preview}, nil
-}
-
 func (s *StatusService) CancelTask(id string) error {
 	return s.svc.CancelTask(id)
-}
-
-func (s *StatusService) StartProfileDraft(sessionID, target, request string, evidenceIDs []string) (storage.Run, error) {
-	return s.svc.StartProfileDraft(sessionID, target, request, evidenceIDs)
-}
-func (s *StatusService) ListProfileDrafts() ([]storage.ProfileDraft, error) {
-	return s.svc.ListProfileDrafts()
-}
-func (s *StatusService) EditProfileDraft(id string, revision int, proposal storage.ProfileProposal) (storage.ProfileDraft, error) {
-	return s.svc.EditProfileDraft(id, revision, proposal)
-}
-func (s *StatusService) ApplyProfileDraft(id string, revision int) (storage.Profile, error) {
-	return s.svc.ApplyProfileDraft(id, revision)
-}
-func (s *StatusService) DiscardProfileDraft(id string, revision int) error {
-	return s.svc.DiscardProfileDraft(id, revision)
-}
-func (s *StatusService) RevertProfileDraft(id string, revision int) (storage.Profile, error) {
-	return s.svc.RevertProfileDraft(id, revision)
 }
 
 func (s *StatusService) StartSkillDraft(sessionID, sourceName, request string, evidenceIDs []string) (storage.Run, error) {

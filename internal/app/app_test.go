@@ -3,17 +3,17 @@ package app
 import (
 	"context"
 	"errors"
-	"icepick/internal/testfixture"
+	"icetudio/internal/testfixture"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"icepick/internal/agent"
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/skills"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/skills"
+	"icetudio/internal/storage"
 )
 
 // scriptModel answers according to a script and records every history it is
@@ -190,7 +190,7 @@ func TestRestartRebuildsSameStructuredHistory(t *testing.T) {
 			for i, w := range want {
 				got := messages[i]
 				if w.role == "system" {
-					if !strings.Contains(got.Content, "ICEPick") {
+					if !strings.Contains(got.Content, "IceTudio") {
 						t.Fatalf("history[%d] system prompt missing: %+v", i, got)
 					}
 					continue

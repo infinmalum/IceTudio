@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"icepick/internal/ipc"
-	"icepick/internal/storage"
+	"icetudio/internal/ipc"
+	"icetudio/internal/storage"
 )
 
 func cmdTasks(client *ipc.Client, args []string) int {
@@ -267,8 +267,8 @@ func waitTask(client *ipc.Client, sessionID, runID string, prompt approvalPrompt
 }
 
 func printRun(run storage.Run) {
-	fmt.Printf("run %s\n状态: %s\n错误: %s\nProfile: %s (v%d)\n深度: %d\n开始: %s\n更新: %s\n",
-		run.ID, run.Status, run.Error, run.ProfileID, run.ProfileRevision, run.Depth, run.CreatedAt, run.UpdatedAt)
+	fmt.Printf("run %s\n状态: %s\n错误: %s\n执行配置: %s (v%d)\n深度: %d\n开始: %s\n更新: %s\n",
+		run.ID, run.Status, run.Error, run.ConfigID, run.ConfigRevision, run.Depth, run.CreatedAt, run.UpdatedAt)
 }
 
 // printChildRuns queries the component tree by each parent run ID.

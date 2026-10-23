@@ -3,12 +3,12 @@ package app
 import (
 	"context"
 	"errors"
-	"icepick/internal/agent"
-	"icepick/internal/config"
-	"icepick/internal/mcptools"
-	"icepick/internal/model"
-	"icepick/internal/storage"
-	"icepick/internal/testfixture"
+	"icetudio/internal/agent"
+	"icetudio/internal/config"
+	"icetudio/internal/mcptools"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
+	"icetudio/internal/testfixture"
 	"testing"
 )
 
@@ -19,16 +19,16 @@ func TestRunGateUsesSnapshotButLivePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snap, err := store.ResolveRunProfile(ctx, session.ID)
+	snap, err := store.ResolveRunConfig(ctx, session.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	g := toolGate{svc: svc, contextID: snap.ContextID, snapshot: &snap}
-	blank, err := store.CreateProfile(ctx, "blank", storage.BlankProfile())
+	blank, err := store.CreateRuntimeConfig(ctx, "blank", storage.BlankRuntimeConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.SelectConversationProfile(session.ID, blank.ID); err != nil {
+	if _, err := svc.SelectConversationConfig(session.ID, blank.ID); err != nil {
 		t.Fatal(err)
 	}
 	req := agent.ToolRequest{Tool: "local__current_time", Arguments: "{}"}
@@ -83,7 +83,7 @@ func TestTransportFailureBlocksFurtherRuns(t *testing.T) {
 func TestExfilContextIsolationAndPayload(t *testing.T) {
 	svc, store := newTestService(t, &scriptModel{}, &scriptTools{})
 	ctx := context.Background()
-	other, err := testfixture.Context(svc.store, context.Background(), "other", storage.DefaultProfileID)
+	other, err := testfixture.Context(svc.store, context.Background(), "other", storage.DefaultConfigID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestExfilContextIsolationAndPayload(t *testing.T) {
 	if err := store.FinishToolCall(ctx, calls[0].ID, storage.CallFailed, "", "sensitive error", storage.ScopeCredential); err != nil {
 		t.Fatal(err)
 	}
-	snap, _ := testfixture.Profile(store, ctx, testfixture.ContextID)
+	snap, _ := testfixture.RunConfig(store, ctx, testfixture.ContextID)
 	if err := svc.exfilCheck(ctx, session.ID, remote, snap); err == nil {
 		t.Fatal("failed tool data escaped")
 	}
@@ -127,7 +127,7 @@ func TestExfilContextIsolationAndPayload(t *testing.T) {
 	}
 }
 
-func TestLocalContextRestrictionsSurviveProfileSwitch(t *testing.T) {
+func TestLocalContextRestrictionsSurviveConfigSwitch(t *testing.T) {
 	svc, store := newTestService(t, &scriptModel{}, &scriptTools{})
 	session, _ := svc.CreateSession()
 	ctx := context.Background()
@@ -139,14 +139,14 @@ func TestLocalContextRestrictionsSurviveProfileSwitch(t *testing.T) {
 	if _, err := svc.GrantExfil(testfixture.ContextID, remote.BaseURL, []string{storage.ScopePersonal}); err != nil {
 		t.Fatal(err)
 	}
-	p, err := store.CreateProfile(ctx, "new", storage.BlankProfile())
+	p, err := store.CreateRuntimeConfig(ctx, "new", storage.BlankRuntimeConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.SelectConversationProfile(session.ID, p.ID); err != nil {
+	if _, err := svc.SelectConversationConfig(session.ID, p.ID); err != nil {
 		t.Fatal(err)
 	}
-	snap, _ := testfixture.Profile(store, ctx, testfixture.ContextID)
+	snap, _ := testfixture.RunConfig(store, ctx, testfixture.ContextID)
 	if err := svc.exfilCheck(ctx, session.ID, remote, snap); err == nil {
 		t.Fatal("switch discarded prior unknown input")
 	}

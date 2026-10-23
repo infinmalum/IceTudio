@@ -5,64 +5,48 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 
-	"icepick/internal/config"
-	"icepick/internal/skills"
+	"icetudio/internal/config"
+	"icetudio/internal/skills"
 )
 
-type FrozenProfile struct {
+type RuntimeConfigRevision struct {
 	Scopes   []string          `json:"scopes"`
 	ID       string            `json:"id"`
 	Name     string            `json:"name"`
 	Revision int               `json:"revision"`
-	Data     ProfileData       `json:"data"`
+	Data     RuntimeConfigData `json:"data"`
 	Skills   []skills.Snapshot `json:"skills"`
 }
 
 type RunResources struct {
-	Options       ConversationOptions      `json:"options"`
-	SearchTools   []string                 `json:"searchTools"`
-	Grants        map[string]ExfilGrant    `json:"grants"`
-	RootContextID string                   `json:"rootContextId"`
-	Reviewer      FrozenProfile            `json:"reviewer"`
-	Planner       FrozenProfile            `json:"planner"`
-	Root          FrozenProfile            `json:"root"`
-	RootPolicy    ContextPolicy            `json:"rootPolicy"`
-	Workers       map[string]FrozenProfile `json:"workers"`
+	Options       ConversationOptions              `json:"options"`
+	SearchTools   []string                         `json:"searchTools"`
+	Grants        map[string]ExfilGrant            `json:"grants"`
+	RootContextID string                           `json:"rootContextId"`
+	Reviewer      RuntimeConfigRevision            `json:"reviewer"`
+	Planner       RuntimeConfigRevision            `json:"planner"`
+	Root          RuntimeConfigRevision            `json:"root"`
+	RootPolicy    ContextPolicy                    `json:"rootPolicy"`
+	Workers       map[string]RuntimeConfigRevision `json:"workers"`
 }
 
 type SkillSnapshotter func(bool, []string) ([]skills.Snapshot, error)
 
-func validateWorkerReferences(ctx context.Context, tx *sql.Tx, id string, data ProfileData) error {
-	for _, source := range data.Execution.WorkerSources {
-		if source.ProfileID == "" {
-			continue
-		}
-		if source.ProfileID == id {
-			return errors.New("引用自身请使用当前 Profile 的 worker")
-		}
-		if err := activeProfile(ctx, tx, source.ProfileID); err != nil {
-			return fmt.Errorf("worker %q: %w", source.Name, err)
-		}
-	}
-	return nil
-}
-
-func readFrozenProfile(ctx context.Context, tx *sql.Tx, id string) (FrozenProfile, error) {
-	var item FrozenProfile
+func readConfigRevision(ctx context.Context, tx *sql.Tx, id string) (RuntimeConfigRevision, error) {
+	var item RuntimeConfigRevision
 	var raw string
-	err := tx.QueryRowContext(ctx, `SELECT id,name,revision,config FROM profiles WHERE id=? AND archived_at IS NULL`, id).Scan(&item.ID, &item.Name, &item.Revision, &raw)
+	err := tx.QueryRowContext(ctx, `SELECT id,name,revision,config FROM runtime_configs WHERE id=? AND archived_at IS NULL`, id).Scan(&item.ID, &item.Name, &item.Revision, &raw)
 	if err == nil {
 		err = json.Unmarshal([]byte(raw), &item.Data)
 	}
 	if err == nil {
-		item.Scopes, err = profileScopesInTx(ctx, tx, item.ID, item.Revision)
+		item.Scopes, err = configScopesInTx(ctx, tx, item.ID, item.Revision)
 	}
 	return item, err
 }
 
-func freezeSkills(item *FrozenProfile, snapshot SkillSnapshotter) error {
+func freezeSkills(item *RuntimeConfigRevision, snapshot SkillSnapshotter) error {
 	if snapshot == nil || !item.Data.AllowsTool("local__load_skill") {
 		item.Skills = []skills.Snapshot{}
 		return nil
@@ -74,10 +58,10 @@ func freezeSkills(item *FrozenProfile, snapshot SkillSnapshotter) error {
 
 // Worker capabilities cannot exceed the root's common candidate selection.
 // The main component may be narrower (for example delegation-only).
-func WorkerProjection(root, source ProfileData) (ProfileData, error) {
+func WorkerProjection(root, source RuntimeConfigData) (RuntimeConfigData, error) {
 	child, err := source.ResolveComponent("worker")
 	if err != nil {
-		return ProfileData{}, err
+		return RuntimeConfigData{}, err
 	}
 	if !root.AllMCPServers {
 		if child.AllMCPServers {
@@ -108,7 +92,6 @@ func WorkerProjection(root, source ProfileData) (ProfileData, error) {
 		}
 		child.AllSkills = false
 	}
-	child.MemoryEnabled = false
 	child.PlanEnabled = false
 	child.Delegation = DelegationPolicy{MaxSeconds: root.Delegation.MaxSeconds}
 	child.Execution = Execution{Workflow: "direct"}
@@ -129,12 +112,12 @@ func intersectStrings(a, b []string) []string {
 	return out
 }
 
-func captureRunResources(ctx context.Context, tx *sql.Tx, root FrozenProfile, contextID string, policy ContextPolicy, defaultModel config.Model, snapshot SkillSnapshotter, role string) (RunResources, error) {
-	resources := RunResources{RootContextID: contextID, RootPolicy: policy, Workers: map[string]FrozenProfile{}}
+func captureRunResources(ctx context.Context, tx *sql.Tx, root RuntimeConfigRevision, contextID string, policy ContextPolicy, defaultModel config.Model, snapshot SkillSnapshotter, role string) (RunResources, error) {
+	resources := RunResources{RootContextID: contextID, RootPolicy: policy, Workers: map[string]RuntimeConfigRevision{}}
 	rawRoot := root.Data
 	// Bound retained content while capturing, before allocating the final JSON.
 	snapshotBytes := 0
-	captureSkills := func(item *FrozenProfile) error {
+	captureSkills := func(item *RuntimeConfigRevision) error {
 		if err := freezeSkills(item, snapshot); err != nil {
 			return err
 		}
@@ -169,7 +152,7 @@ func captureRunResources(ctx context.Context, tx *sql.Tx, root FrozenProfile, co
 		if planned.Model.Provider == "" {
 			planned.Model = defaultModel
 		}
-		resources.Planner = FrozenProfile{ID: root.ID, Name: root.Name, Revision: root.Revision, Data: planned, Scopes: root.Scopes}
+		resources.Planner = RuntimeConfigRevision{ID: root.ID, Name: root.Name, Revision: root.Revision, Data: planned, Scopes: root.Scopes}
 	}
 	if role == "main" && rawRoot.Execution.Review.Mode != "" && rawRoot.Execution.Review.Mode != "off" {
 		reviewed, err := rawRoot.ResolveComponent("reviewer")
@@ -179,23 +162,17 @@ func captureRunResources(ctx context.Context, tx *sql.Tx, root FrozenProfile, co
 		if reviewed.Model.Provider == "" {
 			reviewed.Model = defaultModel
 		}
-		resources.Reviewer = FrozenProfile{ID: root.ID, Name: root.Name, Revision: root.Revision, Data: reviewed, Scopes: root.Scopes}
+		resources.Reviewer = RuntimeConfigRevision{ID: root.ID, Name: root.Name, Revision: root.Revision, Data: reviewed, Scopes: root.Scopes}
 	}
 	workerSlots := rawRoot.Execution.WorkerSources
 	if role == "improver" {
 		workerSlots = nil
 	}
 	for _, slot := range workerSlots {
-		item := FrozenProfile{ID: root.ID, Name: root.Name, Revision: root.Revision, Data: rawRoot, Scopes: root.Scopes}
+		item := RuntimeConfigRevision{ID: root.ID, Name: root.Name, Revision: root.Revision, Data: rawRoot, Scopes: root.Scopes}
 		if slot.Configuration != nil {
-			item.Data = slot.Configuration.ProfileData()
+			item.Data = slot.Configuration.ConfigData()
 			item.Name = slot.Configuration.Name
-		}
-		if slot.ProfileID != "" {
-			item, err = readFrozenProfile(ctx, tx, slot.ProfileID)
-			if err != nil {
-				return resources, fmt.Errorf("冻结 worker %q: %w", slot.Name, err)
-			}
 		}
 		item.Data, err = WorkerProjection(rawRoot, item.Data)
 		if err != nil {

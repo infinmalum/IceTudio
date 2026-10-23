@@ -1,0 +1,164 @@
+{
+  "date": "2026-10-17",
+  "scope": "P2 tempo/meter map forms and absolute measure ruler; not full P2 or native acceptance",
+  "environment": {
+    "os": "Linux amd64",
+    "node": "v26.11.1",
+    "browser": {
+      "cpu": "AMD Ryzen 7 7735H with Radeon Graphics",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "browser": "Chrome/154.0.8037.97"
+    }
+  },
+  "changes": [
+    "All supported tempo/meter points editable via the existing atomic command service and shared undo/redo",
+    "Modal draft freezes project/revision; dirty close/Escape requires explicit discard; stale submit preserves inputs",
+    "Original unmodified tempo microseconds preserved; forms page 24 points per map",
+    "Project-absolute bar/beat ruler supports mid-bar meter changes, denominator-based beats and fractional tick boundaries",
+    "Ruler follows clip origin, page, scroll, toolbar/vendor slider and Ctrl-wheel zoom",
+    "Numeric input keeps a single frozen revision and latest input through input-before-focus and synchronous Enter blur"
+  ],
+  "checks": [
+    {
+      "command": "npm run test:music --prefix frontend",
+      "result": "pass",
+      "count": 7,
+      "scope": "Actual TypeScript music calculations, max tick and fractional tick behavior; dense 7000+7000 map points tested as bounded marker data, not browser DOM performance"
+    },
+    {
+      "command": "env ICETUDIO_MUSIC_BROWSER=1 go test ./internal/app -run '^TestMusicEditorBrowser$' -count=1 -v",
+      "result": "pass",
+      "source": ".cache/browser/music/run-2643812018/results.json",
+      "scope": "Real React and Go/SQLite project bridge; Wails and playback facade remain mocked",
+      "report": {
+        "checks": [
+          "External committed edits refresh the UI",
+          "Transport UI play/stop/seek/loop and device error handling (mock audio)",
+          "Tempo/meter forms commit atomically, preserve untouched precision and note/control data",
+          "Undo restores both time maps together",
+          "Ruler follows 4/4 to 6/8 to 5/8 changes",
+          "Ruler labels accept hover inspection while pointer input stays read-only",
+          "Invalid time-map input leaves the project untouched",
+          "Closing a dirty map requires explicit discard and cancellation preserves inputs",
+          "Replacement form edits the initial tempo and meter without losing later points",
+          "Time-map draft freezes its revision and does not overwrite a background edit",
+          "Ruler absolute tick origin aligns with note positions",
+          "Ruler remains aligned after horizontal scroll",
+          "Ruler remains aligned after zoom",
+          "Ctrl-wheel zoom keeps the ruler and host zoom control synchronized",
+          "Nonzero clip start uses absolute project meter positions",
+          "A clip at the maximum map tick still has a ruler extending beyond that tick",
+          "Numeric Enter commits preserve the focus revision and reject concurrent edits",
+          "Real mouse move commits to SQLite",
+          "Shared undo/redo refreshes the editor",
+          "Real resize commits duration",
+          "MIDI velocity preserves controllers",
+          "Selection, copy, atomic deletion and undo",
+          "Gesture freezes revision and rejects conflicts",
+          "Escape cancels without committing",
+          "Empty-row click adds a note",
+          "Arrow key submits one atomic selected-note batch",
+          "Composition/input events do not edit notes",
+          "Zoom does not change the project revision",
+          "Boundary resize atomically extends the clip",
+          "Ruler page offset follows absolute tick for 1000 notes",
+          "Ruler page offset follows absolute tick for 10000 notes",
+          "1k/10k spread-out notes mount at most 64 notes per page",
+          "Lost commit reply is resolved without replay",
+          "Unknown outcome retains a queryable operation ID",
+          "Delayed project reads and drag unmount cannot retarget edits",
+          "Remounted editor centers on its first note",
+          "React remount restores a single editor",
+          "Large time maps mount only 24 form rows per map page",
+          "Paginated edits and point deletion preserve hidden rows and exact values"
+        ],
+        "errors": [],
+        "timings": [
+          {
+            "count": 1000,
+            "mounted": 64,
+            "serviceCommitAndRefreshMs": 124.63851299999988,
+            "projectionMs": 9.699999999254942,
+            "pageFlipMs": 109.40503300000091
+          },
+          {
+            "count": 10000,
+            "mounted": 64,
+            "serviceCommitAndRefreshMs": 188.8010830000003,
+            "projectionMs": 9.600000001490116,
+            "pageFlipMs": 105.06695600000057
+          }
+        ],
+        "environment": {
+          "cpu": "AMD Ryzen 7 7735H with Radeon Graphics",
+          "viewport": [
+            1440,
+            1000
+          ],
+          "browser": "Chrome/154.0.8037.97"
+        }
+      }
+    },
+    {
+      "command": "node frontend/e2e/product.mjs",
+      "result": "pass",
+      "scope": "Existing product flows with a mock backend; corrected mock Blank to include required tick-0 tempo and meter points, matching project.Blank"
+    },
+    {
+      "command": "npm run build --prefix frontend",
+      "result": "pass",
+      "scope": "TypeScript and frontend production compile; latest source also rebuilt by Wails"
+    },
+    {
+      "command": "go test ./...",
+      "result": "pass",
+      "scope": "Current Go package regression; backend code unchanged in this tranche"
+    },
+    {
+      "command": "wails3 task build",
+      "result": "pass",
+      "artifact": "bin/icetudio",
+      "scope": "Linux desktop compilation/link only; native window behavior not established"
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass",
+      "scope": "Tracked diff; new implementation files separately checked for whitespace and related local documentation links"
+    }
+  ],
+  "observedDuringDevelopment": [
+    "Extended tests exposed numeric blur using an earlier render value/revision when input preceded focusin. Latest-input refs with once-per-edit revision capture now pass Enter and background conflict checks.",
+    "The existing product mock used empty tempo/meter arrays, causing a new missing-time-map alert to mask its unrelated alert assertion. Corrected only the mock Blank shape to match the actual Go constructor; product assertions retained.",
+    "Dense ruler labels are thinned; nearby tempo/meter changes are grouped with counts/ranges, while forms retain all points.",
+    "npm still warns about existing minimum-release-age project configuration; builds exit successfully."
+  ],
+  "notVerified": [
+    "Native Wails WebView interaction and modal focus on a physical desktop",
+    "Native application close/crash protection or recovery of an unsubmitted map form",
+    "Dense-map or dense-note native frame rate, memory and long-run performance",
+    "Physical audio timing, device loss/switching, listening quality or actual model edits in this tranche"
+  ],
+  "remainingP2": [
+    "Arrangement canvas and full native offline creation workflow",
+    "Native close draft protection and recovery",
+    "CC66/RPN/NRPN and other ordered-controller seek/loop reconstruction",
+    "Physical latency/device failure, high-load playback and clean install acceptance"
+  ],
+  "documentationReview": {
+    "files": [
+      "IMPLEMENTATION_PLAN.md",
+      "README.md",
+      "docs/architecture.md",
+      "docs/p2-midi-editor.md",
+      "docs/p2-time-map.md"
+    ],
+    "scope": "Current tranche boundaries, replaced initial-only form/fixed ruler descriptions, no storage/schema/runtime deletion, completed versus unverified claims",
+    "limits": "No repository-wide documentation audit; no native or musical quality acceptance"
+  },
+  "notImplemented": [
+    "Native host close protection and persistence/recovery for an unsubmitted time-map modal; modal guards only ordinary close/Escape and normal UI navigation"
+  ]
+}

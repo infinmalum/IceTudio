@@ -10,7 +10,7 @@ import (
 
 // Fixed stages are configuration, never model-maintained plans. All stages are
 // required; an explicit input prompt gates execution until the user answers.
-func validateFixedWorkflow(data ProfileData) error {
+func validateFixedWorkflow(data RuntimeConfigData) error {
 	e := data.Execution
 	if len(e.Stages) == 0 && e.Workflow != "fixed" {
 		return nil

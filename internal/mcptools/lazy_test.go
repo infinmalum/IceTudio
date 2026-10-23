@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"icepick/internal/config"
+	"icetudio/internal/config"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,10 +14,10 @@ import (
 )
 
 func TestMCPProcessHelper(t *testing.T) {
-	if os.Getenv("ICEPICK_TEST_MCP") != "1" {
+	if os.Getenv("ICETUDIO_TEST_MCP") != "1" {
 		return
 	}
-	f, err := os.OpenFile(os.Getenv("ICEPICK_TEST_MARKER"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(os.Getenv("ICETUDIO_TEST_MARKER"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		os.Exit(2)
 	}
@@ -38,9 +38,9 @@ func TestMCPProcessHelper(t *testing.T) {
 }
 
 func TestLazySelectedMCPStartsOnceAndTransportUnknown(t *testing.T) {
-	t.Setenv("ICEPICK_TEST_MCP", "1")
+	t.Setenv("ICETUDIO_TEST_MCP", "1")
 	marker := filepath.Join(t.TempDir(), "starts")
-	t.Setenv("ICEPICK_TEST_MARKER", marker)
+	t.Setenv("ICETUDIO_TEST_MARKER", marker)
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func TestLazySelectedMCPStartsOnceAndTransportUnknown(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer h.Close()
-	err = h.Configure([]config.MCPServer{{Name: "test", Command: exe, Args: []string{"-test.run=^TestMCPProcessHelper$"}, Env: []string{"ICEPICK_TEST_MCP", "ICEPICK_TEST_MARKER"}}, {Name: "unused", Command: "/no/such/program"}})
+	err = h.Configure([]config.MCPServer{{Name: "test", Command: exe, Args: []string{"-test.run=^TestMCPProcessHelper$"}, Env: []string{"ICETUDIO_TEST_MCP", "ICETUDIO_TEST_MARKER"}}, {Name: "unused", Command: "/no/such/program"}})
 	if err != nil {
 		t.Fatal(err)
 	}

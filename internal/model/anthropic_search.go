@@ -9,7 +9,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 func anthropicSearchResult(message anthropic.Message) (ChatResponse, error) {

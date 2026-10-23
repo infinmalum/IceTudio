@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/base64"
-	"icepick/internal/materials"
+	"icetudio/internal/materials"
 	"path/filepath"
 	"testing"
 )

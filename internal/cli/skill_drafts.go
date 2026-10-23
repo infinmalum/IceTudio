@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"icepick/internal/ipc"
-	"icepick/internal/skills"
-	"icepick/internal/storage"
+	"icetudio/internal/ipc"
+	"icetudio/internal/skills"
+	"icetudio/internal/storage"
 	"io"
 	"os"
 	"strconv"
+	"strings"
 )
 
 func cmdSkillDrafts(client *ipc.Client, args []string) int {
@@ -115,4 +116,17 @@ func cmdSkillDrafts(client *ipc.Client, args []string) int {
 		return usage("未知Skill草案子命令")
 	}
 	return 0
+}
+
+// draftEvidenceIDs splits the --evidence flag into run IDs; empty input means
+// no explicit evidence was given.
+func draftEvidenceIDs(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	out := strings.Split(value, ",")
+	for i := range out {
+		out[i] = strings.TrimSpace(out[i])
+	}
+	return out
 }

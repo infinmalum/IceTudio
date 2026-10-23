@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Workspace } from "../hooks/useWorkspace";
 import type { ConversationState } from "../hooks/useConversation";
-import type { Profiles } from "../hooks/useProfiles";
+import type { Configs } from "../hooks/useConfigs";
 import type { RuntimeSettings } from "../hooks/useRuntimeSettings";
 import { TaskProgress } from "./TaskProgress";
 import { ToolApprovals } from "./ToolApprovals";
@@ -10,7 +10,7 @@ import { SearchRecords } from "./SearchRecords";
 import { ConversationProfile } from "./ConversationProfile";
 import { ErrorNotice, stateLabel } from "../shared/errors";
 import { useDialog } from "../shared/dialogs";
-import { StatusService } from "../../bindings/icepick";
+import { StatusService } from "../../bindings/icetudio";
 function Thumb({ file }: { file: File }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
@@ -28,19 +28,17 @@ function Thumb({ file }: { file: File }) {
 export function ConversationPanel({
   workspace: w,
   conversation: c,
-  profileState: p,
+  configState: p,
   runtime: r,
   openModel,
   openAssistants,
-  onImprove,
 }: {
   workspace: Workspace;
   conversation: ConversationState;
-  profileState: Profiles;
+  configState: Configs;
   runtime: RuntimeSettings;
   openModel: () => void;
   openAssistants: () => void;
-  onImprove?: () => void;
 }) {
   const activeSession = useRef(w.selected);
   activeSession.current = w.selected;
@@ -62,14 +60,14 @@ export function ConversationPanel({
   const disabled =
     c.sending ||
     c.loadingSession ||
-    c.profileSwitchBusy ||
+    c.configSwitchBusy ||
     w.creating ||
     !!c.activeRun ||
     w.activeConversation?.kind === "delegation" ||
     !w.selected ||
     !r.status?.storageReady ||
     (!r.status.runtimeReady && !continuation) ||
-    (!continuation && w.activeConversation?.profileArchived) ||
+    (!continuation && w.activeConversation?.configArchived) ||
     (!c.prompt.trim() &&
       !c.attachments.length &&
       (!continuation || !!c.taskGraph?.waitingTaskId));
@@ -129,7 +127,7 @@ export function ConversationPanel({
         <ConversationProfile
           workspace={w}
           conversation={c}
-          profileState={p}
+          configState={p}
           openAssistants={openAssistants}
         />
         <button className="model-switch secondary" onClick={openModel}>
@@ -141,7 +139,7 @@ export function ConversationPanel({
           <Transcript conversation={c} />
           <ToolApprovals conversation={c} />
           <SearchRecords conversation={c} />
-          <TaskProgress conversation={c} onImprove={onImprove} />
+          <TaskProgress conversation={c} />
           <ErrorNotice error={c.taskError || folderError} />
           {run && ["failed", "blocked"].includes(run.status) && (
             <ErrorNotice error={run.error} />
@@ -154,7 +152,7 @@ export function ConversationPanel({
             正在创建新对话…
           </p>
         )}
-        {c.profileSwitchBusy && (
+        {c.configSwitchBusy && (
           <p className="hint" role="status">
             正在切换助手…
           </p>
@@ -171,7 +169,7 @@ export function ConversationPanel({
             <button onClick={openModel}>连接模型</button>
           </div>
         )}
-        {w.activeConversation?.profileArchived && (
+        {w.activeConversation?.configArchived && (
           <p className="hint">这个助手已删除，请在顶部选择另一个助手继续。</p>
         )}
         {continuation && (

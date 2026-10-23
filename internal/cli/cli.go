@@ -1,4 +1,4 @@
-// Package cli is the command-line client of the running ICEPick host. It
+// Package cli is the command-line client of the running IceTudio host. It
 // owns no run state: every command goes over IPC to the same application
 // service the desktop UI drives, so approvals, ownership checks and the
 // exfiltration gate behave identically in both frontends.
@@ -12,9 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"icepick/internal/app"
-	"icepick/internal/host"
-	"icepick/internal/ipc"
+	"icetudio/internal/app"
+	"icetudio/internal/config"
+	"icetudio/internal/host"
+	"icetudio/internal/ipc"
 )
 
 // Run dispatches one CLI invocation and returns the process exit code.
@@ -31,7 +32,7 @@ func Run(args []string) int {
 	case "help", "-h", "--help":
 		return usage("")
 	case "-v", "--version":
-		fmt.Println("ICEPick CLI (host protocol", ipc.ProtocolVersion, ")")
+		fmt.Println("IceTudio CLI (host protocol", ipc.ProtocolVersion, ")")
 		return 0
 	}
 	client, code := connect()
@@ -51,26 +52,22 @@ func usage(errDetail string) int {
 		code = 2
 	}
 	fmt.Fprintln(out, `用法：
-  icepick serve                    启动无头宿主（含 IPC；桌面端同时内置）
-  icepick status                   查看宿主与模型状态
-  icepick profiles draft <对话ID> <需求> [--target <ProfileID>] [--evidence <runID,runID>]
-  icepick skill-drafts generate <对话ID> <需求> [--source <Skill名称>] [--evidence <runID,runID>]
-  icepick skill-drafts list | show <ID> | edit <ID> <proposal.json> --revision N | apply|discard|withdraw <ID> --revision N
-  icepick profiles drafts list | show <ID> | edit <ID> <proposal.json> --revision N | apply|discard|revert <ID> --revision N
-  icepick templates list | show <模板ID> | create <模板ID> [名称]
-  icepick conversations list | create --profile <id> [--reuse <对话ID>]
-  icepick conversations select <对话ID> --profile <id>
-  icepick conversations start <对话ID> <任务内容…> [--wait] | show <对话ID>
-  icepick conversations search <对话ID> [on|off|records]
-  icepick conversations permissions <对话ID> [--mode semi] [--workspace <路径>] [--command <可执行文件>]
-  icepick profiles list | create <名称> [--from <id>] | copy <id> <新名称>
-  icepick profiles edit <id> [--name N] [--description D] [--prompt P] [--model 提供方/模型ID] [--budget N]
-  icepick profiles restore | delete <id> [--replace <ProfileID> | --restore-workers]
-  icepick profiles export <id> [--out <文件.zip>] [--include-workers] [--reviewed] | import <包.zip|目录> [--yes]
-  icepick tasks status <runID> | review <sessionID> <runID> | cancel <runID>
-  icepick approvals list [--context <contextID>] | approve <callID> | deny <callID> [原因]
-  icepick memory list <contextID> | add <contextID> <内容…> | edit <contextID> <id> <内容…> | delete <contextID> <id> | export <contextID> [--out <文件>]
-  icepick logs [行数]`)
+  icetudio serve                    启动无头宿主（含 IPC；桌面端同时内置）
+  icetudio status                   查看宿主与模型状态
+  icetudio skill-drafts generate <对话ID> <需求> [--source <Skill名称>] [--evidence <runID,runID>]
+  icetudio skill-drafts list | show <ID> | edit <ID> <proposal.json> --revision N | apply|discard|withdraw <ID> --revision N
+  icetudio conversations list | create [--reuse <对话ID>]
+  icetudio conversations start <对话ID> <任务内容…> [--wait] | show <对话ID>
+  icetudio conversations search <对话ID> [on|off|records]
+  icetudio conversations permissions <对话ID> [--mode semi] [--workspace <路径>] [--command <可执行文件>]
+  icetudio tasks status <runID> | review <sessionID> <runID> | cancel <runID>
+  icetudio config list | show [--id <配置ID>] | update --file <配置JSON文件> | restore-default
+  icetudio projects list | show <ID> | create [--title <名称>] [--ppq N] | delete <ID>
+  icetudio projects edit <ID> --file <ops.json> --op-id <唯一ID> | undo|redo <ID> --op-id <唯一ID>
+  icetudio projects transaction <ID> <opId> | history <ID> | import <MIDI文件> | export <ID> <MIDI文件>
+  icetudio projects bind <对话ID> <工程ID|off>
+  icetudio approvals list [--context <contextID>] | approve <callID> | deny <callID> [原因]
+  icetudio logs [行数]`)
 	return code
 }
 
@@ -93,7 +90,7 @@ func serve(args []string) int {
 		return 1
 	}
 	defer server.Close()
-	fmt.Println("ICEPick 宿主已启动（数据目录", h.DataDir(), "）；Ctrl+C 退出。")
+	fmt.Println("IceTudio 宿主已启动（数据目录", h.DataDir(), "）；Ctrl+C 退出。")
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -113,7 +110,7 @@ func connect() (*ipc.Client, int) {
 	client, err := ipc.Connect(dataDir, 2*time.Second)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, "提示：先运行 `icepick serve`（或桌面端）再执行 CLI 命令。")
+		fmt.Fprintln(os.Stderr, "提示：先运行 `icetudio serve`（或桌面端）再执行 CLI 命令。")
 		return nil, 1
 	}
 	return client, 0
@@ -123,20 +120,18 @@ func dispatch(client *ipc.Client, args []string) int {
 	switch args[0] {
 	case "conversations":
 		return cmdConversations(client, args[1:])
-	case "templates":
-		return cmdTemplates(client, args[1:])
 	case "status":
 		return cmdStatus(client)
 	case "skill-drafts":
 		return cmdSkillDrafts(client, args[1:])
-	case "profiles":
-		return cmdProfiles(client, args[1:])
 	case "tasks":
 		return cmdTasks(client, args[1:])
+	case "config":
+		return cmdConfig(client, args[1:])
+	case "projects":
+		return cmdProjects(client, args[1:])
 	case "approvals":
 		return cmdApprovals(client, args[1:])
-	case "memory":
-		return cmdMemory(client, args[1:])
 	case "logs":
 		return cmdLogs(args[1:])
 	case "events":
@@ -160,6 +155,51 @@ func cmdEvents(client *ipc.Client) int {
 		return 1
 	}
 	return 0
+}
+
+// dataDir resolves and creates the user's data directory; the CLI needs it to
+// find the IPC socket and the host log file.
+func dataDir() (string, error) {
+	paths, err := config.DefaultPaths()
+	if err != nil {
+		return "", err
+	}
+	if err := config.EnsureDirs(paths); err != nil {
+		return "", fmt.Errorf("初始化数据目录失败: %w", err)
+	}
+	return paths.Data, nil
+}
+
+func cmdStatus(client *ipc.Client) int {
+	var status app.AppStatus
+	if err := client.Call("status", nil, &status); err != nil {
+		fmt.Fprintln(os.Stderr, "status:", err)
+		return 1
+	}
+	fmt.Printf("存储: %s\nAgent: %s\n模型: %s\n提供方: %s\n模型地址: %s\n模型 ID: %s\n",
+		boolText(status.StorageReady, "已就绪", "异常"),
+		boolText(status.RuntimeReady, "已就绪", "未配置"),
+		boolText(status.ModelConnected, "已连接", "未连接"),
+		status.Model.Provider, status.Model.EffectiveBaseURL(), status.Model.Name)
+	if status.Message != "" {
+		fmt.Println("消息:", status.Message)
+	}
+	if len(status.AvailableModels) > 0 {
+		fmt.Println("可见模型:", strings.Join(status.AvailableModels, "、"))
+	}
+	return 0
+}
+
+func boolText(value bool, whenTrue, whenFalse string) string {
+	if value {
+		return whenTrue
+	}
+	return whenFalse
+}
+
+func fail(operation string, err error) int {
+	fmt.Fprintf(os.Stderr, "%s 失败: %v\n", operation, err)
+	return 1
 }
 
 func printTable(rows [][]string) {

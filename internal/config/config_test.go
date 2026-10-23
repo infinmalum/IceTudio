@@ -66,7 +66,7 @@ func TestModelAddressMustBeLocal(t *testing.T) {
 
 func TestPathsFollowRealExecutableInsteadOfUserOrWorkingDirectory(t *testing.T) {
 	root := t.TempDir()
-	executable := filepath.Join(root, "icepick")
+	executable := filepath.Join(root, "icetudio")
 	if err := os.WriteFile(executable, []byte("test"), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestPathsFollowRealExecutableInsteadOfUserOrWorkingDirectory(t *testing.T) 
 			t.Fatalf("symlink changed storage: %+v %v", linked, err)
 		}
 	}
-	if _, err := pathsForExecutable("icepick"); err == nil {
+	if _, err := pathsForExecutable("icetudio"); err == nil {
 		t.Fatal("accepted relative executable path")
 	}
 }
@@ -102,7 +102,7 @@ func TestDefaultPathsUsesInstalledAppImage(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("AppImage is Linux-specific")
 	}
-	image := filepath.Join(t.TempDir(), "ICEPick.AppImage")
+	image := filepath.Join(t.TempDir(), "IceTudio.AppImage")
 	if err := os.WriteFile(image, nil, 0700); err != nil {
 		t.Fatal(err)
 	}

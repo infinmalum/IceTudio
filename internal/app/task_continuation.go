@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"icepick/internal/materials"
-	"icepick/internal/storage"
+	"icetudio/internal/materials"
+	"icetudio/internal/storage"
 )
 
-// ContinueConversationTask explicitly resumes the original fixed run; Profile,
+// ContinueConversationTask explicitly resumes the original fixed run; 执行配置,
 // model, tools, grants, Skills and search settings remain its frozen resources.
 func (s *Service) ContinueConversationTask(runID, taskID, input string, uploads ...materials.Upload) (storage.Run, error) {
 	if err := s.checkReady(); err != nil {

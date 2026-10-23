@@ -8,10 +8,10 @@ import (
 	"sort"
 	"strings"
 
-	"icepick/internal/agent"
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 // guardedChat wraps the model client so every request — every turn of the
@@ -58,7 +58,7 @@ func endpointOrigin(baseURL string) (string, bool, error) {
 // leaves the machine. Remote endpoints need a grant whose scopes cover every
 // scope accumulated in the session; an unknown scope can only be covered by
 // a grant that explicitly includes it.
-func (s *Service) exfilCheck(ctx context.Context, sessionID string, source config.Model, profile storage.RunProfile) error {
+func (s *Service) exfilCheck(ctx context.Context, sessionID string, source config.Model, profile storage.RunConfigSnapshot) error {
 	// Remote providers may leave BaseURL empty to mean the official
 	// endpoint; the check compares against the effective origin, never the
 	// provider name.
@@ -109,7 +109,7 @@ func requireGrantCoverage(ctx context.Context, store *storage.Store, contextID, 
 // user input is personal, successful tool results carry the sensitivity
 // their tool access touched (tagged at persistence time), and the system
 // prompt's skills summary is workspace-scoped.
-func (s *Service) sessionScopes(ctx context.Context, sessionID string, profile storage.RunProfile) ([]string, error) {
+func (s *Service) sessionScopes(ctx context.Context, sessionID string, profile storage.RunConfigSnapshot) ([]string, error) {
 	hasUser, toolScopes, err := s.store.SessionDataScopes(ctx, sessionID)
 	if err != nil {
 		return nil, err
@@ -130,7 +130,7 @@ func (s *Service) sessionScopes(ctx context.Context, sessionID string, profile s
 				set[scope] = true
 			}
 		}
-		summary := s.profileSkillSummary(profile)
+		summary := s.snapshotSkillSummary(profile)
 		if summary != "" {
 			set[storage.ScopeWorkspace] = true
 		}
@@ -252,7 +252,7 @@ func (s *Service) checkPayload(ctx context.Context, source config.Model, context
 	return nil
 }
 
-func (s *Service) checkInitialGrant(ctx context.Context, sessionID string, source config.Model, profile storage.RunProfile, initial storage.ExfilGrant) error {
+func (s *Service) checkInitialGrant(ctx context.Context, sessionID string, source config.Model, profile storage.RunConfigSnapshot, initial storage.ExfilGrant) error {
 	_, local, err := endpointOrigin(source.EffectiveBaseURL())
 	if err != nil {
 		return err

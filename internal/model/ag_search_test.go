@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 const anthropicSearchFixture = `{"id":"msg_s","type":"message","role":"assistant","model":"claude-sonnet-4-5","content":[{"type":"server_tool_use","id":"srv1","name":"web_search","input":{"query":"test query"}},{"type":"web_search_tool_result","tool_use_id":"srv1","content":[{"type":"web_search_result","url":"https://example.org/a","title":"来源 A","encrypted_content":"opaque-evidence"}]},{"type":"text","text":"回答 A","citations":[{"type":"web_search_result_location","url":"https://example.org/a","title":"来源 A","encrypted_index":"opaque-index","cited_text":"source"}]},{"type":"tool_use","id":"call1","name":"local__current_time","input":{}}],"stop_reason":"tool_use","stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":5,"server_tool_use":{"web_search_requests":1}}}`

@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 	"errors"
-	"icepick/internal/storage"
+	"icetudio/internal/storage"
 	"sort"
 )
 
@@ -33,7 +33,7 @@ func (s *Service) PreviewSend(session string, attachments bool, role string) ([]
 	if err != nil {
 		return nil, err
 	}
-	p := storage.RunProfile{ContextID: resources.RootContextID, ProfileData: resources.Root.Data, Policy: resources.RootPolicy, ResourcesFrozen: true, FrozenSkills: resources.Root.Skills, ConfigScopes: resources.Root.Scopes, Resources: &resources}
+	p := storage.RunConfigSnapshot{ContextID: resources.RootContextID, RuntimeConfigData: resources.Root.Data, Policy: resources.RootPolicy, ResourcesFrozen: true, FrozenSkills: resources.Root.Skills, ConfigScopes: resources.Root.Scopes, Resources: &resources}
 	scopes, err := s.sessionScopes(ctx, session, p)
 	if err != nil {
 		return nil, err
@@ -45,17 +45,17 @@ func (s *Service) PreviewSend(session string, attachments bool, role string) ([]
 	for _, scope := range scopes {
 		required[scope] = true
 	}
-	profiles := []storage.FrozenProfile{resources.Root}
+	configs := []storage.RuntimeConfigRevision{resources.Root}
 	if resources.Planner.ID != "" {
-		profiles = append(profiles, resources.Planner)
+		configs = append(configs, resources.Planner)
 	}
 	if resources.Reviewer.ID != "" {
-		profiles = append(profiles, resources.Reviewer)
+		configs = append(configs, resources.Reviewer)
 	}
 	for _, w := range resources.Workers {
-		profiles = append(profiles, w)
+		configs = append(configs, w)
 	}
-	for _, f := range profiles {
+	for _, f := range configs {
 		for _, scope := range f.Scopes {
 			required[scope] = true
 		}
@@ -73,15 +73,6 @@ func (s *Service) PreviewSend(session string, attachments bool, role string) ([]
 	if attachments || conversation.Options.WebSearch {
 		required[storage.ScopeUnknown] = true
 	}
-	if p.MemoryEnabled && p.Policy.Memory {
-		memories, err := s.store.ListContextMemories(ctx, p.ContextID, 0)
-		if err != nil {
-			return nil, err
-		}
-		for _, m := range memories {
-			required[m.Scope] = true
-		}
-	}
 	all := []string{}
 	for v := range required {
 		all = append(all, v)
@@ -89,7 +80,7 @@ func (s *Service) PreviewSend(session string, attachments bool, role string) ([]
 	sort.Strings(all)
 	results := []SendConsent{}
 	seen := map[string]bool{}
-	for _, f := range profiles {
+	for _, f := range configs {
 		destination, local, err := endpointOrigin(f.Data.Model.EffectiveBaseURL())
 		if err != nil {
 			return nil, err

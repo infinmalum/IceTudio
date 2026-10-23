@@ -3,8 +3,8 @@ package app
 import (
 	"context"
 	"encoding/base64"
-	"icepick/internal/materials"
-	"icepick/internal/model"
+	"icetudio/internal/materials"
+	"icetudio/internal/model"
 	"testing"
 )
 

@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -18,11 +17,11 @@ func TestContextOwnershipIsDerivedAndImmutable(t *testing.T) {
 	if err := s.db.QueryRow(`SELECT count(*) FROM contexts`).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("fresh host must not create an implicit context: %d %v", count, err)
 	}
-	a, err := s.CreateConversation(ctx, DefaultProfileID, "", "A")
+	a, err := s.CreateConversation(ctx, DefaultConfigID, "", "A")
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := s.CreateConversation(ctx, DefaultProfileID, "", "B")
+	b, err := s.CreateConversation(ctx, DefaultConfigID, "", "B")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,14 +60,14 @@ func TestContextOwnershipIsDerivedAndImmutable(t *testing.T) {
 	}
 }
 
-func TestProfileSelectionBelongsToConversation(t *testing.T) {
+func TestConfigSelectionBelongsToConversation(t *testing.T) {
 	ctx := context.Background()
 	s := openTestStore(t)
-	a, err := s.CreateConversation(ctx, DefaultProfileID, "", "A")
+	a, err := s.CreateConversation(ctx, DefaultConfigID, "", "A")
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := s.CreateProfile(ctx, "other", BlankProfile())
+	p, err := s.CreateRuntimeConfig(ctx, "other", BlankRuntimeConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,27 +78,18 @@ func TestProfileSelectionBelongsToConversation(t *testing.T) {
 	if a.ContextID != b.ContextID {
 		t.Fatal("explicit reuse lost context")
 	}
-	if _, err = s.SelectConversationProfile(ctx, a.ID, p.ID); err != nil {
+	if _, err = s.SelectConversationConfig(ctx, a.ID, p.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.SelectConversationProfile(ctx, b.ID, DefaultProfileID); err != nil {
+	if _, err = s.SelectConversationConfig(ctx, b.ID, DefaultConfigID); err != nil {
 		t.Fatal(err)
 	}
-	pa, err := s.ResolveRunProfile(ctx, a.ID)
-	if err != nil || pa.ProfileID != p.ID {
+	pa, err := s.ResolveRunConfig(ctx, a.ID)
+	if err != nil || pa.ConfigID != p.ID {
 		t.Fatal(pa, err)
 	}
-	pb, err := s.ResolveRunProfile(ctx, b.ID)
-	if err != nil || pb.ProfileID != DefaultProfileID {
+	pb, err := s.ResolveRunConfig(ctx, b.ID)
+	if err != nil || pb.ConfigID != DefaultConfigID {
 		t.Fatal(pb, err)
-	}
-	if err = s.ArchiveProfile(ctx, p.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err = s.CreateRun(ctx, a.ID); err == nil || !strings.Contains(err.Error(), "Profile") {
-		t.Fatalf("archived selection fell back: %v", err)
-	}
-	if _, _, err = s.CreateRun(ctx, b.ID); err != nil {
-		t.Fatal(err)
 	}
 }

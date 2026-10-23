@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 func anthropicSource(base string) config.Model {

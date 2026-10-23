@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 export type Theme = "light" | "dark";
-const KEY = "icepick.theme";
+const KEY = "icetudio.theme";
 function systemTheme(): Theme {
   return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }

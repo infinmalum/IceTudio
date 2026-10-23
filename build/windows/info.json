@@ -5,11 +5,11 @@
 	"info": {
 		"0000": {
 			"ProductVersion": "0.1.0",
-			"CompanyName": "ICEPick",
-			"FileDescription": "Local desktop agent",
-			"LegalCopyright": "© 2026, My Company",
-			"ProductName": "ICEPick",
-			"Comments": "This is a comment"
+			"CompanyName": "IceTudio",
+			"FileDescription": "AI native music creation app",
+			"LegalCopyright": "© 2026, IceTudio",
+			"ProductName": "IceTudio",
+			"Comments": "IceTudio desktop application"
 		}
 	}
 }

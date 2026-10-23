@@ -3,10 +3,10 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"icepick/internal/agent"
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 	"strings"
 	"sync"
 	"testing"
@@ -80,23 +80,23 @@ func (m *dynamicMock) Chat(ctx context.Context, source config.Model, messages []
 	}
 	return model.ChatResponse{Message: model.Message{Role: "assistant", Content: dynamicOutcome(strings.Split(content, "\n")[0] + " result")}, Usage: model.Usage{TotalTokens: 10}}, nil
 }
-func dynamicFixture(t *testing.T, chat *dynamicMock) (*Service, storage.Conversation, storage.Profile) {
+func dynamicFixture(t *testing.T, chat *dynamicMock) (*Service, storage.Conversation, storage.RuntimeConfig) {
 	t.Helper()
 	svc, _ := newTestService(t, chat, &scriptTools{})
-	p, err := svc.CreateTemplateProfile("daily", "dynamic")
+	data := storage.BlankRuntimeConfig()
+	data.SystemPrompt = "围绕问题安排 analyst 子任务并整合结论。"
+	data.AllMCPServers = true
+	data.PlanEnabled = true
+	data.Execution.Review.Mode = "on_demand"
+	data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1, MaxConcurrency: 2}
+	data.Execution.Workflow = "dynamic"
+	data.Execution.Planner.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "planner-model"}
+	data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker", Configuration: &storage.WorkerConfiguration{Name: "worker", SystemPrompt: "完成交给你的分析子任务，直接返回结论。", ContextBudget: 8192}}}
+	p, err := svc.configureDefault(data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	p.Data.Execution.Workflow = "dynamic"
-	p.Data.Execution.Planner.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "planner-model"}
-	p.Data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker"}}
-	p.Data.PlanEnabled = true
-	p.Data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1, MaxConcurrency: 2}
-	p, err = svc.UpdateProfile(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := svc.CreateConversation(p.ID, "", "")
+	c, err := svc.CreateConversation(storage.DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,15 +227,17 @@ func (m *retryMock) Chat(_ context.Context, source config.Model, messages []mode
 func TestDynamicBoundedRetryKeepsFailures(t *testing.T) {
 	mock := &retryMock{}
 	svc, _ := newTestService(t, mock, &scriptTools{})
-	p, err := svc.CreateTemplateProfile("research", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	p.Data.Execution.Planner.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "planner-model"}
-	p.Data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker"}}
-	p.Data.Execution.Review.Mode = "off" // This test covers R3 retry, independent of R4.
-	p.Data.Execution.Budget = storage.RootBudget{AutoRetry: true, MaxRetries: 1}
-	p, err = svc.UpdateProfile(p)
+	data := storage.BlankRuntimeConfig()
+	data.SystemPrompt = "围绕问题安排 developer 子任务并整合结论。"
+	data.AllMCPServers = true
+	data.PlanEnabled = true
+	data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1, MaxConcurrency: 2}
+	data.Execution.Workflow = "dynamic"
+	data.Execution.Planner.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "planner-model"}
+	data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker", Configuration: &storage.WorkerConfiguration{Name: "worker", SystemPrompt: "完成交给你的分析子任务，直接返回结论。", ContextBudget: 8192}}}
+	data.Execution.Review.Mode = "off" // This test covers R3 retry, independent of R4.
+	data.Execution.Budget = storage.RootBudget{AutoRetry: true, MaxRetries: 1}
+	p, err := svc.configureDefault(data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +259,7 @@ func TestDynamicRootModelBudgetCannotReset(t *testing.T) {
 	m := &dynamicMock{barrier: make(chan struct{})}
 	svc, c, p := dynamicFixture(t, m)
 	p.Data.Execution.Budget.MaxModelCalls = 1
-	if _, err := svc.UpdateProfile(p); err != nil {
+	if _, err := svc.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
 	r, err := svc.StartConversationTask(c.ID, "分析")
@@ -274,15 +276,13 @@ func TestDynamicRootModelBudgetCannotReset(t *testing.T) {
 func TestReadonlyGatewayBlocksUnknownSideEffects(t *testing.T) {
 	svc, store := newTestService(t, &scriptModel{}, &scriptTools{})
 	ctx := context.Background()
-	p, err := svc.CreateTemplateProfile("daily", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	p.Data.PlanEnabled = true
-	p.Data.AllMCPServers = true
-	p.Data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1}
-	p.Data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker"}}
-	p, err = svc.UpdateProfile(p)
+	data := storage.BlankRuntimeConfig()
+	data.SystemPrompt = "只读分析助手"
+	data.AllMCPServers = true
+	data.PlanEnabled = true
+	data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1}
+	data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker", Configuration: &storage.WorkerConfiguration{Name: "worker", SystemPrompt: "完成交给你的子任务。", ContextBudget: 8192}}}
+	p, err := svc.configureDefault(data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,7 +298,7 @@ func TestReadonlyGatewayBlocksUnknownSideEffects(t *testing.T) {
 	if _, err = store.SetTaskGraph(ctx, root.ID, 0, []storage.TaskSpec{spec}); err != nil {
 		t.Fatal(err)
 	}
-	session, err := store.CreateDelegationSession(ctx, c.ContextID, storage.DefaultProfileID, "child")
+	session, err := store.CreateDelegationSession(ctx, c.ContextID, storage.DefaultConfigID, "child")
 	if err != nil {
 		t.Fatal(err)
 	}

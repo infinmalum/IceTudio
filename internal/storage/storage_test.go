@@ -10,7 +10,7 @@ import (
 
 func TestPersistenceAndRecovery(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "icepick.db")
+	path := filepath.Join(t.TempDir(), "icetudio.db")
 	store, err := testOpen(path)
 	if err != nil {
 		t.Fatal(err)

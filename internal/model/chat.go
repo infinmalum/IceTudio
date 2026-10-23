@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/materials"
+	"icetudio/internal/config"
+	"icetudio/internal/materials"
 )
 
 type Message struct {

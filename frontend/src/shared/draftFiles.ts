@@ -1,7 +1,7 @@
 // Draft attachments must survive an app restart, and the 20MiB attachment
 // budget exceeds localStorage quotas. IndexedDB stores File objects directly
 // via structured clone; every failure degrades to in-memory-only drafts.
-const DB_NAME = "icepick-drafts";
+const DB_NAME = "icetudio-drafts";
 const STORE = "attachments";
 let dbPromise: Promise<IDBDatabase | null> | null = null;
 function openDB(): Promise<IDBDatabase | null> {

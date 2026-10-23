@@ -1,6 +1,6 @@
 package ipc
 
-import "icepick/internal/storage"
+import "icetudio/internal/storage"
 
 func (s *Server) dispatchSkillDraft(request Request) (any, error) {
 	var p struct {

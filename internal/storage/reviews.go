@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"icepick/internal/materials"
+	"icetudio/internal/materials"
 	"strings"
 	"time"
 )
@@ -103,13 +103,13 @@ type ReviewSnapshot struct {
 func reviewSnapshotInTx(ctx context.Context, tx *sql.Tx, root string) (ReviewSnapshot, error) {
 	var out ReviewSnapshot
 	var raw, parent string
-	if err := tx.QueryRowContext(ctx, `SELECT profile_snapshot,COALESCE(parent_run_id,'') FROM runs WHERE id=?`, root).Scan(&raw, &parent); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT config_snapshot,COALESCE(parent_run_id,'') FROM runs WHERE id=?`, root).Scan(&raw, &parent); err != nil {
 		return out, err
 	}
 	if parent != "" {
 		return out, errors.New("只能审查根任务")
 	}
-	var profile ProfileData
+	var profile RuntimeConfigData
 	if err := json.Unmarshal([]byte(raw), &profile); err != nil {
 		return out, err
 	}
@@ -255,7 +255,7 @@ func (s *Store) SaveTaskReview(ctx context.Context, root, reviewer, binding stri
 	}
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
 		var parent, role, status, reviewerSnapshot string
-		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(r.parent_run_id,''),r.component,r.status,r.profile_snapshot FROM runs r WHERE r.id=?`, reviewer).Scan(&parent, &role, &status, &reviewerSnapshot); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(r.parent_run_id,''),r.component,r.status,r.config_snapshot FROM runs r WHERE r.id=?`, reviewer).Scan(&parent, &role, &status, &reviewerSnapshot); err != nil {
 			return err
 		}
 		if parent != root {
@@ -289,7 +289,7 @@ func (s *Store) SaveTaskReview(ctx context.Context, root, reviewer, binding stri
 				return errors.New("审查引用了非真实成功工具证据")
 			}
 		}
-		var reviewerProfile ProfileData
+		var reviewerProfile RuntimeConfigData
 		if err := json.Unmarshal([]byte(reviewerSnapshot), &reviewerProfile); err != nil {
 			return err
 		}
@@ -408,10 +408,10 @@ func enforceRequiredReview(ctx context.Context, tx *sql.Tx, root string) error {
 		return reqErr
 	}
 	var raw string
-	if err := tx.QueryRowContext(ctx, `SELECT profile_snapshot FROM runs WHERE id=?`, root).Scan(&raw); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT config_snapshot FROM runs WHERE id=?`, root).Scan(&raw); err != nil {
 		return err
 	}
-	var p ProfileData
+	var p RuntimeConfigData
 	if err := json.Unmarshal([]byte(raw), &p); err != nil {
 		return err
 	}

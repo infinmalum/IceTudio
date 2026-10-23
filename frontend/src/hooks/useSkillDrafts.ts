@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useSendConsent } from "../shared/consent";
 import { useDialog } from "../shared/dialogs";
-import { StatusService } from "../../bindings/icepick";
+import { StatusService } from "../../bindings/icetudio";
 import type {
   SkillDraft,
   SkillProposal,
   Run,
-} from "../../bindings/icepick/internal/storage";
+} from "../../bindings/icetudio/internal/storage";
 
 export function useSkillDrafts(sessionID: string | null) {
   const ensureConsent = useSendConsent();

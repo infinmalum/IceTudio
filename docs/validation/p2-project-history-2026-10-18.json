@@ -1,0 +1,240 @@
+{
+  "date": "2026-10-18",
+  "scope": "P2 save/reopen regression fixes in P1: durable title projections and dependency-ordered batch inverses; not full P2 acceptance",
+  "contract": "docs/p1-project-model.md §1/§5/§8",
+  "browserReportPath": ".cache/browser/music/run-3012115832/results.json",
+  "browser": {
+    "checks": [
+      "Close initialization failure keeps the editor inert until explicit retry",
+      "Recovery read failure blocks edits until retry",
+      "Recovery initialization failure blocks close approval (mock desktop)",
+      "Existing application dialog remains editable instead of queuing a close prompt",
+      "External committed edits refresh the UI",
+      "Failed recovery write prevents the music command from being sent",
+      "Lost intention acknowledgment retains a durable query target without sending the edit",
+      "No committed result remains uncertain when the user continues waiting",
+      "Cleanup failure reports the committed result and retains recovery instead of replaying",
+      "Querying a committed operation retries cleanup without a second edit",
+      "Arrangement mouse move changes only clip origin and preserves local events",
+      "Arrangement edits share project undo and redo",
+      "Arrangement right edge resize changes length without rewriting notes or controls",
+      "Arrangement shortening rejects a clip that cannot contain its existing note",
+      "Arrangement negative origin preview is rejected without a transaction",
+      "Arrangement gesture retains its original revision and rejects a concurrent edit conflict",
+      "Arrangement Escape cancels the preview without saving",
+      "Arrangement pointercancel cancels the preview without saving",
+      "Arrangement blur cancels the preview without saving",
+      "Arrangement active gesture blocks native-close request (mock desktop)",
+      "Fractional snap keeps the off-grid origin and rounds positive and negative half steps symmetrically",
+      "Overlapping clips use distinct accessible lanes and cropped ends have no fake resize handle",
+      "Changing selected clip cancels an arrangement gesture without retargeting it",
+      "A clip spanning the page renders its continuation with its real right edge",
+      "Off-page clips remain selectable and reveal their absolute timeline page",
+      "Selecting a clip on another track opens that clip without creating history",
+      "Arrangement retains mute and solo edits in shared undo history",
+      "Transport UI play/stop/seek/loop and device error handling (mock audio)",
+      "Tempo/meter forms commit atomically, preserve untouched precision and note/control data",
+      "Undo restores both time maps together",
+      "Ruler follows 4/4 to 6/8 to 5/8 changes",
+      "Ruler labels accept hover inspection while pointer input stays read-only",
+      "Invalid time-map input leaves the project untouched",
+      "Closing a dirty map requires explicit discard and cancellation preserves inputs",
+      "Replacement form edits the initial tempo and meter without losing later points",
+      "Time-map draft freezes its revision and does not overwrite a background edit",
+      "Ruler absolute tick origin aligns with note positions",
+      "Ruler remains aligned after horizontal scroll",
+      "Ruler remains aligned after zoom",
+      "Ctrl-wheel zoom keeps the ruler and host zoom control synchronized",
+      "Nonzero clip start uses absolute project meter positions",
+      "A clip at the maximum map tick still has a ruler extending beyond that tick",
+      "Numeric Enter commits preserve the focus revision and reject concurrent edits",
+      "Real mouse move commits to SQLite",
+      "Shared undo/redo refreshes the editor",
+      "Real resize commits duration",
+      "MIDI velocity preserves controllers",
+      "Selection, copy, atomic deletion and undo",
+      "Gesture freezes revision and rejects conflicts",
+      "Escape cancels without committing",
+      "Empty-row click adds a note",
+      "Arrow key submits one atomic selected-note batch",
+      "Composition/input events do not edit notes",
+      "Zoom does not change the project revision",
+      "Boundary resize atomically extends the clip",
+      "Undo removes the boundary extension after restoring the note in one transaction",
+      "Redo restores the extended clip and note together",
+      "Ruler page offset follows absolute tick for 1000 notes",
+      "Ruler page offset follows absolute tick for 10000 notes",
+      "1k/10k spread-out notes mount at most 64 notes per page",
+      "Lost commit reply is resolved without replay",
+      "Unknown project outcome blocks native exit without replay",
+      "Browser reload with empty sessionStorage restores the Go journal without replay",
+      "Recovery queries the original operation while preserving the newly selected project",
+      "Unknown outcome retains a queryable operation ID",
+      "Deleted project recovery keeps its original identity and requires explicit stop-waiting",
+      "Explicitly stopping recovery for a deleted project does not recreate or replay music",
+      "Rename dialog starts from the committed project name",
+      "Lost rename reply resolves once and updates header list and authoritative state",
+      "Export picker receives the current committed name (mock picker cancelled)",
+      "Rename undo restores both visible metadata and the state title",
+      "Rename redo restores the committed name across projections",
+      "Reload keeps the renamed selected project without adding a revision",
+      "Delayed project reads and drag unmount cannot retarget edits",
+      "Remounted editor centers on its first note",
+      "React remount restores a single editor",
+      "Large time maps mount only 24 form rows per map page",
+      "Paginated edits and point deletion preserve hidden rows and exact values",
+      "Active note gesture blocks exit before committing its preview",
+      "Native close blurs numeric input and waits for its original commit",
+      "Repeated close requests show one explicit discard dialog and disable editor input",
+      "Cancelled native exit retains time-map draft and frozen revision",
+      "Discard confirmation cannot cover a later draft version",
+      "In-flight project save blocks exit; completion never silently resumes it",
+      "Quit transport failure leaves the draft and permits retry",
+      "Explicit discard permits exit without submitting draft or enabling new edits",
+      "Clean editor exits without a discard prompt after checks initialize"
+    ],
+    "errors": [],
+    "timings": [
+      {
+        "count": 1000,
+        "mounted": 64,
+        "serviceCommitAndRefreshMs": 129.18465900000047,
+        "projectionMs": 8.799999998882413,
+        "pageFlipMs": 106.36517500000082
+      },
+      {
+        "count": 10000,
+        "mounted": 64,
+        "serviceCommitAndRefreshMs": 175.06310200000007,
+        "projectionMs": 9.400000000372529,
+        "pageFlipMs": 103.38405499999863
+      }
+    ],
+    "environment": {
+      "cpu": "AMD Ryzen 7 7735H with Radeon Graphics",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "browser": "Chrome/154.0.8037.97"
+    }
+  },
+  "baselineObserved": {
+    "basis": "New regression tests executed against the current workspace before these production fixes, not against a clean git HEAD.",
+    "checks": [
+      {
+        "command": "go test ./internal/storage -run '^TestProjectRename' -count=1 -v",
+        "result": "expected regression failure",
+        "finding": "Get/List title remained original after a committed rename and database reopen. Two sequential renames undid to the intermediate state title. Atomic-failure cases already passed."
+      },
+      {
+        "command": "go test ./internal/project -run '^TestDependentBatchInverseRoundTrip$' -count=1 -v",
+        "result": "expected regression failure",
+        "finding": "All seven dependency/inverse round-trip subcases failed: original-order inverses and repeated note deltas did not restore the original state, or attempted dependent removals/shrinks too early."
+      }
+    ]
+  },
+  "commands": [
+    {
+      "command": "go test -race ./internal/project ./internal/storage -run 'TestDependentBatchInverseRoundTrip|TestProjectRename' -count=1 -v",
+      "result": "pass",
+      "domainSubcases": 7,
+      "storageFailureSubcases": 6,
+      "coverage": [
+        "sequential renames and tempo changes",
+        "clip grow/add, grow/move, remove/shrink, create hierarchy",
+        "repeated deltas for one note",
+        "Unicode 200-character and empty titles",
+        "Get/List consistency and database close/reopen at each history stage",
+        "old edit/undo/redo opID replay preserves current state",
+        "another project untouched",
+        "invalid batch, stale revision, overlong title rejection",
+        "SQLite history-insert fault rolls back metadata/state/history/result, then the same opID commits after removing the fault"
+      ]
+    },
+    {
+      "command": "go test ./internal/ipc -run '^TestProjectRenameOverIPC$' -count=1 -v",
+      "result": "pass",
+      "coverage": [
+        "actual IPC edit/undo/redo with two renames in one batch",
+        "Get/Query/List metadata agreement",
+        "renamed MIDI export and import through actual service"
+      ]
+    },
+    {
+      "command": "env ICETUDIO_MUSIC_BROWSER=1 go test ./internal/app -run '^TestMusicEditorBrowser$' -count=1 -v",
+      "result": "pass",
+      "seconds": 23.12,
+      "checks": 87,
+      "newChecks": 8
+    },
+    {
+      "command": "wails3 task build",
+      "result": "pass",
+      "output": "bin/icetudio",
+      "services": 4,
+      "methods": 91,
+      "models": 95,
+      "frontendModules": 350,
+      "bundle": "index-DNC8Tqrb.js"
+    },
+    {
+      "command": "go test ./...",
+      "result": "pass",
+      "scope": "Final production and Go test sources; optional native/audio/device and browser tests may skip unless explicitly enabled. Browser integration was separately enabled above."
+    },
+    {
+      "command": "node frontend/e2e/product.mjs",
+      "result": "pass",
+      "scope": "Simulated product facade regression; not native bridge acceptance."
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass",
+      "scope": "Tracked diff; affected untracked source/doc whitespace checked separately."
+    }
+  ],
+  "environment": {
+    "os": "Linux amd64",
+    "go": "go1.27.1-X:nodwarf5",
+    "node": "v26.11.1",
+    "wailsCLI": "v3.0.0-beta.12"
+  },
+  "realVsMock": {
+    "real": [
+      "pure Go project model",
+      "SQLite persistence, history rollback trigger and close/reopen",
+      "application service and IPC",
+      "production React workspace/hooks in Chromium"
+    ],
+    "mock": [
+      "Wails bridge replaced by authenticated HTTP test transport",
+      "audio and desktop-close facades in browser",
+      "native save-file picker cancelled after inspecting suggested filename",
+      "lost-reply faults at browser transport boundary"
+    ]
+  },
+  "limits": [
+    "Fixes apply to subsequent successful writes and newly generated inverses; existing bad inverse history is not recomputed, migrated or automatically replayed.",
+    "Startup/reads do not bulk-repair existing mismatched title metadata. A later successful transaction writes the final state title as usual.",
+    "Round-trip coverage is the named cases, not every combination of supported operations or old histories.",
+    "Browser reload and SQLite reopen were tested; no native Wails process kill, power-loss or cross-platform filesystem acceptance.",
+    "Mock picker check proves the suggested filename only; actual MIDI file content was separately round-tripped through IPC.",
+    "No new native window, physical audio/device, real-model or dense-canvas performance acceptance in this increment."
+  ],
+  "developmentFindings": [
+    "The IPC regression initially sent both id and projectId to strict method decoders; corrected to each existing method schema without relaxing production decoding.",
+    "The added browser reload initially checked unchanged old-page content before navigation completed; it now requires a different performance.timeOrigin and the new page readiness before asserting.",
+    "A missing standard-library slices import was caught and corrected before successful test runs."
+  ],
+  "documentationReview": {
+    "scope": [
+      "IMPLEMENTATION_PLAN.md",
+      "README.md",
+      "docs/architecture.md",
+      "docs/p1-project-model.md",
+      "docs/p2-midi-editor.md"
+    ],
+    "focus": "Full affected-document reread and cross-check of title atomicity, inverse order, preserved interfaces, history limits and acceptance status; not a repository-wide completeness claim."
+  }
+}

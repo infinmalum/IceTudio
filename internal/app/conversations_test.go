@@ -3,15 +3,15 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"icepick/internal/testfixture"
+	"icetudio/internal/testfixture"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 func TestConversationWithHTTPModelService(t *testing.T) {
@@ -39,17 +39,13 @@ func TestConversationWithHTTPModelService(t *testing.T) {
 	}))
 	defer server.Close()
 	svc, _ := newTestService(t, model.Client{HTTP: server.Client()}, &scriptTools{})
-	p, err := svc.CreateTemplateProfile("writing", "")
-	if err != nil {
+	data := storage.BlankRuntimeConfig()
+	data.Execution.Main.Model = &config.Model{Provider: "lmstudio", BaseURL: server.URL + "/v1", Name: "component-model"}
+	data.Execution.Main.SystemPrompt = "HTTP component prompt"
+	if _, err := svc.configureDefault(data); err != nil {
 		t.Fatal(err)
 	}
-	p.Data.Execution.Main.Model = &config.Model{Provider: "lmstudio", BaseURL: server.URL + "/v1", Name: "component-model"}
-	p.Data.Execution.Main.SystemPrompt = "HTTP component prompt"
-	p, err = svc.UpdateProfile(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := svc.CreateConversation(p.ID, "", "")
+	c, err := svc.CreateConversation(storage.DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +63,7 @@ func TestConversationWithHTTPModelService(t *testing.T) {
 	}
 }
 
-func TestProfileFirstTaskUsesComponentAndAuthorizedTool(t *testing.T) {
+func TestConfigFirstTaskUsesComponentAndAuthorizedTool(t *testing.T) {
 	chat := &scriptModel{steps: []func([]model.Message) (model.ChatResponse, error){
 		func(messages []model.Message) (model.ChatResponse, error) {
 			// The component override leads the prompt; host runtime capabilities
@@ -85,17 +81,14 @@ func TestProfileFirstTaskUsesComponentAndAuthorizedTool(t *testing.T) {
 		},
 	}}
 	tools := &scriptTools{defs: timeToolDef(), respond: func(_, _ string) (string, error) { return "12:00", nil }}
-	svc, store := newTestService(t, chat, tools)
-	p, err := svc.CreateTemplateProfile("daily", "")
-	if err != nil {
+	svc, _ := newTestService(t, chat, tools)
+	data := storage.BlankRuntimeConfig()
+	data.EnabledMCPServers = []string{"local"}
+	data.Execution.Main.SystemPrompt = "component prompt"
+	if _, err := svc.configureDefault(data); err != nil {
 		t.Fatal(err)
 	}
-	p.Data.Execution.Main.SystemPrompt = "component prompt"
-	p, err = svc.UpdateProfile(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := svc.CreateConversation(p.ID, "", "")
+	c, err := svc.CreateConversation(storage.DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,24 +100,11 @@ func TestProfileFirstTaskUsesComponentAndAuthorizedTool(t *testing.T) {
 	if len(tools.calls) != 1 || run.Component != "main" {
 		t.Fatalf("execution: %+v %v", run, tools.calls)
 	}
-	if err := svc.ArchiveProfile(p.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.StartConversationTask(c.ID, "继续"); err == nil {
-		t.Fatal("deleted configuration executed")
-	}
-	history, err := svc.ListMessages(c.ID)
-	if err != nil || len(history) == 0 {
-		t.Fatal("archive hid transcript", err)
-	}
-	if _, err := store.GetLocalContext(context.Background(), c.ContextID); err != nil {
-		t.Fatal("archive removed permissions", err)
-	}
 }
 
 func TestChildTranscriptCannotStartOrdinaryTask(t *testing.T) {
 	svc, store := newTestService(t, &scriptModel{}, &scriptTools{})
-	child, err := store.CreateDelegationSession(context.Background(), testfixture.ContextID, storage.DefaultProfileID, "child")
+	child, err := store.CreateDelegationSession(context.Background(), testfixture.ContextID, storage.DefaultConfigID, "child")
 	if err != nil {
 		t.Fatal(err)
 	}

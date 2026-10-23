@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"icepick/internal/config"
+	"icetudio/internal/config"
 	"io"
 	"net/http"
 	"strings"

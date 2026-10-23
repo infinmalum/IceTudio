@@ -10,14 +10,14 @@ func taskGraphFixture(t *testing.T) (*Store, Conversation, Run, []TaskSpec) {
 	t.Helper()
 	s := openTestStore(t)
 	ctx := context.Background()
-	p, err := s.CreateTemplateProfile(ctx, "daily", "planned")
+	p, err := s.CreateRuntimeConfig(ctx, "planned", assistantData())
 	if err != nil {
 		t.Fatal(err)
 	}
 	p.Data.PlanEnabled = true
 	p.Data.Delegation = DelegationPolicy{Enabled: true, MaxDepth: 1, MaxConcurrency: 2}
 	p.Data.Execution.WorkerSources = []WorkerSource{{Name: "worker"}}
-	p, err = s.UpdateProfile(ctx, p)
+	p, err = s.UpdateRuntimeConfig(ctx, p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func taskGraphFixture(t *testing.T) (*Store, Conversation, Run, []TaskSpec) {
 }
 func createPlannedRun(t *testing.T, s *Store, c Conversation, root Run, spec TaskSpec) (Run, error) {
 	t.Helper()
-	session, err := s.CreateDelegationSession(context.Background(), c.ContextID, DefaultProfileID, "planned")
+	session, err := s.CreateDelegationSession(context.Background(), c.ContextID, DefaultConfigID, "planned")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestTaskClaimIsAtomicAndDependenciesAreActual(t *testing.T) {
 	sessions := make([]Session, 2)
 	for i := range sessions {
 		var err error
-		sessions[i], err = s.CreateDelegationSession(ctx, c.ContextID, DefaultProfileID, "competing")
+		sessions[i], err = s.CreateDelegationSession(ctx, c.ContextID, DefaultConfigID, "competing")
 		if err != nil {
 			t.Fatal(err)
 		}

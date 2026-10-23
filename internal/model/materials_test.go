@@ -2,7 +2,7 @@ package model
 
 import (
 	"encoding/json"
-	"icepick/internal/materials"
+	"icetudio/internal/materials"
 	"strings"
 	"testing"
 )

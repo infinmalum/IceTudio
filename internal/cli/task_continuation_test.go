@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 type continuationChat struct{}
@@ -22,7 +22,7 @@ func (continuationChat) Chat(_ context.Context, _ config.Model, messages []model
 }
 func TestCLIContinueFixedTaskThroughIPC(t *testing.T) {
 	client, s := newCLIHost(t, continuationChat{}, time.Second)
-	p, err := s.CreateTemplateProfile("daily", "wait")
+	p, err := s.CreateRuntimeConfig("固定续跑", storage.DefaultConfigID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestCLIContinueFixedTaskThroughIPC(t *testing.T) {
 	p.Data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker"}}
 	p.Data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1, MaxConcurrency: 1}
 	p.Data.Execution.Stages = []storage.TaskSpec{{ID: "analyze", Worker: "worker", Task: "分析", AccessMode: "read", InputPrompt: "请提供材料"}}
-	if _, err = s.UpdateProfile(p); err != nil {
+	if _, err = s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
 	c, err := s.CreateConversation(p.ID, "", "")

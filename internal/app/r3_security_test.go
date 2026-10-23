@@ -3,9 +3,9 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 	"strings"
 	"sync"
 	"testing"
@@ -15,11 +15,7 @@ import (
 func TestRunGrantCeilingAndRevocation(t *testing.T) {
 	svc, store := newTestService(t, &scriptModel{}, &scriptTools{})
 	ctx := context.Background()
-	p, err := svc.CreateTemplateProfile("daily", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := svc.CreateConversation(p.ID, "", "")
+	c, err := svc.CreateConversation(storage.DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,17 +87,18 @@ func (m *cancelMock) Chat(ctx context.Context, source config.Model, messages []m
 func TestDynamicCancelPropagatesAndKeepsUnknownDispatch(t *testing.T) {
 	mock := &cancelMock{ready: make(chan struct{})}
 	svc, _ := newTestService(t, mock, &scriptTools{})
-	p, err := svc.CreateTemplateProfile("research", "")
-	if err != nil {
+	data := storage.BlankRuntimeConfig()
+	data.SystemPrompt = "研究分析：按来源安排 analyst 并整合结论。"
+	data.AllMCPServers = true
+	data.PlanEnabled = true
+	data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1, MaxConcurrency: 2}
+	data.Execution.Workflow = "dynamic"
+	data.Execution.Planner.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "planner-model"}
+	data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker", Configuration: &storage.WorkerConfiguration{Name: "worker", SystemPrompt: "完成交给你的子任务。", ContextBudget: 8192}}}
+	if _, err := svc.configureDefault(data); err != nil {
 		t.Fatal(err)
 	}
-	p.Data.Execution.Planner.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "planner-model"}
-	p.Data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker"}}
-	p, err = svc.UpdateProfile(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := svc.CreateConversation(p.ID, "", "")
+	c, err := svc.CreateConversation(storage.DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

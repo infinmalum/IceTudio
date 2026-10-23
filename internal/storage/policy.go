@@ -218,7 +218,7 @@ func (s *Store) DeleteMCPEndpoint(ctx context.Context, name string) error {
 	return err
 }
 
-// AccumulateContextScopes preserves restrictions across Profile switches,
+// AccumulateContextScopes preserves restrictions across config switches,
 // summaries and subsequent Runs without tracking per-word provenance.
 func (s *Store) AccumulateContextScopes(ctx context.Context, sessionID string, scopes []string) error {
 	return s.withTx(ctx, func(tx *sql.Tx) error {
@@ -232,4 +232,48 @@ func (s *Store) AccumulateContextScopes(ctx context.Context, sessionID string, s
 		}
 		return nil
 	})
+}
+
+// PermissionScope is the machine-local resource authorization of one Context.
+type PermissionScope struct {
+	Unrestricted   bool     `json:"unrestricted"`
+	WorkspacePaths []string `json:"workspacePaths"`
+	Commands       []string `json:"commands"`
+	NetworkHosts   []string `json:"networkHosts"`
+}
+
+// DelegationPolicy is the execution-config switch for worker delegation; the
+// worker candidates and execution limits are captured when a root run starts.
+// Workers are selected from configured slots. Zero concurrency/time use host
+// defaults.
+type DelegationPolicy struct {
+	Enabled        bool `json:"enabled"`
+	MaxDepth       int  `json:"maxDepth"`
+	MaxConcurrency int  `json:"maxConcurrency"`
+	MaxSeconds     int  `json:"maxSeconds"`
+}
+
+const (
+	// DefaultDelegationConcurrency caps concurrent subtask runs per parent.
+	DefaultDelegationConcurrency = 2
+	// maxDelegationSeconds mirrors the engine's per-run timeout (10
+	// minutes): a subtask can never outlive the run limit, so the config
+	// budget only tightens it.
+	maxDelegationSeconds = 600
+	// MaxDelegationDepth bounds recursive delegation.
+	MaxDelegationDepth = 4
+)
+
+// ContextPolicy is local authorization, independent of the execution config.
+type ContextPolicy struct {
+	ApprovalMode string          `json:"approvalMode"`
+	Permissions  PermissionScope `json:"permissions"`
+}
+
+func validatePolicy(p ContextPolicy) error {
+	if p.ApprovalMode != "manual" && p.ApprovalMode != "semi" && p.ApprovalMode != "automatic" {
+		return errors.New("无效的审批模式")
+	}
+
+	return nil
 }

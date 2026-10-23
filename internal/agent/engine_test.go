@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
 )
 
 type fakeChat struct {

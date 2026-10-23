@@ -1,3 +1,5 @@
+> 历史实现参考，不是删除授权。当前范围由 [P0 执行契约](p0-refactor-contract.md)、[逐项清单](p0-api-storage-inventory.md)及[实施计划](../IMPLEMENTATION_PLAN.md)规定。MCP、Skills、搜索及 Skill 改进保留；Profile 配置来源替换，权限与冻结快照不删。
+
 # MCP 与 Agent Skills
 
 本文描述当前已实现的 MCP/Skills 接入方式。2026-10-12 的 Profile/内置组件重新设计及迁移见[设计文档](architecture.md)，不表示新运行流程已经交付。

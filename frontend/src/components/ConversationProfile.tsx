@@ -1,14 +1,14 @@
 import type { Workspace } from "../hooks/useWorkspace";
-import type { Profiles } from "../hooks/useProfiles";
+import type { Configs } from "../hooks/useConfigs";
 import type { ConversationState } from "../hooks/useConversation";
 export function ConversationProfile({
   workspace: w,
-  profileState: p,
+  configState: p,
   conversation: c,
   openAssistants,
 }: {
   workspace: Workspace;
-  profileState: Profiles;
+  configState: Configs;
   conversation: ConversationState;
   openAssistants: () => void;
 }) {
@@ -18,12 +18,12 @@ export function ConversationProfile({
       <select
         aria-label="当前助手"
         value={
-          w.activeConversation.profileArchived
+          w.activeConversation.configArchived
             ? ""
-            : w.activeConversation.profileId
+            : w.activeConversation.configId
         }
         disabled={
-          c.profileSwitchBusy ||
+          c.configSwitchBusy ||
           c.sending ||
           w.activeConversation.kind === "delegation"
         }
@@ -31,13 +31,13 @@ export function ConversationProfile({
         onChange={(e) =>
           e.target.value === "__manage__"
             ? openAssistants()
-            : c.selectConversationProfile(e.target.value)
+            : c.selectConversationConfig(e.target.value)
         }
       >
         <option value="" disabled>
           请选择助手
         </option>
-        {p.profiles.map((v) => (
+        {p.configs.map((v) => (
           <option key={v.id} value={v.id}>
             {v.name}
           </option>

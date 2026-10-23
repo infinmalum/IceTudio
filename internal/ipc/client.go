@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"icepick/internal/app"
+	"icetudio/internal/app"
 )
 
 // Client is the host-side counterpart used by the CLI. It multiplexes
@@ -49,14 +49,14 @@ func Connect(dataDir string, wait time.Duration) (*Client, error) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("连接 ICEPick 宿主失败（宿主未运行？可先运行 icepick serve 或桌面端）: %w", err)
+		return nil, fmt.Errorf("连接 IceTudio 宿主失败（宿主未运行？可先运行 icetudio serve 或桌面端）: %w", err)
 	}
 	token, err := os.ReadFile(filepath.Join(dataDir, TokenName))
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("读取宿主令牌失败: %w", err)
 	}
-	hello, err := json.Marshal(Hello{Hello: "icepick", Token: string(trimSpace(token)), Version: ProtocolVersion})
+	hello, err := json.Marshal(Hello{Hello: "icetudio", Token: string(trimSpace(token)), Version: ProtocolVersion})
 	if err != nil {
 		conn.Close()
 		return nil, err
@@ -73,7 +73,7 @@ func Connect(dataDir string, wait time.Duration) (*Client, error) {
 		return nil, fmt.Errorf("读取 IPC 握手响应: %w", err)
 	}
 	var welcome Welcome
-	if jsonErr := json.Unmarshal(line, &welcome); jsonErr != nil || welcome.Welcome != "icepick" {
+	if jsonErr := json.Unmarshal(line, &welcome); jsonErr != nil || welcome.Welcome != "icetudio" {
 		conn.Close()
 		return nil, errors.New("IPC 身份校验失败：宿主拒绝了本客户端")
 	}

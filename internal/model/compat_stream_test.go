@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 // The local Ollama / LM Studio path streams through the same SSE envelope.

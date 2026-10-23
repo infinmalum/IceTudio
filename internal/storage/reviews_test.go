@@ -14,12 +14,12 @@ func reviewStorageFixture(t *testing.T, checks []string) (*Store, Conversation, 
 	}
 	t.Cleanup(func() { s.Close() })
 	ctx := context.Background()
-	p, err := s.CreateTemplateProfile(ctx, "daily", "")
+	p, err := s.CreateRuntimeConfig(ctx, "日常", assistantData())
 	if err != nil {
 		t.Fatal(err)
 	}
 	p.Data.Execution.Review = ReviewPolicy{Mode: "required", RequiredChecks: checks}
-	p, err = s.UpdateProfile(ctx, p)
+	p, err = s.UpdateRuntimeConfig(ctx, p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func reviewStorageFixture(t *testing.T, checks []string) (*Store, Conversation, 
 	if _, err = s.AddMessage(ctx, c.ID, root.ID, RoleAssistant, "交付"); err != nil {
 		t.Fatal(err)
 	}
-	child, err := s.CreateDelegationSession(ctx, c.ContextID, DefaultProfileID, "reviewer")
+	child, err := s.CreateDelegationSession(ctx, c.ContextID, DefaultConfigID, "reviewer")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestReworkCannotReusePreviousSuccessfulCheck(t *testing.T) {
 		if err := s.SetRunStatus(ctx, reviewer.ID, "completed", ""); err != nil {
 			t.Fatal(err)
 		}
-		session, err := s.CreateDelegationSession(ctx, c.ContextID, c.ProfileID, "再次审查")
+		session, err := s.CreateDelegationSession(ctx, c.ContextID, c.ConfigID, "再次审查")
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <script>
       try {
-        var t = localStorage.getItem("icepick.theme");
+        var t = localStorage.getItem("icetudio.theme");
         if (t !== "light" && t !== "dark")
           t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         document.documentElement.dataset.theme = t;
       } catch (e) {}
     </script>
     <link rel="stylesheet" href="/style.css" />
-    <title>ICEPick</title>
+    <title>IceTudio</title>
   </head>
   <body>
     <div id="root"></div>

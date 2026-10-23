@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
 )
 
 // ChatModel is the minimal model interface the default loop needs.
@@ -114,7 +114,7 @@ type Engine struct {
 	// positive ContextBudget: an unknown window (0) never compacts.
 	Compactor Compactor
 	// ContextBudget is the model context window in tokens, declared by the
-	// run's profile.
+	// run's RuntimeConfig (执行配置).
 	ContextBudget int
 	// InitialSummary is the summary that already covers history before this
 	// run's window; the engine mirrors it into the system prompt and keeps

@@ -3,23 +3,22 @@ package app
 import (
 	"context"
 	"encoding/base64"
-	"icepick/internal/materials"
+	"icetudio/internal/materials"
 	"slices"
 	"testing"
 
-	"icepick/internal/config"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/storage"
 )
 
 func TestSendPreviewActualDestinationsScopesAndNoImplicitGrant(t *testing.T) {
 	s, store := newTestService(t, &scriptModel{}, &scriptTools{})
-	p, err := s.CreateTemplateProfile("daily", "consumer")
+	data := storage.DefaultRuntimeConfig()
+	data.Model = config.Model{Provider: "openai", BaseURL: "https://proxy.example/v1", Name: "mock"}
+	data.Execution.ImproverEnabled = true
+	data.Execution.Improver.Model = &config.Model{Provider: "anthropic", BaseURL: "https://draft.example", Name: "mock"}
+	p, err := s.configureDefault(data)
 	if err != nil {
-		t.Fatal(err)
-	}
-	p.Data.Model = config.Model{Provider: "openai", BaseURL: "https://proxy.example/v1", Name: "mock"}
-	p.Data.Execution.Improver.Model = &config.Model{Provider: "anthropic", BaseURL: "https://draft.example", Name: "mock"}
-	if _, err = s.UpdateProfile(p); err != nil {
 		t.Fatal(err)
 	}
 	c, err := s.CreateConversation(p.ID, "", "")

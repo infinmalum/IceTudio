@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"os"
 
-	"icepick/internal/app"
-	"icepick/internal/ipc"
-	"icepick/internal/storage"
+	"icetudio/internal/app"
+	"icetudio/internal/ipc"
+	"icetudio/internal/storage"
 )
 
 func cmdConversations(client *ipc.Client, args []string) int {
 	if len(args) == 0 {
-		return usage("conversations 需要 list|create|select|start|show|search")
+		return usage("conversations 需要 list|create|start|show|search")
 	}
-	parsed, err := parseCLI(args[1:], "wait", "unrestricted", "restricted", "memory", "no-memory")
+	parsed, err := parseCLI(args[1:], "wait", "unrestricted", "restricted")
 	if err != nil {
 		return usage(err.Error())
 	}
@@ -61,7 +61,7 @@ func cmdConversations(client *ipc.Client, args []string) int {
 
 	case "permissions":
 		if parsed.arg(0) == "" {
-			return usage("conversations permissions <id> [--mode manual|semi|automatic] [--workspace <路径>] [--command <可执行文件>] [--unrestricted|--restricted] [--memory|--no-memory]")
+			return usage("conversations permissions <id> [--mode manual|semi|automatic] [--workspace <路径>] [--command <可执行文件>] [--unrestricted|--restricted]")
 		}
 		var c storage.Conversation
 		if err := client.Call("conversations.get", map[string]any{"id": parsed.arg(0)}, &c); err != nil {
@@ -87,9 +87,6 @@ func cmdConversations(client *ipc.Client, args []string) int {
 		if parsed.flags["unrestricted"] && parsed.flags["restricted"] {
 			return usage("权限范围选项不能同时使用")
 		}
-		if parsed.flags["memory"] && parsed.flags["no-memory"] {
-			return usage("记忆选项不能同时使用")
-		}
 		if parsed.flags["unrestricted"] {
 			local.Policy.Permissions.Unrestricted = true
 			changed = true
@@ -98,30 +95,22 @@ func cmdConversations(client *ipc.Client, args []string) int {
 			local.Policy.Permissions.Unrestricted = false
 			changed = true
 		}
-		if parsed.flags["memory"] {
-			local.Policy.Memory = true
-			changed = true
-		}
-		if parsed.flags["no-memory"] {
-			local.Policy.Memory = false
-			changed = true
-		}
 		if changed {
 			if err := client.Call("contexts.update", map[string]any{"id": c.ContextID, "policy": local.Policy}, &local); err != nil {
 				return fail("contexts.update", err)
 			}
 		}
-		fmt.Printf("审批: %s\n一般资源范围不限: %t\n工作区: %v\n可执行文件: %v\n记忆授权: %t\n", local.Policy.ApprovalMode, local.Policy.Permissions.Unrestricted, local.Policy.Permissions.WorkspacePaths, local.Policy.Permissions.Commands, local.Policy.Memory)
+		fmt.Printf("审批: %s\n一般资源范围不限: %t\n工作区: %v\n可执行文件: %v\n", local.Policy.ApprovalMode, local.Policy.Permissions.Unrestricted, local.Policy.Permissions.WorkspacePaths, local.Policy.Permissions.Commands)
 		return 0
 	case "list":
 		var items []storage.Conversation
 		if err := client.Call("conversations.list", nil, &items); err != nil {
 			return fail("conversations.list", err)
 		}
-		rows := [][]string{{"ID", "标题", "Profile"}}
+		rows := [][]string{{"ID", "标题", "执行配置"}}
 		for _, c := range items {
-			name := c.ProfileName
-			if c.ProfileArchived {
+			name := c.ConfigName
+			if c.ConfigArchived {
 				name += "（已删除）"
 			}
 			rows = append(rows, []string{c.ID, c.Title, name})
@@ -129,24 +118,15 @@ func cmdConversations(client *ipc.Client, args []string) int {
 		printTable(rows)
 		return 0
 	case "create":
-		if parsed.value("profile") == "" {
-			return usage("conversations create --profile <id> [--reuse <sessionID>] [--title <标题>]")
+		if err := parsed.allowValues("reuse", "title"); err != nil {
+			return usage(err.Error())
 		}
 		var c storage.Conversation
-		if err := client.Call("conversations.create", map[string]any{"profileId": parsed.value("profile"), "reuseSession": parsed.value("reuse"), "title": parsed.value("title")}, &c); err != nil {
+		// 新对话不带配置参数：宿主使用自动创建的默认执行配置。
+		if err := client.Call("conversations.create", map[string]any{"reuseSession": parsed.value("reuse"), "title": parsed.value("title")}, &c); err != nil {
 			return fail("conversations.create", err)
 		}
-		fmt.Printf("已创建对话 %s（%s）\n", c.ID, c.ProfileName)
-		return 0
-	case "select":
-		if parsed.arg(0) == "" || parsed.value("profile") == "" {
-			return usage("conversations select <id> --profile <id>")
-		}
-		var c storage.Conversation
-		if err := client.Call("conversations.select", map[string]any{"id": parsed.arg(0), "profileId": parsed.value("profile")}, &c); err != nil {
-			return fail("conversations.select", err)
-		}
-		fmt.Printf("后续任务使用 %s；历史与权限保留\n", c.ProfileName)
+		fmt.Printf("已创建对话 %s（%s）\n", c.ID, c.ConfigName)
 		return 0
 	case "start", "show":
 		if parsed.arg(0) == "" {
@@ -161,7 +141,7 @@ func cmdConversations(client *ipc.Client, args []string) int {
 			if err := client.Call("sessions.messages", map[string]any{"sessionId": c.ID}, &messages); err != nil {
 				return fail("读取对话", err)
 			}
-			fmt.Printf("%s（%s）\n", c.Title, c.ProfileName)
+			fmt.Printf("%s（%s）\n", c.Title, c.ConfigName)
 			for _, message := range messages {
 				fmt.Printf("[%s] %s\n", message.Role, message.Content)
 			}
@@ -186,48 +166,4 @@ func cmdConversations(client *ipc.Client, args []string) int {
 	default:
 		return usage("未知 conversations 子命令")
 	}
-}
-
-func cmdTemplates(client *ipc.Client, args []string) int {
-	if len(args) == 0 || args[0] == "list" {
-		var templates []storage.ProfileTemplate
-		if err := client.Call("templates.list", nil, &templates); err != nil {
-			return fail("templates.list", err)
-		}
-		rows := [][]string{{"ID", "名称", "验证"}}
-		for _, t := range templates {
-			rows = append(rows, []string{t.ID, t.Name, t.Validation})
-		}
-		printTable(rows)
-		return 0
-	}
-	if args[0] == "show" {
-		if len(args) != 2 {
-			return usage("templates show <模板ID>")
-		}
-		var templates []storage.ProfileTemplate
-		if err := client.Call("templates.list", nil, &templates); err != nil {
-			return fail("templates.list", err)
-		}
-		for _, item := range templates {
-			if item.ID == args[1] {
-				fmt.Printf("%s（v%d，%s）\n输入: %s\n交付: %s\n准备: %s\n示例: %s\n", item.Name, item.Version, item.Validation, item.Guide.Input, item.Guide.Output, item.Guide.Requirements, item.Guide.Example)
-				return 0
-			}
-		}
-		return usage("出厂模板不存在或尚未实现")
-	}
-	if args[0] != "create" {
-		return usage("templates list | show <模板ID> | create <模板ID> [名称]")
-	}
-	parsed, err := parseCLI(args[1:])
-	if err != nil || parsed.arg(0) == "" {
-		return usage("templates create <模板ID> [名称]")
-	}
-	var p storage.Profile
-	if err := client.Call("templates.create", map[string]any{"id": parsed.arg(0), "name": parsed.arg(1)}, &p); err != nil {
-		return fail("templates.create", err)
-	}
-	fmt.Printf("已创建 Profile %s（%s）\n", p.ID, p.Name)
-	return 0
 }

@@ -12,26 +12,30 @@ import (
 	"sync"
 	"time"
 
-	"icepick/internal/agent"
-	"icepick/internal/config"
-	"icepick/internal/materials"
-	"icepick/internal/mcptools"
-	"icepick/internal/model"
-	"icepick/internal/skills"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/config"
+	"icetudio/internal/materials"
+	"icetudio/internal/mcptools"
+	"icetudio/internal/model"
+	"icetudio/internal/playback"
+	"icetudio/internal/skills"
+	"icetudio/internal/storage"
 )
 
 // Event is a post-commit notification about persisted state. Clients may
 // receive duplicates; consumers deduplicate by session sequence and run
 // status when they need exactly-once semantics.
 type Event struct {
-	Type      string `json:"type"` // run.started, run.updated, message.appended
+	Type      string `json:"type"` // run.*, message.*, project.changed, project.deleted
 	SessionID string `json:"sessionId"`
 	RunID     string `json:"runId"`
 	Detail    string `json:"detail,omitempty"`
+	ProjectID string `json:"projectId,omitempty"`
+	Revision  int64  `json:"revision,omitempty"`
 }
 
 type Options struct {
+	Playback   *playback.Manager
 	Store      *storage.Store
 	Runs       *agent.Runs
 	Tools      agent.ToolExecutor
@@ -60,6 +64,7 @@ type Options struct {
 }
 
 type Service struct {
+	playback   *playback.Manager
 	store      *storage.Store
 	runs       *agent.Runs
 	tools      agent.ToolExecutor
@@ -74,8 +79,9 @@ type Service struct {
 	protectedPaths []string
 	endpoints      MCPEndpointSource
 	manager        MCPManager
-	// dataDir hosts the log file for the log viewer; empty disables it.
-	dataDir string
+	// dataDir hosts logs and the GUI recovery journal; empty disables both.
+	dataDir           string
+	projectRecoveryMu sync.Mutex
 
 	mu         sync.RWMutex
 	config     config.Config
@@ -107,7 +113,8 @@ type Service struct {
 func New(opts Options) *Service {
 	timeout := 5 * time.Minute
 	svc := &Service{
-		store: opts.Store, runs: opts.Runs, tools: opts.Tools, skills: opts.Skills,
+		playback: opts.Playback,
+		store:    opts.Store, runs: opts.Runs, tools: opts.Tools, skills: opts.Skills,
 		chat: opts.Chat, discovery: opts.Discovery, config: opts.Config,
 		configPath: opts.ConfigPath, initErr: opts.InitError, running: map[string]string{},
 		credStore:       newCredentialStore(opts.CredentialPath),
@@ -173,7 +180,7 @@ func (s *Service) GetStatus() AppStatus {
 	s.mu.RLock()
 	source := s.config.Model
 	s.mu.RUnlock()
-	status := AppStatus{Name: "ICEPick", StorageReady: s.initErr == nil && s.store != nil, RuntimeReady: s.initErr == nil && s.store != nil && source.Name != "" && s.tools != nil, Model: source, AvailableModels: []string{}}
+	status := AppStatus{Name: "IceTudio", StorageReady: s.initErr == nil && s.store != nil, RuntimeReady: s.initErr == nil && s.store != nil && source.Name != "" && s.tools != nil, Model: source, AvailableModels: []string{}}
 	if s.initErr != nil {
 		status.Message = "本地数据初始化失败：" + s.initErr.Error()
 		return status
@@ -493,7 +500,7 @@ func (s *Service) StartConversationTask(sessionID, input string, uploads ...mate
 	return item, nil
 }
 
-func (s *Service) executeTask(ctx context.Context, runID, sessionID string, source config.Model, profile storage.RunProfile, initialGrant storage.ExfilGrant) {
+func (s *Service) executeTask(ctx context.Context, runID, sessionID string, source config.Model, profile storage.RunConfigSnapshot, initialGrant storage.ExfilGrant) {
 	defer func() {
 		s.taskMu.Lock()
 		if s.running[sessionID] == runID {
@@ -683,7 +690,7 @@ func (s *Service) PendingStreamText(runID string) (string, error) {
 // classifierFor builds the effect/sensitivity classifier for one run from
 // the context's permission scope; the run keeps using this snapshot even if
 // the policy changes mid-run.
-func (s *Service) classifierFor(profile storage.RunProfile) mcptools.Classifier {
+func (s *Service) classifierFor(profile storage.RunConfigSnapshot) mcptools.Classifier {
 	return mcptools.Classifier{Workspace: profile.Policy.Permissions.WorkspacePaths, Protected: s.protectedPaths}
 }
 

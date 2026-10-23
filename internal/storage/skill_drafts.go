@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"icepick/internal/skills"
+	"icetudio/internal/skills"
 	"strings"
 )
 
@@ -38,21 +38,30 @@ func (p SkillProposal) Validate() error {
 	return nil
 }
 
+// ConfigReference reports one execution config whose selection covers a
+// Skill: the common catalog or an explicit worker slot configuration.
+type ConfigReference struct {
+	ConfigID string   `json:"configId"`
+	Name     string   `json:"name"`
+	Revision int      `json:"revision"`
+	Workers  []string `json:"workers"`
+}
+
 type SkillDraft struct {
-	Scopes          []string           `json:"scopes"`
-	ID              string             `json:"id"`
-	RunID           string             `json:"runId"`
-	Source          skills.Snapshot    `json:"source"`
-	Request         string             `json:"request"`
-	Proposal        SkillProposal      `json:"proposal"`
-	Revision        int                `json:"revision"`
-	State           string             `json:"state"`
-	Published       skills.Snapshot    `json:"published"`
-	Evidence        []DraftEvidence    `json:"evidence"`
-	Impact          []ProfileReference `json:"impact"`
-	AllSkillsImpact []ProfileReference `json:"allSkillsImpact"`
-	CreatedAt       string             `json:"createdAt"`
-	UpdatedAt       string             `json:"updatedAt"`
+	Scopes          []string          `json:"scopes"`
+	ID              string            `json:"id"`
+	RunID           string            `json:"runId"`
+	Source          skills.Snapshot   `json:"source"`
+	Request         string            `json:"request"`
+	Proposal        SkillProposal     `json:"proposal"`
+	Revision        int               `json:"revision"`
+	State           string            `json:"state"`
+	Published       skills.Snapshot   `json:"published"`
+	Evidence        []DraftEvidence   `json:"evidence"`
+	Impact          []ConfigReference `json:"impact"`
+	AllSkillsImpact []ConfigReference `json:"allSkillsImpact"`
+	CreatedAt       string            `json:"createdAt"`
+	UpdatedAt       string            `json:"updatedAt"`
 }
 
 const skillDraftColumns = `id,run_id,source,scopes,request,proposal,revision,state,published,created_at,updated_at`
@@ -214,15 +223,15 @@ func (s *Store) ApplySkillDraft(ctx context.Context, id string, revision int) (s
 }
 
 // Reports references without changing them; copies never replace shared Skills.
-func (s *Store) SkillReferences(ctx context.Context, name string, allOnly bool) ([]ProfileReference, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,name,revision,config FROM profiles WHERE archived_at IS NULL`)
+func (s *Store) SkillReferences(ctx context.Context, name string, allOnly bool) ([]ConfigReference, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id,name,revision,config FROM runtime_configs WHERE archived_at IS NULL`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []ProfileReference{}
+	out := []ConfigReference{}
 	for rows.Next() {
-		var p Profile
+		var p RuntimeConfig
 		var raw string
 		if err = rows.Scan(&p.ID, &p.Name, &p.Revision, &raw); err != nil {
 			return nil, err
@@ -235,12 +244,12 @@ func (s *Store) SkillReferences(ctx context.Context, name string, allOnly bool) 
 			refs = append(refs, "公共配置")
 		}
 		for _, slot := range p.Data.Execution.WorkerSources {
-			if slot.Configuration != nil && (slot.Configuration.AllSkills || (!allOnly && slot.Configuration.ProfileData().EnablesSkill(name))) {
+			if slot.Configuration != nil && (slot.Configuration.AllSkills || (!allOnly && slot.Configuration.ConfigData().EnablesSkill(name))) {
 				refs = append(refs, slot.Name)
 			}
 		}
 		if len(refs) > 0 {
-			out = append(out, ProfileReference{ProfileID: p.ID, Name: p.Name, Revision: p.Revision, Workers: refs})
+			out = append(out, ConfigReference{ConfigID: p.ID, Name: p.Name, Revision: p.Revision, Workers: refs})
 		}
 	}
 	return out, rows.Err()
@@ -255,7 +264,7 @@ func (s *Store) WithdrawSkillDraft(ctx context.Context, id string, revision int)
 		if d.State != "applied" || d.Revision != revision {
 			return errors.New("Skill草案已变化或不能撤销")
 		}
-		rows, err := tx.QueryContext(ctx, `SELECT config FROM profiles WHERE archived_at IS NULL`)
+		rows, err := tx.QueryContext(ctx, `SELECT config FROM runtime_configs WHERE archived_at IS NULL`)
 		if err != nil {
 			return err
 		}
@@ -266,7 +275,7 @@ func (s *Store) WithdrawSkillDraft(ctx context.Context, id string, revision int)
 				rows.Close()
 				return err
 			}
-			var data ProfileData
+			var data RuntimeConfigData
 			if err = json.Unmarshal([]byte(raw), &data); err != nil {
 				rows.Close()
 				return err
@@ -275,7 +284,7 @@ func (s *Store) WithdrawSkillDraft(ctx context.Context, id string, revision int)
 				referenced = true
 			}
 			for _, slot := range data.Execution.WorkerSources {
-				if slot.Configuration != nil && !slot.Configuration.AllSkills && slot.Configuration.ProfileData().EnablesSkill(d.Published.Name) {
+				if slot.Configuration != nil && !slot.Configuration.AllSkills && slot.Configuration.ConfigData().EnablesSkill(d.Published.Name) {
 					referenced = true
 				}
 			}
@@ -286,7 +295,7 @@ func (s *Store) WithdrawSkillDraft(ctx context.Context, id string, revision int)
 			return err
 		}
 		if referenced {
-			return errors.New("副本仍被Profile显式引用，请先取消引用再撤销")
+			return errors.New("副本仍被执行配置显式引用，请先取消引用再撤销")
 		}
 		_, err = tx.ExecContext(ctx, `UPDATE skill_drafts SET state='withdrawn',revision=revision+1,updated_at=? WHERE id=?`, now(), id)
 		return err

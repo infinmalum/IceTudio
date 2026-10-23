@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 
 	"google.golang.org/genai"
 )

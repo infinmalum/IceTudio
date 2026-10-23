@@ -197,7 +197,7 @@ func TestWorkerTraceScopeAndRootBoundary(t *testing.T) {
 	if err != nil || len(traces) != 1 || traces[0].RunID != a.ID || traces[0].Scope != ScopeCredential || traces[0].Verification != "unreviewed" {
 		t.Fatalf("trace scope: %+v %v", traces, err)
 	}
-	session, err := s.CreateContextSession(ctx, testContextID, DefaultProfileID, "other root")
+	session, err := s.CreateContextSession(ctx, testContextID, DefaultConfigID, "other root")
 	if err != nil {
 		t.Fatal(err)
 	}

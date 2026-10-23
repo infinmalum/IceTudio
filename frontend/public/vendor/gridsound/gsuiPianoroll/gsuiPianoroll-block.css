@@ -1,0 +1,56 @@
+.gsuiPianoroll-block {
+	container: gsui-pianoroll-block-query / size;
+	--gsuiDragline-color: var( --gsuiBlocksManager-blockColor );
+
+	/* ...................................................................... */
+	gsui-dragline {
+		top: 50%;
+		right: 0;
+	}
+	.gsuiDragline-drop {
+		top: 50%;
+		left: 0;
+
+		&::before {
+			left: 0;
+		}
+	}
+	.gsuiDragline-dropActive::before {
+		left: -4px;
+	}
+
+	/* ...................................................................... */
+	&:not( :hover, .gsui-hover ) gsui-dragline:not( .gsuiDragline-dragging ) .gsuiDragline-to {
+		background-color: transparent;
+	}
+	&:where( :hover, .gsui-hover ) {
+		gsui-dragline:not( .gsuiDragline-linked ) .gsuiDragline-to { translate: 2px 0 }
+		.gsuiDragline-linked .gsuiDragline-to { translate: -2px 0 }
+	}
+
+	/* ...................................................................... */
+	span {
+		position: absolute;
+		display: flex;
+		align-items: center;
+		left: 4px;
+		height: 100%;
+		color: #000;
+		font-size: var( --gsui-fs, 11px );
+		font-weight: bold;
+		opacity: .4;
+		pointer-events: none;
+	}
+}
+
+/* .......................................................................... */
+@container gsui-pianoroll-block-query ( max-height: 14px ) {
+	span {
+		--gsui-fs: 10px;
+	}
+}
+@container gsui-pianoroll-block-query ( max-width: 24px ) {
+	span {
+		--gsui-fs: 0;
+	}
+}

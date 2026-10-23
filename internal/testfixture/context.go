@@ -4,7 +4,7 @@ package testfixture
 import (
 	"context"
 	"database/sql"
-	"icepick/internal/storage"
+	"icetudio/internal/storage"
 )
 
 const ContextID = "test-context"
@@ -28,10 +28,10 @@ func Open(path string) (*storage.Store, error) {
 	return s, nil
 }
 func Session(s *storage.Store, ctx context.Context, title string) (storage.Session, error) {
-	return s.CreateContextSession(ctx, ContextID, storage.DefaultProfileID, title)
+	return s.CreateContextSession(ctx, ContextID, storage.DefaultConfigID, title)
 }
-func Context(s *storage.Store, ctx context.Context, name, profileID string) (storage.LocalContext, error) {
-	c, err := s.CreateConversation(ctx, profileID, "", name)
+func Context(s *storage.Store, ctx context.Context, name, configID string) (storage.LocalContext, error) {
+	c, err := s.CreateConversation(ctx, configID, "", name)
 	if err != nil {
 		return storage.LocalContext{}, err
 	}
@@ -42,27 +42,27 @@ func ContextSession(s *storage.Store, ctx context.Context, id, title string) (st
 	if err != nil {
 		return storage.Session{}, err
 	}
-	profile := storage.DefaultProfileID
+	configID := storage.DefaultConfigID
 	if len(cs) > 0 {
 		c, err := s.GetConversation(ctx, cs[0].ID)
 		if err != nil {
 			return storage.Session{}, err
 		}
-		profile = c.ProfileID
+		configID = c.ConfigID
 	}
-	return s.CreateContextSession(ctx, id, profile, title)
+	return s.CreateContextSession(ctx, id, configID, title)
 }
-func Profile(s *storage.Store, ctx context.Context, id string) (storage.RunProfile, error) {
+func RunConfig(s *storage.Store, ctx context.Context, id string) (storage.RunConfigSnapshot, error) {
 	cs, err := s.ListContextSessions(ctx, id)
 	if err != nil {
-		return storage.RunProfile{}, err
+		return storage.RunConfigSnapshot{}, err
 	}
 	if len(cs) > 0 {
-		return s.ResolveRunProfile(ctx, cs[0].ID)
+		return s.ResolveRunConfig(ctx, cs[0].ID)
 	}
 	session, err := ContextSession(s, ctx, id, "fixture")
 	if err != nil {
-		return storage.RunProfile{}, err
+		return storage.RunConfigSnapshot{}, err
 	}
-	return s.ResolveRunProfile(ctx, session.ID)
+	return s.ResolveRunConfig(ctx, session.ID)
 }

@@ -7,8 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"icepick/internal/config"
-	"icepick/internal/materials"
+	"icetudio/internal/config"
+	"icetudio/internal/materials"
 	"strings"
 )
 
@@ -52,12 +52,12 @@ type TaskRetrospective struct {
 	CreatedAt     string              `json:"createdAt"`
 }
 type RetrospectiveRun struct {
-	ParentRunID     string       `json:"parentRunId,omitempty"`
-	ProfileID       string       `json:"profileId"`
-	ProfileRevision int          `json:"profileRevision"`
-	Model           config.Model `json:"model"`
-	CreatedAt       string       `json:"createdAt"`
-	UpdatedAt       string       `json:"updatedAt"`
+	ParentRunID    string       `json:"parentRunId,omitempty"`
+	ConfigID       string       `json:"profileId"`
+	ConfigRevision int          `json:"profileRevision"`
+	Model          config.Model `json:"model"`
+	CreatedAt      string       `json:"createdAt"`
+	UpdatedAt      string       `json:"updatedAt"`
 
 	ID         string `json:"id"`
 	SessionID  string `json:"sessionId"`
@@ -88,7 +88,7 @@ const retrospectiveTree = `WITH RECURSIVE tree(id) AS(SELECT ? UNION ALL SELECT 
 func retrospectiveSnapshotInTx(ctx context.Context, tx *sql.Tx, root string) (RetrospectiveSnapshot, error) {
 	out := RetrospectiveSnapshot{Runs: []RetrospectiveRun{}, Steps: []Step{}, Messages: []RetrospectiveMessage{}, Calls: []ToolCall{}}
 	var raw string
-	if err := tx.QueryRowContext(ctx, `SELECT profile_snapshot FROM runs WHERE id=? AND parent_run_id IS NULL AND status<>'running'`, root).Scan(&raw); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT config_snapshot FROM runs WHERE id=? AND parent_run_id IS NULL AND status<>'running'`, root).Scan(&raw); err != nil {
 		return out, err
 	}
 	out.Contract = json.RawMessage(raw)
@@ -97,18 +97,18 @@ func retrospectiveSnapshotInTx(ctx context.Context, tx *sql.Tx, root string) (Re
 	if err != nil {
 		return out, err
 	}
-	rows, err := tx.QueryContext(ctx, retrospectiveTree+`SELECT id,session_id,component,worker_name,status,error,COALESCE(parent_run_id,''),profile_id,profile_revision,profile_snapshot,created_at,updated_at FROM runs WHERE id IN tree ORDER BY created_at,id`, root)
+	rows, err := tx.QueryContext(ctx, retrospectiveTree+`SELECT id,session_id,component,worker_name,status,error,COALESCE(parent_run_id,''),config_id,config_revision,config_snapshot,created_at,updated_at FROM runs WHERE id IN tree ORDER BY created_at,id`, root)
 	if err != nil {
 		return out, err
 	}
 	for rows.Next() {
 		var r RetrospectiveRun
 		var profileRaw string
-		if err = rows.Scan(&r.ID, &r.SessionID, &r.Component, &r.WorkerName, &r.Status, &r.Error, &r.ParentRunID, &r.ProfileID, &r.ProfileRevision, &profileRaw, &r.CreatedAt, &r.UpdatedAt); err != nil {
+		if err = rows.Scan(&r.ID, &r.SessionID, &r.Component, &r.WorkerName, &r.Status, &r.Error, &r.ParentRunID, &r.ConfigID, &r.ConfigRevision, &profileRaw, &r.CreatedAt, &r.UpdatedAt); err != nil {
 			rows.Close()
 			return out, err
 		}
-		var frozen ProfileData
+		var frozen RuntimeConfigData
 		if err = json.Unmarshal([]byte(profileRaw), &frozen); err != nil {
 			rows.Close()
 			return out, err

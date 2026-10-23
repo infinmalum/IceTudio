@@ -1,21 +1,18 @@
 package app
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"icepick/internal/agent"
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/skills"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/skills"
+	"icetudio/internal/storage"
 )
 
 const testSkillContent = "---\nname: explain-steps\ndescription: Explain a concept for beginners.\n---\n# Steps\nAsk for the topic. Give one example. Verify that the example matches the explanation.\n"
@@ -47,7 +44,7 @@ func (m *skillDraftModel) Chat(_ context.Context, _ config.Model, messages []mod
 	}
 	return answer, nil
 }
-func TestSkillDraftCopyPublicationFrozenContentRestartAndShare(t *testing.T) {
+func TestSkillDraftCopyPublicationFrozenContentRestart(t *testing.T) {
 	ctx := context.Background()
 	m := &skillDraftModel{}
 	s, store := newTestService(t, m, &scriptTools{})
@@ -64,12 +61,10 @@ func TestSkillDraftCopyPublicationFrozenContentRestartAndShare(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.skills = catalog
-	p, err := s.CreateTemplateProfile("daily", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	p.Data.EnabledSkills = []string{"explain-steps"}
-	p, err = s.UpdateProfile(p)
+	data := storage.DefaultRuntimeConfig()
+	data.AllSkills = false
+	data.EnabledSkills = []string{"explain-steps"}
+	p, err := s.store.CreateRuntimeConfig(ctx, "草稿引用配置", data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +121,7 @@ func TestSkillDraftCopyPublicationFrozenContentRestartAndShare(t *testing.T) {
 	if original != before {
 		t.Fatal("shared source overwritten")
 	}
-	current, _ := s.GetProfile(p.ID)
+	current, _ := s.GetRuntimeConfig(p.ID)
 	if current.Revision != p.Revision || current.Data.EnabledSkills[0] != "explain-steps" {
 		t.Fatal("references switched", current)
 	}
@@ -135,7 +130,7 @@ func TestSkillDraftCopyPublicationFrozenContentRestartAndShare(t *testing.T) {
 		t.Fatal("old snapshot changed")
 	}
 	current.Data.EnabledSkills = []string{copy.Name}
-	current, err = s.UpdateProfile(current)
+	current, err = s.UpdateRuntimeConfig(current)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,27 +143,6 @@ func TestSkillDraftCopyPublicationFrozenContentRestartAndShare(t *testing.T) {
 		t.Fatal(resources, err)
 	}
 	_ = s.runs.Finish(run.ID, "failed", "fixture")
-	exported, err := s.ExportProfile(current.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	raw, _ := base64.StdEncoding.DecodeString(exported.Data)
-	archive, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, f := range archive.File {
-		if f.Name == "skills/"+copy.Name+"/SKILL.md" {
-			found = true
-		}
-		if strings.Contains(f.Name, "evidence") || strings.Contains(f.Name, "draft") {
-			t.Fatal("draft evidence exported", f.Name)
-		}
-	}
-	if !found {
-		t.Fatal("managed Skill missing from share")
-	}
 	empty, err := skills.Discover(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -186,9 +160,8 @@ func TestSkillDraftInvalidOutputAndSourceConflict(t *testing.T) {
 	for _, bad := range []string{"yaml", "reference", "tools"} {
 		t.Run(bad, func(t *testing.T) {
 			m := &skillDraftModel{bad: bad}
-			s, _, p := draftFixture(t, &draftModel{})
-			s.chat = m
-			c, err := s.CreateConversation(p.ID, "", "")
+			s, _ := newTestService(t, m, &scriptTools{})
+			c, err := s.CreateConversation(storage.DefaultConfigID, "", "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -206,8 +179,7 @@ func TestSkillDraftInvalidOutputAndSourceConflict(t *testing.T) {
 }
 
 func TestSkillDraftSourceChangeAndWithdrawal(t *testing.T) {
-	s, _, p := draftFixture(t, &draftModel{})
-	s.chat = &skillDraftModel{}
+	s, _ := newTestService(t, &skillDraftModel{}, &scriptTools{})
 	root := t.TempDir()
 	dir := filepath.Join(root, "explain-steps")
 	if err := os.Mkdir(dir, 0700); err != nil {
@@ -222,7 +194,7 @@ func TestSkillDraftSourceChangeAndWithdrawal(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.skills = catalog
-	c, err := s.CreateConversation(p.ID, "", "")
+	c, err := s.CreateConversation(storage.DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,16 +229,16 @@ func TestSkillDraftSourceChangeAndWithdrawal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p.Data.EnabledSkills = []string{copy.Name}
-	p, err = s.UpdateProfile(p)
-	if err != nil {
+	data := storage.BlankRuntimeConfig()
+	data.EnabledSkills = []string{copy.Name}
+	if _, err = s.configureDefault(data); err != nil {
 		t.Fatal(err)
 	}
 	if err = s.WithdrawSkillDraft(d.ID, d.Revision); err == nil {
 		t.Fatal("withdrawal broke explicit reference")
 	}
-	p.Data.EnabledSkills = nil
-	if _, err = s.UpdateProfile(p); err != nil {
+	data.EnabledSkills = nil
+	if _, err = s.configureDefault(data); err != nil {
 		t.Fatal(err)
 	}
 	if err = s.WithdrawSkillDraft(d.ID, d.Revision); err != nil {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 // SearchOptions applies to a single model request, never provider configuration.

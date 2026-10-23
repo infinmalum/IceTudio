@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/materials"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/materials"
+	"icetudio/internal/storage"
 )
 
 // Runs owns cancellation signals for active tasks.
@@ -24,50 +24,50 @@ func NewRuns(store *storage.Store) *Runs {
 	return &Runs{store: store, active: map[string]context.CancelFunc{}}
 }
 
-// Start creates the run and resolves the conversation's current Profile in
-// one transaction. The returned resolved profile is the snapshot the run
-// must execute with; later profile edits affect only subsequent runs.
-func (r *Runs) Start(ctx context.Context, sessionID string) (storage.Run, context.Context, storage.RunProfile, error) {
+// Start creates the run and resolves the conversation's current RuntimeConfig
+// (执行配置) in one transaction. The returned snapshot is the configuration the
+// run must execute with; later config edits affect only subsequent runs.
+func (r *Runs) Start(ctx context.Context, sessionID string) (storage.Run, context.Context, storage.RunConfigSnapshot, error) {
 	return r.start(ctx, sessionID, storage.CreateRunOptions{})
 }
 
-func (r *Runs) StartPrepared(ctx context.Context, sessionID string, model config.Model, snapshot storage.SkillSnapshotter, searchTools ...string) (storage.Run, context.Context, storage.RunProfile, error) {
+func (r *Runs) StartPrepared(ctx context.Context, sessionID string, model config.Model, snapshot storage.SkillSnapshotter, searchTools ...string) (storage.Run, context.Context, storage.RunConfigSnapshot, error) {
 	return r.start(ctx, sessionID, storage.CreateRunOptions{DefaultModel: model, SnapshotSkills: snapshot, SearchTools: searchTools})
 }
 
-func (r *Runs) StartInspection(ctx context.Context, sessionID, target string, retrospective bool, source config.Model, snapshot storage.SkillSnapshotter) (storage.Run, context.Context, storage.RunProfile, error) {
+func (r *Runs) StartInspection(ctx context.Context, sessionID, target string, retrospective bool, source config.Model, snapshot storage.SkillSnapshotter) (storage.Run, context.Context, storage.RunConfigSnapshot, error) {
 	return r.start(ctx, sessionID, storage.CreateRunOptions{DefaultModel: source, SnapshotSkills: snapshot, Inspection: &storage.InspectionRequest{TargetRunID: target, Retrospective: retrospective}})
 }
 
-func (r *Runs) StartImprover(ctx context.Context, session string, source config.Model) (storage.Run, context.Context, storage.RunProfile, error) {
+func (r *Runs) StartImprover(ctx context.Context, session string, source config.Model) (storage.Run, context.Context, storage.RunConfigSnapshot, error) {
 	return r.start(ctx, session, storage.CreateRunOptions{Component: "improver", DefaultModel: source})
 }
 
-func (r *Runs) StartWorker(ctx context.Context, sessionID, parentID string, depth int, name string) (storage.Run, context.Context, storage.RunProfile, error) {
+func (r *Runs) StartWorker(ctx context.Context, sessionID, parentID string, depth int, name string) (storage.Run, context.Context, storage.RunConfigSnapshot, error) {
 	return r.start(ctx, sessionID, storage.CreateRunOptions{ParentRunID: parentID, Depth: depth, WorkerName: name})
 }
 
-func (r *Runs) StartPlannedWorker(ctx context.Context, sessionID, parentID string, spec storage.TaskSpec) (storage.Run, context.Context, storage.RunProfile, error) {
+func (r *Runs) StartPlannedWorker(ctx context.Context, sessionID, parentID string, spec storage.TaskSpec) (storage.Run, context.Context, storage.RunConfigSnapshot, error) {
 	return r.start(ctx, sessionID, storage.CreateRunOptions{ParentRunID: parentID, Depth: 1, WorkerName: spec.Worker, TaskSpec: &spec})
 }
 
-func (r *Runs) StartPlanner(ctx context.Context, session, parent string) (storage.Run, context.Context, storage.RunProfile, error) {
+func (r *Runs) StartPlanner(ctx context.Context, session, parent string) (storage.Run, context.Context, storage.RunConfigSnapshot, error) {
 	return r.start(ctx, session, storage.CreateRunOptions{ParentRunID: parent, Depth: 1, WorkerName: "@planner", Component: "planner"})
 }
 
-func (r *Runs) StartReviewer(ctx context.Context, session, parent string) (storage.Run, context.Context, storage.RunProfile, error) {
+func (r *Runs) StartReviewer(ctx context.Context, session, parent string) (storage.Run, context.Context, storage.RunConfigSnapshot, error) {
 	return r.start(ctx, session, storage.CreateRunOptions{ParentRunID: parent, Depth: 1, WorkerName: "@reviewer", Component: "reviewer"})
 }
 
-func (r *Runs) start(ctx context.Context, sessionID string, opts storage.CreateRunOptions) (storage.Run, context.Context, storage.RunProfile, error) {
+func (r *Runs) start(ctx context.Context, sessionID string, opts storage.CreateRunOptions) (storage.Run, context.Context, storage.RunConfigSnapshot, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if err := ctx.Err(); err != nil {
-		return storage.Run{}, nil, storage.RunProfile{}, err
+		return storage.Run{}, nil, storage.RunConfigSnapshot{}, err
 	}
 	item, resolved, err := r.store.CreateRunWithOptions(ctx, sessionID, opts)
 	if err != nil {
-		return storage.Run{}, nil, storage.RunProfile{}, err
+		return storage.Run{}, nil, storage.RunConfigSnapshot{}, err
 	}
 	timeout := RunTimeout
 	if opts.ParentRunID == "" {
@@ -78,14 +78,14 @@ func (r *Runs) start(ctx context.Context, sessionID string, opts storage.CreateR
 	return item, runCtx, resolved, nil
 }
 
-func (r *Runs) ContinueFixed(ctx context.Context, root, task, input string, files []materials.File) (context.Context, storage.RunProfile, error) {
+func (r *Runs) ContinueFixed(ctx context.Context, root, task, input string, files []materials.File) (context.Context, storage.RunConfigSnapshot, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, active := r.active[root]; active {
-		return nil, storage.RunProfile{}, errors.New("任务执行尚未结束")
+		return nil, storage.RunConfigSnapshot{}, errors.New("任务执行尚未结束")
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, storage.RunProfile{}, err
+		return nil, storage.RunConfigSnapshot{}, err
 	}
 	p, remaining, err := r.store.ContinueFixedRun(ctx, root, task, input, files)
 	if err != nil {

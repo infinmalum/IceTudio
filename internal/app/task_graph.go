@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 var taskPlanDefinition = func() model.Tool {
@@ -56,7 +56,7 @@ func (t bookkeepingTools) taskPlan(ctx context.Context, raw string) (string, err
 
 // Resolve the complete approved contract from the current root only. A
 // fingerprint binds approval to the saved spec, including explicit materials.
-func (s *Service) resolvePlannedTask(ctx context.Context, p storage.RunProfile, runID string, args delegateArgs) (delegateArgs, *storage.TaskSpec, error) {
+func (s *Service) resolvePlannedTask(ctx context.Context, p storage.RunConfigSnapshot, runID string, args delegateArgs) (delegateArgs, *storage.TaskSpec, error) {
 	if args.TaskID == "" {
 		if p.Execution.Workflow == "fixed" {
 			return args, nil, errors.New("固定流程只能执行已声明阶段")
@@ -67,7 +67,7 @@ func (s *Service) resolvePlannedTask(ctx context.Context, p storage.RunProfile, 
 		return args, nil, nil
 	}
 	if p.Execution.Workflow != "fixed" && (!p.PlanEnabled || !p.AllowsTool(taskPlanDefinition.Function.Name)) {
-		return args, nil, errors.New("Profile 未允许根任务执行计划")
+		return args, nil, errors.New("执行配置未允许根任务执行计划")
 	}
 	if args.Worker != "" || args.Task != "" || args.Materials != "" {
 		return args, nil, errors.New("按计划执行时只传 taskId 和 taskFingerprint，不允许覆盖任务条件")

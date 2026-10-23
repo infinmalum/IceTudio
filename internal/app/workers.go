@@ -8,11 +8,11 @@ import (
 	"sort"
 	"strings"
 
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
-func (s *Service) resourcesFor(ctx context.Context, p storage.RunProfile, runID string) (storage.RunResources, error) {
+func (s *Service) resourcesFor(ctx context.Context, p storage.RunConfigSnapshot, runID string) (storage.RunResources, error) {
 	if p.Resources != nil {
 		return *p.Resources, nil
 	}
@@ -22,7 +22,7 @@ func (s *Service) resourcesFor(ctx context.Context, p storage.RunProfile, runID 
 	return s.store.RunResources(ctx, runID)
 }
 
-func (s *Service) delegationDefinition(ctx context.Context, p storage.RunProfile, runID string) model.Tool {
+func (s *Service) delegationDefinition(ctx context.Context, p storage.RunConfigSnapshot, runID string) model.Tool {
 	d := delegateDefinition
 	resources, err := s.resourcesFor(ctx, p, runID)
 	if err != nil || len(resources.Workers) == 0 {
@@ -43,18 +43,18 @@ func (s *Service) delegationDefinition(ctx context.Context, p storage.RunProfile
 	return d
 }
 
-func (s *Service) selectedWorker(ctx context.Context, p storage.RunProfile, runID string, args delegateArgs) (string, storage.FrozenProfile, bool, error) {
+func (s *Service) selectedWorker(ctx context.Context, p storage.RunConfigSnapshot, runID string, args delegateArgs) (string, storage.RuntimeConfigRevision, bool, error) {
 	resources, err := s.resourcesFor(ctx, p, runID)
 	if err != nil {
-		return "", storage.FrozenProfile{}, false, err
+		return "", storage.RuntimeConfigRevision{}, false, err
 	}
 	if len(resources.Workers) == 0 {
-		return "", storage.FrozenProfile{}, false, nil
+		return "", storage.RuntimeConfigRevision{}, false, nil
 	}
 	name := strings.TrimSpace(args.Worker)
 	if name == "" {
 		if len(resources.Workers) != 1 {
-			return "", storage.FrozenProfile{}, true, errors.New("请明确选择 worker 槽位")
+			return "", storage.RuntimeConfigRevision{}, true, errors.New("请明确选择 worker 槽位")
 		}
 		for key := range resources.Workers {
 			name = key
@@ -62,14 +62,14 @@ func (s *Service) selectedWorker(ctx context.Context, p storage.RunProfile, runI
 	}
 	worker, ok := resources.Workers[name]
 	if !ok {
-		return "", storage.FrozenProfile{}, true, errors.New("worker 不在本任务起始配置中")
+		return "", storage.RuntimeConfigRevision{}, true, errors.New("worker 不在本任务起始配置中")
 	}
 	return name, worker, true, nil
 }
 
-func (s *Service) workerLimit(ctx context.Context, p storage.RunProfile, runID string, name string) string {
+func (s *Service) workerLimit(ctx context.Context, p storage.RunConfigSnapshot, runID string, name string) string {
 	if !p.Delegation.Enabled || !p.AllowsTool("local__delegate_task") {
-		return "该 Profile 未允许委派"
+		return "该执行配置未允许委派"
 	}
 	run, err := s.store.GetRun(ctx, runID)
 	if err != nil {
@@ -88,7 +88,7 @@ func (s *Service) workerLimit(ctx context.Context, p storage.RunProfile, runID s
 	return ""
 }
 
-func (s *Service) executeWorker(ctx context.Context, parent storage.RunProfile, sessionID, runID string, name string, worker storage.FrozenProfile, task string, planned *storage.TaskSpec) (string, error) {
+func (s *Service) executeWorker(ctx context.Context, parent storage.RunConfigSnapshot, sessionID, runID string, name string, worker storage.RuntimeConfigRevision, task string, planned *storage.TaskSpec) (string, error) {
 	if deny := s.workerLimit(ctx, parent, runID, name); deny != "" {
 		return "", errors.New(deny)
 	}
@@ -122,13 +122,13 @@ func (s *Service) executeWorker(ctx context.Context, parent storage.RunProfile, 
 	if err != nil {
 		return "", err
 	}
-	childSession, err := s.store.CreateDelegationSession(ctx, parent.ContextID, parent.ProfileID, "子任务 → "+name+"（"+worker.Name+"）")
+	childSession, err := s.store.CreateDelegationSession(ctx, parent.ContextID, parent.ConfigID, "子任务 → "+name+"（"+worker.Name+"）")
 	if err != nil {
 		return "", err
 	}
 	var childRun storage.Run
 	var childCtx context.Context
-	var childProfile storage.RunProfile
+	var childProfile storage.RunConfigSnapshot
 	if planned != nil {
 		childRun, childCtx, childProfile, err = s.runs.StartPlannedWorker(ctx, childSession.ID, runID, *planned)
 	} else {

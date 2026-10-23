@@ -18,7 +18,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 const maxWriteBytes = 256 * 1024
@@ -166,7 +166,7 @@ func commitText(ctx context.Context, parent *os.Root, name, path string, old []b
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return "", err
 	}
-	temp := ".icepick-write-" + hex.EncodeToString(nonce[:])
+	temp := ".icetudio-write-" + hex.EncodeToString(nonce[:])
 	f, err := parent.OpenFile(temp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return "", err

@@ -1,0 +1,109 @@
+"use strict";
+
+class gsui0ne extends HTMLElement {
+	$this = $( this );
+	$element = null;
+	$elements = null;
+	$isActive = false;
+	$isConnected = false;
+	#ptrMap = new Map();
+	#ptrlock = false;
+	#children = null;
+	#attributes = null;
+	#onresizeBind = null;
+	#connectionCount = 0;
+
+	constructor( o = {} ) {
+		super();
+		Object.seal( this );
+		this.#attributes = o.$attributes || null;
+		this.#children = o.$template || ( $.$hasTemplate( o.$tagName )
+			? $.$getTemplate( o.$tagName, ...o.$tmpArgs || [] )
+			: null );
+		if ( this.#children ) {
+			this.$element = $( GSUisArr( this.#children ) ? this.#children[ 0 ] : this.#children );
+			this.$elements = $( this.#children ).$queryMap( o.$elements );
+		}
+		if ( this.$onresize ) {
+			this.#onresizeBind = this.$onresize.bind( this );
+		}
+		if ( this.$onptrdown && this.$onptrup ) {
+			this.oncontextmenu = GSUnoopFalse;
+			this.onpointerdown = this.#onptrdown.bind( this );
+			this.#ptrlock = o.$ptrlock || false;
+		}
+	}
+
+	// .........................................................................
+	connectedCallback() {
+		this.$isConnected = true;
+		if ( ++this.#connectionCount === 1 ) {
+			$( this.#children ).$appendTo( this );
+			GSUforEach( this.#attributes, ( val, p ) => {
+				if ( ( GSUisStr( val ) || GSUisNum( val ) || val === true ) && !this.$this.$hasAttr( p ) ) {
+					this.$this.$setAttr( p, val );
+				}
+			} );
+			this.#children =
+			this.#attributes = null;
+			this.$firstTimeConnected?.();
+		}
+		this.$connected?.();
+		if ( this.#onresizeBind ) {
+			this.$this.$observeSize( this.#onresizeBind );
+		}
+	}
+	disconnectedCallback() {
+		this.$this.$unobserveSize( this.#onresizeBind );
+		this.$isConnected = false;
+		this.$disconnected?.();
+	}
+	attributeChangedCallback( prop, prev, val ) {
+		if ( prev !== val ) {
+			this.$attributeChanged?.( prop, val, prev );
+		}
+	}
+
+	// .........................................................................
+	$ptrDown( e ) {
+		this.#onptrdown( e );
+	}
+	#onptrdown( e ) {
+		if ( this.$onptrdown( e ) === false ) {
+			this.$isActive = false;
+		} else {
+			this.$isActive = true;
+			if ( this.#ptrlock ) {
+				this.requestPointerLock().then( () => this.#onptrdown2( e ) );
+			} else {
+				this.$this.$setPtrCapture( e.pointerId );
+				this.#onptrdown2( e );
+			}
+		}
+	}
+	#onptrdown2( e ) {
+		this.#ptrMap.set( e.pointerId );
+		if ( this.#ptrMap.size < 2 ) {
+			this.onpointerup =
+			this.onpointerleave = this.#onptrup.bind( this );
+			if ( this.$onptrmove ) {
+				this.onpointermove = this.$onptrmove.bind( this );
+			}
+		}
+	}
+	#onptrup( e ) {
+		if ( this.$isActive ) {
+			this.#ptrlock
+				? document.exitPointerLock()
+				: this.$this.$relPtrCapture( e.pointerId );
+			this.#ptrMap.delete( e.pointerId );
+			if ( this.#ptrMap.size < 1 ) {
+				this.$isActive = false;
+				this.onpointermove =
+				this.onpointerup =
+				this.onpointerleave = null;
+			}
+			this.$onptrup( e );
+		}
+	}
+}

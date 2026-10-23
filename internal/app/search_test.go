@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 type nativeSearchMock struct {
@@ -59,11 +59,7 @@ func (m *nativeSearchMock) ChatWithSearch(ctx context.Context, _ config.Model, _
 func nativeSearchConversation(t *testing.T, m *nativeSearchMock, grant bool) (*Service, storage.Conversation) {
 	t.Helper()
 	s, _ := newTestService(t, m, &scriptTools{})
-	p, err := s.CreateTemplateProfile("daily", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := s.CreateConversation(p.ID, "", "")
+	c, err := s.CreateConversation(storage.DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +97,7 @@ func TestConversationSearchFrozenOptionAndNativeRecords(t *testing.T) {
 	if err != nil || len(records) != 1 || records[0].State != "completed" || len(records[0].Report.Citations) != 1 || len(records[0].Report.Events) != 1 || records[0].Report.Cost != nil {
 		t.Fatal(records, err)
 	}
-	scopes, err := s.sessionScopes(context.Background(), c.ID, storage.RunProfile{})
+	scopes, err := s.sessionScopes(context.Background(), c.ID, storage.RunConfigSnapshot{})
 	if err != nil || !containsTool(scopes, storage.ScopeUnknown) {
 		t.Fatal(scopes, err)
 	}
@@ -159,11 +155,7 @@ func TestConversationSearchExfilFailureAndCancellation(t *testing.T) {
 }
 func TestConversationSearchUnavailableAndMCPDiscoveryBoundary(t *testing.T) {
 	s, _ := newTestService(t, &scriptModel{}, &scriptTools{})
-	p, err := s.CreateTemplateProfile("daily", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := s.CreateConversation(p.ID, "", "")
+	c, err := s.CreateConversation(storage.DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,8 +175,13 @@ func TestConversationSearchUnavailableAndMCPDiscoveryBoundary(t *testing.T) {
 	s.mu.Lock()
 	s.config.MCPServers = []config.MCPServer{{Name: "web", Command: "mock", WebSearchTools: []string{"lookup"}}}
 	s.mu.Unlock()
-	p.Data.EnabledMCPServers = append(p.Data.EnabledMCPServers, "web")
-	if _, err := s.UpdateProfile(p); err != nil {
+	p, err := s.GetRuntimeConfig(storage.DefaultConfigID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Data.AllMCPServers = false
+	p.Data.EnabledMCPServers = []string{"local", "web"}
+	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
 
@@ -267,12 +264,11 @@ func TestConversationSearchMCPUsesExistingApprovalAndCitations(t *testing.T) {
 	s.mu.Lock()
 	s.config.MCPServers = []config.MCPServer{{Name: "web", Command: "mock", WebSearchTools: []string{"lookup"}}}
 	s.mu.Unlock()
-	p, err := s.CreateTemplateProfile("daily", "")
+	data := storage.DefaultRuntimeConfig()
+	data.AllMCPServers = false
+	data.EnabledMCPServers = []string{"local", "web"}
+	p, err := s.configureDefault(data)
 	if err != nil {
-		t.Fatal(err)
-	}
-	p.Data.EnabledMCPServers = append(p.Data.EnabledMCPServers, "web")
-	if _, err := s.UpdateProfile(p); err != nil {
 		t.Fatal(err)
 	}
 	c, err := s.CreateConversation(p.ID, "", "")
@@ -307,14 +303,14 @@ func TestConversationSearchDoesNotWidenReadWorker(t *testing.T) {
 	m := &nativeSearchMock{}
 	s, c := nativeSearchConversation(t, m, true)
 	ctx := context.Background()
-	p, err := s.GetProfile(c.ProfileID)
+	p, err := s.GetRuntimeConfig(c.ConfigID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	p.Data.Execution.WorkerSources = []storage.WorkerSource{{Name: "reader"}}
 	p.Data.PlanEnabled = true
 	p.Data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1}
-	if _, err := s.UpdateProfile(p); err != nil {
+	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
 	root, _, err := s.store.CreateRunWithOptions(ctx, c.ID, storage.CreateRunOptions{DefaultModel: s.config.Model})
@@ -325,7 +321,7 @@ func TestConversationSearchDoesNotWidenReadWorker(t *testing.T) {
 	if _, err := s.store.SetTaskGraph(ctx, root.ID, 0, []storage.TaskSpec{spec}); err != nil {
 		t.Fatal(err)
 	}
-	session, err := s.store.CreateDelegationSession(ctx, c.ContextID, storage.DefaultProfileID, "reader")
+	session, err := s.store.CreateDelegationSession(ctx, c.ContextID, storage.DefaultConfigID, "reader")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +383,7 @@ func TestConversationNativeSearchDisabledForCompaction(t *testing.T) {
 
 func TestNativeSearchCapabilityIndependentOfMCPSelection(t *testing.T) {
 	source := config.Model{Provider: "openai", Name: "gpt-4.1"}
-	blank := storage.BlankProfile()
+	blank := storage.BlankRuntimeConfig()
 	if availability := searchRoute(source, blank, nil); !availability.Available || availability.Route != "native" {
 		t.Fatal("disabling MCP disabled native search", availability)
 	}

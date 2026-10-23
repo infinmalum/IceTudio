@@ -1,3 +1,5 @@
+> 历史实现参考，不是删除授权。当前范围由 [P0 执行契约](p0-refactor-contract.md)、[逐项清单](p0-api-storage-inventory.md)及[实施计划](../IMPLEMENTATION_PLAN.md)规定。fixed 执行器、worker 槽位、依赖与等待输入续跑全部保留；正文中的 Profile 设置路径须替换为开发者设置中的 RuntimeConfig。
+
 # 固定阶段流程
 
 适合步骤事先确定的材料整理，例如分别分析材料 A/B，再汇总。用户仍只管理 Profile，阶段选择内置 worker 的配置槽位；宿主执行依赖，不调用 planner。

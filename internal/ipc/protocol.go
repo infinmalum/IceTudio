@@ -9,7 +9,7 @@ package ipc
 import (
 	"encoding/json"
 
-	"icepick/internal/app"
+	"icetudio/internal/app"
 )
 
 // Protocol version of the handshake; a client built against a different
@@ -18,7 +18,7 @@ const ProtocolVersion = 1
 
 // Hello is the first line a client sends after connecting.
 type Hello struct {
-	Hello   string `json:"hello"`   // always "icepick"
+	Hello   string `json:"hello"`   // always "icetudio"
 	Token   string `json:"token"`   // host token from the data directory
 	Version int    `json:"version"` // ProtocolVersion
 }
@@ -26,7 +26,7 @@ type Hello struct {
 // Welcome is the host's reply to a valid hello. A rejected hello closes the
 // connection after a single error line.
 type Welcome struct {
-	Welcome string `json:"welcome"` // always "icepick"
+	Welcome string `json:"welcome"` // always "icetudio"
 	Version int    `json:"version"`
 }
 

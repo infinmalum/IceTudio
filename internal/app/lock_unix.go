@@ -20,7 +20,7 @@ func AcquireHostLock(dataDir string) (*os.File, error) {
 	}
 	if err := unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		file.Close()
-		return nil, errors.New("ICEPick 已在此数据目录运行，同一数据目录同时只能有一个宿主进程")
+		return nil, errors.New("IceTudio 已在此数据目录运行，同一数据目录同时只能有一个宿主进程")
 	}
 	return file, nil
 }

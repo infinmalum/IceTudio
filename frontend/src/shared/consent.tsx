@@ -1,4 +1,4 @@
-import { StatusService } from "../../bindings/icepick";
+import { StatusService } from "../../bindings/icetudio";
 import { scopeLabels, providerLabels } from "./config";
 import { useDialog } from "./dialogs";
 export function useSendConsent() {

@@ -9,7 +9,7 @@ import (
 
 // Effect classifies what a tool call can do to the world. External MCP tools
 // are always "external": their process behavior cannot be constrained from
-// inside ICEPick.
+// inside IceTudio.
 type Effect string
 
 const (
@@ -81,6 +81,14 @@ func (c Classifier) Classify(name, arguments string) (Effect, Sensitivity) {
 		// Plan state is host-local bookkeeping: nothing is read and nothing
 		// leaves the machine.
 		return EffectPure, SensPublic
+	case "project__query":
+		// Querying the conversation's bound project: user content that is
+		// already part of this conversation's working material.
+		return EffectRead, SensWorkspace
+	case "project__edit":
+		// Editing the bound project changes user creative work; it asks for
+		// confirmation in every non-automatic mode.
+		return EffectWrite, SensUnknown
 	case "local__delegate_task":
 		// Delegation starts an autonomous subtask that can run further
 		// tools, and the passed materials' sensitivity cannot be decided

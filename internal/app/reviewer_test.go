@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 type reviewMock struct {
@@ -47,13 +47,13 @@ func (m *reviewMock) Chat(_ context.Context, source config.Model, messages []mod
 func reviewFixture(t *testing.T, m *reviewMock, mode string, checks []string) (*Service, storage.Conversation) {
 	t.Helper()
 	s, _ := newTestService(t, m, &scriptTools{})
-	p, err := s.CreateTemplateProfile("daily", "")
+	data := storage.DefaultRuntimeConfig()
+	data.PlanEnabled = false
+	data.Delegation = storage.DelegationPolicy{}
+	data.Execution.Review = storage.ReviewPolicy{Mode: mode, RequiredChecks: checks}
+	data.Execution.Reviewer.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "review-model"}
+	p, err := s.configureDefault(data)
 	if err != nil {
-		t.Fatal(err)
-	}
-	p.Data.Execution.Review = storage.ReviewPolicy{Mode: mode, RequiredChecks: checks}
-	p.Data.Execution.Reviewer.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "review-model"}
-	if _, err = s.UpdateProfile(p); err != nil {
 		t.Fatal(err)
 	}
 	c, err := s.CreateConversation(p.ID, "", "")
@@ -133,7 +133,7 @@ func TestOnDemandReviewPreservesOldOutcomeAndUsesNewRoot(t *testing.T) {
 	if err != nil || len(before) != 0 {
 		t.Fatal(before, err)
 	}
-	other, err := s.CreateConversation(c.ProfileID, "", "isolated review")
+	other, err := s.CreateConversation(c.ConfigID, "", "isolated review")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestDynamicRequiredReviewRunsAfterActualDelivery(t *testing.T) {
 	s.chat = &dynamicReviewMock{execution: m, review: reviewMock{status: "passed"}}
 	p.Data.Execution.Review.Mode = "required"
 	p.Data.Execution.Reviewer.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "review-model"}
-	if _, err := s.UpdateProfile(p); err != nil {
+	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
 	r, err := s.StartConversationTask(c.ID, "分析两份材料并整合")
@@ -190,12 +190,12 @@ func TestDynamicRequiredReviewRunsAfterActualDelivery(t *testing.T) {
 }
 func TestRequiredReviewBudgetExhaustionCannotComplete(t *testing.T) {
 	s, c := reviewFixture(t, &reviewMock{status: "passed"}, "required", nil)
-	p, err := s.GetProfile(c.ProfileID)
+	p, err := s.GetRuntimeConfig(c.ConfigID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	p.Data.Execution.Budget.MaxModelCalls = 1
-	if _, err := s.UpdateProfile(p); err != nil {
+	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
 	r, err := s.StartConversationTask(c.ID, "正文")
@@ -216,12 +216,12 @@ func TestRequiredReviewBudgetExhaustionCannotComplete(t *testing.T) {
 func TestRequiredReviewRemoteModelNeedsFrozenGrant(t *testing.T) {
 	count := &atomic.Int32{}
 	s, c := reviewFixture(t, &reviewMock{status: "passed", callCount: count}, "required", nil)
-	p, err := s.GetProfile(c.ProfileID)
+	p, err := s.GetRuntimeConfig(c.ConfigID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	p.Data.Execution.Reviewer.Model = &config.Model{Provider: "openai", BaseURL: "https://api.openai.com/v1", Name: "review-model"}
-	if _, err := s.UpdateProfile(p); err != nil {
+	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
 	r, err := s.StartConversationTask(c.ID, "私人材料")

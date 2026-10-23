@@ -1,0 +1,278 @@
+"use strict";
+
+const __LOCALHOST__ = true;
+
+const lg = __LOCALHOST__
+	? ( ...args ) => ( console.log( ...args ), args[ 0 ] )
+	: a => a;
+
+const GSUonMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/u.test( navigator.userAgent );
+const GSUonIphone = [ "iPhone Simulator", "iPhone" ].includes( navigator.platform );
+const GSUonOpera = navigator.userAgent.toLowerCase().includes( "op" );
+const GSUonChrome = navigator.userAgent.includes( "Chrome" ) && !GSUonOpera;
+const GSUonSafari = navigator.userAgent.includes( "Safari" ) && !GSUonChrome;
+const GSUonFirefox = navigator.userAgent.includes( "Firefox" );
+
+// .............................................................................
+// ..... GSUisXxx ..............................................................
+// .............................................................................
+function GSUisObj( o ) { return o !== null && typeof o === "object"; }
+function GSUisArr( a ) { return Array.isArray( a ); }
+function GSUisNaN( n ) { return Number.isNaN( n ); }
+function GSUisStr( n ) { return typeof n === "string"; }
+function GSUisFun( n ) { return typeof n === "function"; }
+function GSUisBoo( n ) { return typeof n === "boolean"; }
+function GSUisNum( n ) { return typeof n === "number" && !GSUisNaN( n ); }
+function GSUisInt( n ) { return GSUisNum( n ) && n === Math.round( n ); }
+function GSUisElm( o ) { return o instanceof Element; }
+function GSUisJQu( o ) { return o instanceof $$; }
+function GSUisEmpty( o ) {
+	for ( const a in o ) {
+		return false;
+	}
+	return !o?.size;
+}
+function GSUisOneOf( v, ...a ) {
+	return a.some( a => a === v );
+}
+
+// .............................................................................
+function GSUdotProp( obj, path ) {
+	return !path ? obj : path.split( "." ).filter( Boolean ).reduce( ( obj, p ) => {
+		return !GSUisObj( obj ) || !( p in obj )
+			? undefined
+			: obj[ p ] === undefined
+				? GSUdotProp.$undefined
+				: obj[ p ];
+	}, obj );
+}
+GSUdotProp.$undefined = Symbol();
+
+// .............................................................................
+function GSUforEach( obj, fn ) {
+	if ( obj?.forEach ) {
+		obj.forEach( fn );
+	} else {
+		for ( const k in obj ) {
+			fn( obj[ k ], k, obj );
+		}
+	}
+	return obj;
+}
+function GSUreduce_sub( obj, fn, val ) {
+	let val2 = val;
+
+	for ( const k in obj ) {
+		val2 = fn( val2, obj[ k ], k, obj );
+	}
+	return val2;
+}
+function GSUmap_sub( obj, fn ) {
+	if ( GSUisObj( obj ) ) {
+		const obj2 = {};
+
+		for ( const k in obj ) {
+			obj2[ k ] = fn( obj[ k ], k, obj );
+		}
+		return obj2;
+	}
+	return obj;
+}
+function GSUreduce( obj, fn, val ) {
+	return obj?.reduce ? obj.reduce( fn, val ) : GSUreduce_sub( obj, fn, val );
+}
+function GSUmap( obj, fn ) {
+	return obj?.map ? obj.map( fn ) : GSUmap_sub( obj, fn );
+}
+function GSUfindIndex( obj, fn ) {
+	if ( obj?.findIndex ) {
+		return obj.findIndex( fn );
+	}
+	for ( const k in obj ) {
+		if ( fn( obj[ k ], k, obj ) ) {
+			return k;
+		}
+	}
+	return -1;
+}
+function GSUfind( obj, fn ) {
+	const ind = GSUfindIndex( obj, fn );
+
+	return ind !== -1 ? obj[ ind ] : undefined;
+}
+function GSUsome( obj, fn ) {
+	return GSUfind( obj, fn ) !== undefined;
+}
+
+// .............................................................................
+function GSUisEqual( a, b ) {
+	return (
+		Object.is( a, b ) ? true :
+		GSUisElm( a ) || GSUisElm( b ) ? a?.isEqualNode?.( b ) || false :
+		!GSUisObj( a ) || !GSUisObj( b ) || GSUisArr( a ) !== GSUisArr( b ) ? false :
+		!(
+			GSUsome( a, ( av, ak ) => !GSUisEqual( av, b[ ak ] ) ) ||
+			GSUsome( b, ( bv, bk ) => !GSUisEqual( bv, a[ bk ] ) )
+		)
+	);
+}
+
+// .............................................................................
+// ..... GSUarray ..............................................................
+// .............................................................................
+function GSUnewArray( l, fn ) {
+	return fn === undefined
+		? new Array( l )
+		: GSUisFun( fn )
+			? Array.from( { length: l }, ( _, i ) => fn( i ) )
+			: Array.from( { length: l } ).fill( fn );
+}
+function GSUarrayEq( a, b, diff ) {
+	return a.length === b.length && a.every( diff
+		? ( a, i ) => GSUmathApprox( a, b[ i ], diff )
+		: ( a, i ) => a === b[ i ]
+	);
+}
+function GSUarrayPushBack( a, ...args ) {
+	a.push( ...args );
+	return a;
+}
+function GSUarrayFrom( a ) {
+	return GSUisArr( a ) ? a : "length" in a ? Array.from( a ) : [ a ];
+}
+function GSUarrayLength( arr, len, fn ) {
+	if ( arr.length !== len ) {
+		if ( arr.length > len ) {
+			arr.length = len;
+		} else {
+			while ( arr.length < len ) {
+				arr.push( GSUisFun( fn ) ? fn( arr.length ) : fn );
+			}
+		}
+	}
+	return arr;
+}
+function GSUarrayRemove( arr, fn ) {
+	const fn2 = GSUisFun( fn ) ? fn : Object.is.bind( null, fn );
+	let i = 0;
+	let j = 0;
+
+	if ( arr ) {
+		for ( ; i < arr.length; ++i ) {
+			if ( !fn2( arr[ i ] ) ) {
+				arr[ j++ ] = arr[ i ];
+			}
+		}
+		arr.length = j;
+	}
+	return arr;
+}
+function GSUarrayResize( arr, len ) {
+	if ( len < 1 || arr.length < 1 ) { return []; }
+	if ( len === 1 ) { return [ arr[ 0 ] || 0 ]; }
+	if ( arr.length === len ) { return [ ...arr ]; }
+
+	const oldLen = arr.length - 1;
+	const scale = oldLen / ( len - 1 );
+
+	return GSUnewArray( len, i => {
+		const i2 = i * scale;
+		const a = Math.floor( i2 );
+		const b = Math.min( Math.ceil( i2 ), oldLen );
+		const t = i2 - a;
+
+		return ( 1 - t ) * arr[ a ] + t * arr[ b ];
+	} );
+}
+
+// .............................................................................
+function GSUtrim2( str ) {
+	return str?.trim?.().replace( /\s+/ug, " " ) || "";
+}
+function GSUcountChar( str, c ) {
+	return Math.max( 0, str?.split?.( c ).length - 1 ) || 0;
+}
+
+// .............................................................................
+function GSUsplitNums( str, del = " " ) {
+	return str && GSUisStr( str ) ? str.split( del ).map( n => +n || 0 ) : [];
+}
+function GSUsplitInts( str, del = " " ) {
+	return str && GSUisStr( str ) ? str.split( del ).map( n => n | 0 ) : [];
+}
+function GSUsplitSeconds( sec ) {
+	const m = `${ sec / 60 | 0 }`;
+	const s = `${ sec - m * 60 | 0 }`.padStart( 2, "0" );
+	const ms = `${ ( sec - ( sec | 0 ) ) * 1000 | 0 }`.padStart( 3, "0" );
+
+	return { m, s, ms };
+}
+
+// .............................................................................
+function GSUuuid() {
+	const rnd = crypto.getRandomValues( new Uint8Array( 36 ) );
+	const uuid = rnd.reduce( ( arr, n ) => {
+		arr.push( ( n % 16 ).toString( 16 ) );
+		return arr;
+	}, [] );
+
+	uuid[ 14 ] = "4";
+	uuid[ 19 ] = ( 8 + rnd[ 19 ] % 4 ).toString( 16 );
+	uuid[  8 ] =
+	uuid[ 13 ] =
+	uuid[ 18 ] =
+	uuid[ 23 ] = "-";
+	return uuid.join( "" );
+}
+
+// .............................................................................
+function GSUuniqueName( nameOri, arr ) {
+	const name = GSUtrim2( nameOri );
+
+	if ( arr.includes( name ) ) {
+		const name2 = /-\d+$/u.test( name )
+			? name.substring( 0, name.lastIndexOf( "-" ) ).trim()
+			: name;
+		const reg = new RegExp( `^${ name2 }-(\\d+)$`, "u" );
+		const nb = arr.reduce( ( nb, str ) => {
+			const res = reg.exec( str );
+
+			return res ? Math.max( nb, +res[ 1 ] ) : nb;
+		}, 1 );
+
+		return `${ name2 }-${ nb + 1 }`;
+	}
+	return name;
+}
+
+// .............................................................................
+function GSUplural( nb, word, s ) {
+	const w = word[ word.length - 1 ] === "s"
+		? word
+		: `${ word }${ nb > 1 ? "s" : "" }`;
+	const ws = s !== "'s"
+		? w
+		: `${ w }'${ w[ w.length - 1 ] === "s" ? "" : "s" }`;
+
+	return `${ nb } ${ ws }`;
+}
+
+// .............................................................................
+const GSUmodels = new Map();
+
+function GSUsetModel( id, obj ) {
+	GSUmodels.set( id, GSUdeepFreeze( obj ) );
+}
+function GSUgetModel( id, obj ) {
+	const mod = GSUdeepCopy( GSUmodels.get( id ) );
+
+	if ( !mod ) {
+		return null;
+	}
+	GSUforEach( obj, ( val, key ) => {
+		if ( key in mod ) {
+			mod[ key ] = GSUdeepCopy( val );
+		}
+	} );
+	return Object.seal( mod );
+}

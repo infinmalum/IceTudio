@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"icepick/internal/agent"
-	"icepick/internal/mcptools"
-	"icepick/internal/model"
+	"icetudio/internal/agent"
+	"icetudio/internal/mcptools"
+	"icetudio/internal/model"
 	"io"
 	"strings"
 )
@@ -57,7 +57,7 @@ func decodeRequiredOperation(raw string, out any, keys ...string) error {
 }
 func (t bookkeepingTools) basicCall(ctx context.Context, name, raw string) (string, error) {
 	gate := toolGate{svc: t.svc, contextID: t.profile.ContextID, snapshot: &t.profile, runID: t.runID}
-	p, err := gate.effectiveProfile(ctx)
+	p, err := gate.effectiveSnapshot(ctx)
 	if err != nil {
 		return "", err
 	}

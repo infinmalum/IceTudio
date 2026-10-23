@@ -1,0 +1,173 @@
+{
+  "date": "2026-10-17",
+  "scope": "P2 Linux native playback tranche; not full P2 or release acceptance",
+  "workspace": "Uncommitted development workspace; preserves prior P0/P1/editor work",
+  "environment": {
+    "os": "Linux amd64",
+    "go": "go1.27.1-X:nodwarf5",
+    "cgo": true,
+    "fluidsynth": "2.6.1",
+    "audioServer": "PulseAudio on PipeWire 1.6.9",
+    "serverSampleFormat": "float32le stereo 48000Hz",
+    "browser": {
+      "cpu": "AMD Ryzen 7 7735H with Radeon Graphics",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "browser": "Chrome/154.0.8037.97"
+    }
+  },
+  "checks": [
+    {
+      "command": "go test ./...",
+      "result": "pass",
+      "scope": "Current Go packages, including actual offline FluidSynth PCM; opt-in browser/live tests run separately"
+    },
+    {
+      "command": "go test -race ./internal/playback ./internal/app ./internal/host",
+      "result": "pass",
+      "scope": "Go race detector; does not establish absence of native C races or performance bounds"
+    },
+    {
+      "command": "env ICETUDIO_LIVE_AUDIO=1 go test ./internal/app ./internal/playback -run 'Test(LiveProjectPlaybackUpdates|LiveAudioDriver)$' -count=1 -v",
+      "result": "pass",
+      "observed": {
+        "liveDriver": {
+          "callbacks": 139,
+          "missedBlocks": 0,
+          "positionFrames": 16896,
+          "stopThresholdMs": 50,
+          "thresholdAssertionPassed": true
+        },
+        "appNoteEditAndUndo": {
+          "callbacksAtRevision2": 9,
+          "missedBlocks": 0,
+          "revisions": [
+            1,
+            2,
+            3
+          ],
+          "deletionClearedTarget": true
+        }
+      },
+      "scope": "Actual driver callbacks and app note edit/undo/stop/delete; no physical latency or listening measurement"
+    },
+    {
+      "command": "env ICETUDIO_MUSIC_BROWSER=1 go test ./internal/app -run '^TestMusicEditorBrowser$' -count=1 -v",
+      "result": "pass",
+      "scope": "Real React/editor and Go/SQLite project bridge; playback Wails facade explicitly mocked",
+      "source": ".cache/browser/music/run-626242418/results.json",
+      "report": {
+        "checks": [
+          "External committed edits refresh the UI",
+          "Transport UI play/stop/seek/loop and device error handling (mock audio)",
+          "Real mouse move commits to SQLite",
+          "Shared undo/redo refreshes the editor",
+          "Real resize commits duration",
+          "MIDI velocity preserves controllers",
+          "Selection, copy, atomic deletion and undo",
+          "Gesture freezes revision and rejects conflicts",
+          "Escape cancels without committing",
+          "Empty-row click adds a note",
+          "Arrow key submits one atomic selected-note batch",
+          "Composition/input events do not edit notes",
+          "Zoom does not change the project revision",
+          "Boundary resize atomically extends the clip",
+          "1k/10k spread-out notes mount at most 64 notes per page",
+          "Lost commit reply is resolved without replay",
+          "Unknown outcome retains a queryable operation ID",
+          "Delayed project reads and drag unmount cannot retarget edits",
+          "Remounted editor centers on its first note",
+          "React remount restores a single editor"
+        ],
+        "errors": [],
+        "timings": [
+          {
+            "count": 1000,
+            "mounted": 64,
+            "serviceCommitAndRefreshMs": 165.46160700000019,
+            "projectionMs": 9.399999998509884,
+            "pageFlipMs": 111.91655099999934
+          },
+          {
+            "count": 10000,
+            "mounted": 64,
+            "serviceCommitAndRefreshMs": 267.51081499999964,
+            "projectionMs": 10.699999999254942,
+            "pageFlipMs": 108.49818800000048
+          }
+        ],
+        "environment": {
+          "cpu": "AMD Ryzen 7 7735H with Radeon Graphics",
+          "viewport": [
+            1440,
+            1000
+          ],
+          "browser": "Chrome/154.0.8037.97"
+        }
+      }
+    },
+    {
+      "command": "node frontend/e2e/product.mjs",
+      "result": "pass",
+      "scope": "Existing conversation/settings/permissions/editor product flows using mock backend"
+    },
+    {
+      "command": "npm run build --prefix frontend",
+      "result": "pass",
+      "scope": "TypeScript and frontend production build; latest also run by Wails build"
+    },
+    {
+      "command": "wails3 task build",
+      "result": "pass",
+      "artifact": "bin/icetudio",
+      "scope": "Linux desktop compile/link, 3 Wails services and 85 methods; not native window acceptance"
+    },
+    {
+      "command": "readelf -d bin/icetudio | rg 'NEEDED.*(fluid|pthread|gtk|webkit)'",
+      "result": "pass",
+      "observed": "ELF NEEDED includes libfluidsynth.so.3, libgtk-4.so.1 and libwebkitgtk-6.0.so.4",
+      "scope": "Dynamic link declaration; not clean installation validation"
+    },
+    {
+      "command": "env CGO_ENABLED=0 go test ./internal/playback",
+      "result": "pass",
+      "scope": "Pure timeline/chase and unsupported-native paths; native render tests skip"
+    },
+    {
+      "command": "env CGO_ENABLED=0 go test ./internal/playback ./internal/app ./internal/host",
+      "result": "fail",
+      "scope": "Playback passes; app tests fail opening existing go-sqlite3 storage without cgo",
+      "baselineEvidence": "HEAD go.mod already requires github.com/mattn/go-sqlite3 v1.14.22; HEAD internal/storage/storage.go imports that driver. SQLite implementation not changed for this tranche."
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass",
+      "scope": "Tracked working-tree diff; new implementation files separately checked for trailing whitespace"
+    }
+  ],
+  "warnings": [
+    "Actual FluidSynth driver initialization emitted 'function fluid_setenv is a stub, always returning -1'; callbacks and the asserted controls progressed. Cause not investigated in this tranche.",
+    "npm reports unknown project config minimum-release-age; frontend and desktop builds exit successfully."
+  ],
+  "knownLimits": [
+    "Linux+cgo is the only exercised native playback platform; SQLite also requires cgo.",
+    "Built-in mathematical sine/triangle/saw/square waves are basic synth audition, not a GM instrument or sampled drum bank; data CC0, generator AGPL.",
+    "External SF2/SF3 selection/loading path exists; real render tests only use the generated built-in font.",
+    "Four synth instances each load the selected font; each polyphony=256; upper limits do not guarantee acceptable memory/CPU or no voice stealing.",
+    "Seek/loop chase restarts envelopes and reconstructs last controller values plus CC64-held notes; CC66, RPN/NRPN and other ordered-controller state equivalence remain pending.",
+    "No mix normalization or antialiasing in basic wave generation; dense loud mixes/high pitches need further evaluation.",
+    "Raw MIDI and SysEx are retained in projects but skipped during playback; exposed skip count.",
+    "The retained generic server Docker template defaults to CGO=0 and cannot run current SQLite storage. Docker builds and package clean installs not validated."
+  ],
+  "notVerified": [
+    "Native Wails WebView to playback integration and real file dialog",
+    "Physical output/round-trip latency and listening/musical quality",
+    "Device loss/reconnection and ALSA/native PipeWire driver matrix",
+    "Dense playback, xrun/long-run behavior and huge external fonts",
+    "Complete tempo/meter ruler and full native offline workflow acceptance",
+    "Clean package installation and full third-party release audit",
+    "Other platforms and actual model-driven music editing"
+  ]
+}

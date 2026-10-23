@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"icepick/internal/agent"
-	"icepick/internal/mcptools"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/mcptools"
+	"icetudio/internal/storage"
 )
 
 // toolGate combines frozen run capabilities with the owning context's live policy.
@@ -17,9 +17,9 @@ import (
 type toolGate struct {
 	svc       *Service
 	contextID string
-	snapshot  *storage.RunProfile
+	snapshot  *storage.RunConfigSnapshot
 	runID     string
-	parent    *storage.RunProfile
+	parent    *storage.RunConfigSnapshot
 }
 
 var _ agent.ToolGate = toolGate{}
@@ -28,27 +28,26 @@ var _ agent.ToolGate = toolGate{}
 // mode wins for delegated subtasks.
 var approvalRank = map[string]int{"automatic": 0, "semi": 1, "manual": 2}
 
-// Resolve only live authorization; Profile choices belong to the Run snapshot.
-func (g toolGate) effectiveProfile(ctx context.Context) (storage.RunProfile, error) {
+// Resolve only live authorization; 执行配置 choices belong to the Run snapshot.
+func (g toolGate) effectiveSnapshot(ctx context.Context) (storage.RunConfigSnapshot, error) {
 	if g.snapshot == nil {
-		return storage.RunProfile{}, fmt.Errorf("工具执行缺少运行配置快照")
+		return storage.RunConfigSnapshot{}, fmt.Errorf("工具执行缺少运行配置快照")
 	}
 	a, err := g.svc.store.GetLocalContext(ctx, g.contextID)
 	if err != nil {
-		return storage.RunProfile{}, err
+		return storage.RunConfigSnapshot{}, err
 	}
 	p := *g.snapshot
 	p.Policy = restrictPolicy(g.snapshot.Policy, a.Policy)
 	if g.runID != "" {
 		policy, err := g.svc.restrictRunPolicy(ctx, g.runID, p)
 		if err != nil {
-			return storage.RunProfile{}, err
+			return storage.RunConfigSnapshot{}, err
 		}
 		p.Policy = policy
 	}
 	if g.parent != nil {
 		p.Policy = restrictPolicy(p.Policy, g.parent.Policy)
-		p.Policy.Memory = false
 		return p, nil
 	}
 	if approvalRank[g.snapshot.Policy.ApprovalMode] > approvalRank[p.Policy.ApprovalMode] {
@@ -65,7 +64,7 @@ func stricterMode(a, b string) string {
 }
 
 func (g toolGate) Gate(ctx context.Context, req agent.ToolRequest) agent.Decision {
-	profile, err := g.effectiveProfile(ctx)
+	profile, err := g.effectiveSnapshot(ctx)
 	if err != nil {
 		return agent.Decision{Deny: "读取运行配置失败: " + err.Error()}
 	}
@@ -103,7 +102,7 @@ func (g toolGate) Gate(ctx context.Context, req agent.ToolRequest) agent.Decisio
 // denies: approvals can expire through policy changes, never through
 // relaxation here.
 func (g toolGate) Recheck(ctx context.Context, req agent.ToolRequest) agent.Decision {
-	profile, err := g.effectiveProfile(ctx)
+	profile, err := g.effectiveSnapshot(ctx)
 	if err != nil {
 		return agent.Decision{Deny: "读取运行配置失败: " + err.Error()}
 	}
@@ -132,7 +131,7 @@ func (g toolGate) Recheck(ctx context.Context, req agent.ToolRequest) agent.Deci
 // and allowed, skill reads must target an enabled skill, and file reads must
 // stay inside the workspace boundary when one is configured. A user
 // confirmation can never override these.
-func (g toolGate) hardLimits(ctx context.Context, profile storage.RunProfile, req agent.ToolRequest) string {
+func (g toolGate) hardLimits(ctx context.Context, profile storage.RunConfigSnapshot, req agent.ToolRequest) string {
 	if g.runID != "" {
 		spec, ok, err := g.svc.store.RunTaskSpec(ctx, g.runID)
 		if err != nil {
@@ -198,20 +197,12 @@ func (g toolGate) hardLimits(ctx context.Context, profile storage.RunProfile, re
 	if !profile.AllowsTool(req.Tool) {
 		return fmt.Sprintf("未被当前运行允许的工具调用 %q", req.Tool)
 	}
-	if req.Tool == "local__memory_save" {
-		if g.parent != nil {
-			return "委派子任务不提供长期记忆写入"
-		}
-		if !memoryAllowed(profile) {
-			return "该上下文未启用长期记忆写入"
-		}
-	}
 	if req.Tool == "local__update_plan" || req.Tool == "local__task_plan" {
 		if g.parent != nil {
 			return "委派子任务不提供规划"
 		}
 		if !profile.PlanEnabled || profile.Execution.Workflow == "fixed" {
-			return "该 Profile 未启用规划"
+			return "该执行配置未启用规划"
 		}
 	}
 	if req.Tool == "local__delegate_task" {
@@ -253,10 +244,10 @@ func (g toolGate) hardLimits(ctx context.Context, profile storage.RunProfile, re
 }
 
 // delegateLimit enforces the host-side delegation bounds before dispatch:
-// the frozen Profile switch, worker slots and depth budget.
-func (g toolGate) delegateLimit(ctx context.Context, profile storage.RunProfile, arguments string) string {
+// the frozen 执行配置 switch, worker slots and depth budget.
+func (g toolGate) delegateLimit(ctx context.Context, profile storage.RunConfigSnapshot, arguments string) string {
 	if !profile.Delegation.Enabled {
-		return "该 Profile 未启用委派"
+		return "该执行配置未启用委派"
 	}
 	if g.runID != "" {
 		run, err := g.svc.store.GetRun(ctx, g.runID)
@@ -282,7 +273,7 @@ func (g toolGate) delegateLimit(ctx context.Context, profile storage.RunProfile,
 	if selected {
 		return g.svc.workerLimit(ctx, profile, g.runID, name)
 	}
-	return "Profile 未配置 worker 槽位"
+	return "执行配置未配置 worker 槽位"
 }
 
 func confirmReason(effect mcptools.Effect, sensitivity mcptools.Sensitivity) string {

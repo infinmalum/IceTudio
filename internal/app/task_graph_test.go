@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 func plannedDelegate(id string, spec storage.TaskSpec) model.ChatResponse {
@@ -75,14 +75,11 @@ func TestPlannedWorkersExecuteDependenciesAndKeepAttempts(t *testing.T) {
 		},
 	}}
 	svc, _ := newTestService(t, chat, &scriptTools{})
-	p, err := svc.CreateTemplateProfile("daily", "task graph")
-	if err != nil {
-		t.Fatal(err)
-	}
-	p.Data.PlanEnabled = true
-	p.Data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1}
-	p.Data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker"}}
-	p, err = svc.UpdateProfile(p)
+	data := storage.DefaultRuntimeConfig()
+	data.PlanEnabled = true
+	data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1}
+	data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker"}}
+	p, err := svc.configureDefault(data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,14 +118,11 @@ func TestPlannedWorkersExecuteDependenciesAndKeepAttempts(t *testing.T) {
 func TestPlannedTaskApprovalBindsContract(t *testing.T) {
 	svc, store := newTestService(t, &scriptModel{}, &scriptTools{})
 	ctx := context.Background()
-	p, err := svc.CreateTemplateProfile("daily", "bound")
-	if err != nil {
-		t.Fatal(err)
-	}
-	p.Data.PlanEnabled = true
-	p.Data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1}
-	p.Data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker"}}
-	p, err = svc.UpdateProfile(p)
+	data := storage.DefaultRuntimeConfig()
+	data.PlanEnabled = true
+	data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1}
+	data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker"}}
+	p, err := svc.configureDefault(data)
 	if err != nil {
 		t.Fatal(err)
 	}

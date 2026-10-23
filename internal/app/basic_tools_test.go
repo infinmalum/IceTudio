@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"icepick/internal/agent"
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
-	"icepick/internal/testfixture"
+	"icetudio/internal/agent"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
+	"icetudio/internal/testfixture"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,11 +46,7 @@ func TestBasicToolsThroughApprovalAndDurableRecords(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "result.txt")
 	s, _ := newTestService(t, &basicMock{file: file, dir: dir}, &scriptTools{})
-	p, err := s.CreateTemplateProfile("daily", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := s.CreateConversation(p.ID, "", "")
+	c, err := s.CreateConversation(storage.DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +97,7 @@ func TestBasicToolsThroughApprovalAndDurableRecords(t *testing.T) {
 func TestBasicGateRejectsOutOfScopeAndRevokedCommands(t *testing.T) {
 	s, store := newTestService(t, &scriptModel{}, &scriptTools{})
 	ctx := context.Background()
-	p, err := testfixture.Profile(store, ctx, testfixture.ContextID)
+	p, err := testfixture.RunConfig(store, ctx, testfixture.ContextID)
 	if err != nil {
 		t.Fatal(err)
 	}

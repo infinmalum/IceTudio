@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 	"strings"
 	"unicode/utf8"
 )

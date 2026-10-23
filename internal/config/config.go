@@ -58,7 +58,7 @@ type MCPServer struct {
 	Args           []string `json:"args,omitempty"`
 	WorkingDir     string   `json:"workingDir,omitempty"`
 	// Env lists environment variable NAMES the server process may inherit
-	// from ICEPick. Values are read from the host environment at launch and
+	// from IceTudio. Values are read from the host environment at launch and
 	// never stored in the config file; when the list is empty only PATH and
 	// HOME are passed, so secrets never reach MCP processes by default.
 	Env []string `json:"env,omitempty"`

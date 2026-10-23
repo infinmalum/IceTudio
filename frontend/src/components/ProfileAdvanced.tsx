@@ -1,9 +1,9 @@
-import type { Profiles } from "../hooks/useProfiles";
+import type { Configs } from "../hooks/useConfigs";
 import { ErrorNotice } from "../shared/errors";
 import { ProfileExecution } from "./ProfileExecution";
 import { providerDefaults, remoteProviders } from "../shared/config";
-export function ProfileAdvanced({ profileState }: { profileState: Profiles }) {
-  const { profileDraft, setProfileDraft } = profileState;
+export function ProfileAdvanced({ configState }: { configState: Configs }) {
+  const { configDraft, setConfigDraft } = configState;
   return (
     <section className="session-card">
       <h2>助手的执行配置</h2>
@@ -14,35 +14,34 @@ export function ProfileAdvanced({ profileState }: { profileState: Profiles }) {
         要配置的助手
         <select
           aria-label="开发者设置中的助手"
-          value={profileState.profileEditID ?? ""}
-          disabled={profileState.profileBusy}
-          onChange={(e) => void profileState.setProfileEditID(e.target.value)}
+          value={configState.configEditID ?? ""}
+          disabled={configState.configBusy}
+          onChange={(e) => void configState.setConfigEditID(e.target.value)}
         >
-          {!profileState.profileEditID && (
+          {!configState.configEditID && (
             <option value="" disabled>
               请选择助手
             </option>
           )}
-          {profileState.profiles.map((p) => (
+          {configState.configs.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
-              {p.data.templateId ? "（模板副本）" : ""}
             </option>
           ))}
         </select>
       </label>
-      {profileDraft && (
-        <form className="model-form" onSubmit={profileState.saveProfile}>
+      {configDraft && (
+        <form className="model-form" onSubmit={configState.saveConfig}>
           <label>
             工具白名单（每行一个，留空表示启用服务的全部工具）
             <textarea
               rows={3}
-              value={(profileDraft.data.allowedTools ?? []).join("\n")}
+              value={(configDraft.data.allowedTools ?? []).join("\n")}
               onChange={(event) =>
-                setProfileDraft({
-                  ...profileDraft,
+                setConfigDraft({
+                  ...configDraft,
                   data: {
-                    ...profileDraft.data,
+                    ...configDraft.data,
                     allowedTools: event.target.value
                       .split("\n")
                       .map((name) => name.trim())
@@ -55,12 +54,12 @@ export function ProfileAdvanced({ profileState }: { profileState: Profiles }) {
           <label>
             模型来源
             <select
-              value={profileDraft.data.model.provider || "default"}
+              value={configDraft.data.model.provider || "default"}
               onChange={(event) =>
-                setProfileDraft({
-                  ...profileDraft,
+                setConfigDraft({
+                  ...configDraft,
                   data: {
-                    ...profileDraft.data,
+                    ...configDraft.data,
                     model:
                       event.target.value === "default"
                         ? { provider: "", baseUrl: "", name: "" }
@@ -81,46 +80,46 @@ export function ProfileAdvanced({ profileState }: { profileState: Profiles }) {
               <option value="gemini">Gemini</option>
             </select>
           </label>
-          {profileDraft.data.model.provider && (
+          {configDraft.data.model.provider && (
             <>
               <label>
                 这个助手的模型地址
                 {remoteProviders.includes(
-                  profileDraft.data.model
+                  configDraft.data.model
                     .provider as (typeof remoteProviders)[number],
                 )
                   ? "（留空使用官方端点）"
                   : ""}
                 <input
-                  value={profileDraft.data.model.baseUrl}
+                  value={configDraft.data.model.baseUrl}
                   onChange={(event) =>
-                    setProfileDraft({
-                      ...profileDraft,
+                    setConfigDraft({
+                      ...configDraft,
                       data: {
-                        ...profileDraft.data,
+                        ...configDraft.data,
                         model: {
-                          ...profileDraft.data.model,
+                          ...configDraft.data.model,
                           baseUrl: event.target.value,
                         },
                       },
                     })
                   }
                   placeholder={
-                    providerDefaults[profileDraft.data.model.provider] ?? ""
+                    providerDefaults[configDraft.data.model.provider] ?? ""
                   }
                 />
               </label>
               <label>
                 这个助手的模型名称
                 <input
-                  value={profileDraft.data.model.name}
+                  value={configDraft.data.model.name}
                   onChange={(event) =>
-                    setProfileDraft({
-                      ...profileDraft,
+                    setConfigDraft({
+                      ...configDraft,
                       data: {
-                        ...profileDraft.data,
+                        ...configDraft.data,
                         model: {
-                          ...profileDraft.data.model,
+                          ...configDraft.data.model,
                           name: event.target.value,
                         },
                       },
@@ -133,11 +132,11 @@ export function ProfileAdvanced({ profileState }: { profileState: Profiles }) {
           <label>
             人格
             <textarea
-              value={profileDraft.data.persona}
+              value={configDraft.data.persona}
               onChange={(event) =>
-                setProfileDraft({
-                  ...profileDraft,
-                  data: { ...profileDraft.data, persona: event.target.value },
+                setConfigDraft({
+                  ...configDraft,
+                  data: { ...configDraft.data, persona: event.target.value },
                 })
               }
             />
@@ -148,12 +147,12 @@ export function ProfileAdvanced({ profileState }: { profileState: Profiles }) {
               type="number"
               min={1024}
               max={1000000}
-              value={profileDraft.data.contextBudget}
+              value={configDraft.data.contextBudget}
               onChange={(event) =>
-                setProfileDraft({
-                  ...profileDraft,
+                setConfigDraft({
+                  ...configDraft,
                   data: {
-                    ...profileDraft.data,
+                    ...configDraft.data,
                     contextBudget: Number(event.target.value),
                   },
                 })
@@ -163,12 +162,12 @@ export function ProfileAdvanced({ profileState }: { profileState: Profiles }) {
           <label className="checkbox-label">
             <input
               type="checkbox"
-              checked={profileDraft.data.planEnabled}
+              checked={configDraft.data.planEnabled}
               onChange={(event) =>
-                setProfileDraft({
-                  ...profileDraft,
+                setConfigDraft({
+                  ...configDraft,
                   data: {
-                    ...profileDraft.data,
+                    ...configDraft.data,
                     planEnabled: event.target.checked,
                   },
                 })
@@ -176,17 +175,17 @@ export function ProfileAdvanced({ profileState }: { profileState: Profiles }) {
             />
             启用任务规划（会话待办；配置 worker 后可声明本次执行计划）
           </label>
-          <ProfileExecution profileState={profileState} />
+          <ProfileExecution configState={configState} />
 
-          <button disabled={profileState.profileBusy}>保存执行配置</button>
-          {profileState.dirty && (
+          <button disabled={configState.configBusy}>保存执行配置</button>
+          {configState.dirty && (
             <p role="status">
               有未保存的助手修改，保存会包含这份草稿中的全部修改。
             </p>
           )}
         </form>
       )}
-      <ErrorNotice error={profileState.profileError} />
+      <ErrorNotice error={configState.configError} />
     </section>
   );
 }

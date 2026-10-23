@@ -1,22 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { Events } from "@wailsio/runtime";
-import { StatusService, type AppStatus } from "../../bindings/icepick";
+import { StatusService, type AppStatus } from "../../bindings/icetudio";
 import type {
   SearchRequest,
   TaskReview,
   TaskRetrospective,
   TaskGraph,
   Message,
-  Profile,
   Run,
   SessionSummary,
   ToolCall,
   WorkerTrace,
-} from "../../bindings/icepick/internal/storage";
+} from "../../bindings/icetudio/internal/storage";
 import type {
   SearchAvailability,
   SessionPlanView,
-} from "../../bindings/icepick/internal/app";
+} from "../../bindings/icetudio/internal/app";
 import type { Workspace } from "./useWorkspace";
 import { useDialog } from "../shared/dialogs";
 import { useSendConsent } from "../shared/consent";
@@ -27,7 +26,6 @@ import {
 } from "../shared/draftFiles";
 export function useConversation(
   workspace: Workspace,
-  profiles: Profile[],
   status: AppStatus | null,
 ) {
   const {
@@ -103,7 +101,7 @@ export function useConversation(
     const cached = id ? draftCache.current.get(id) : null;
     let text = "";
     try {
-      text = id ? (localStorage.getItem("icepick.draft." + id) ?? "") : "";
+      text = id ? (localStorage.getItem("icetudio.draft." + id) ?? "") : "";
     } catch {}
     setPrompt(cached?.prompt ?? text);
     setAttachments(cached?.attachments ?? []);
@@ -124,7 +122,7 @@ export function useConversation(
     if (!selected) return;
     draftCache.current.set(selected, { prompt: text, attachments: files });
     try {
-      localStorage.setItem("icepick.draft." + selected, text);
+      localStorage.setItem("icetudio.draft." + selected, text);
     } catch {}
     if (lastSavedFiles.current.get(selected) !== files) {
       lastSavedFiles.current.set(selected, files);
@@ -318,7 +316,7 @@ export function useConversation(
   }, [activeRun, contextID, selected]);
   useEffect(() => {
     if (!activeRun) return;
-    const off = Events.On("icepick:service-event", (event) => {
+    const off = Events.On("icetudio:service-event", (event) => {
       const detail =
         (event.data as {
           type?: string;
@@ -354,7 +352,7 @@ export function useConversation(
     return () => {
       cancelled = true;
     };
-  }, [selected, activeConversation?.profileId, modelKey]);
+  }, [selected, activeConversation?.configId, modelKey]);
   async function toggleSearch(enabled: boolean) {
     if (!selected || !activeConversation) return;
     const id = selected;
@@ -375,7 +373,7 @@ export function useConversation(
   }
   useEffect(() => {
     if (!selected) return;
-    const off = Events.On("icepick:service-event", (event) => {
+    const off = Events.On("icetudio:service-event", (event) => {
       const detail =
         (event.data as {
           type?: string;
@@ -409,7 +407,7 @@ export function useConversation(
   useEffect(() => {
     if (!selected) return;
     const id = selected;
-    const off = Events.On("icepick:service-event", (event) => {
+    const off = Events.On("icetudio:service-event", (event) => {
       const detail =
         (event.data as { type?: string; sessionId?: string }) ?? {};
       if (detail.type !== "run.started" && detail.type !== "run.updated")
@@ -532,15 +530,15 @@ export function useConversation(
       setApprovalBusy(false);
     }
   }
-  const [profileSwitchBusy, setProfileSwitchBusy] = useState(false);
-  async function selectConversationProfile(profileID: string) {
-    if (!selected || profileSwitchBusy) return;
+  const [configSwitchBusy, setConfigSwitchBusy] = useState(false);
+  async function selectConversationConfig(configID: string) {
+    if (!selected || configSwitchBusy) return;
     const id = selected;
-    setProfileSwitchBusy(true);
+    setConfigSwitchBusy(true);
     try {
-      const updated = await StatusService.SelectConversationProfile(
+      const updated = await StatusService.SelectConversationConfig(
         id,
-        profileID,
+        configID,
       );
       setSessions((items) =>
         items.map((item) => (item.id === id ? updated : item)),
@@ -549,7 +547,7 @@ export function useConversation(
     } catch (reason) {
       if (activeSessionID.current === id) setTaskError(String(reason));
     } finally {
-      setProfileSwitchBusy(false);
+      setConfigSwitchBusy(false);
     }
   }
   async function clearPlan() {
@@ -676,7 +674,7 @@ export function useConversation(
       draftCache.current.delete(sessionID);
       lastSavedFiles.current.delete(sessionID);
       try {
-        localStorage.removeItem("icepick.draft." + sessionID);
+        localStorage.removeItem("icetudio.draft." + sessionID);
       } catch {}
       void clearDraftFiles(sessionID);
       if (activeSessionID.current !== sessionID) return;
@@ -789,8 +787,8 @@ export function useConversation(
     approveCall,
     denyCall,
     resolveUnknown,
-    selectConversationProfile,
-    profileSwitchBusy,
+    selectConversationConfig,
+    configSwitchBusy,
     clearPlan,
     openChildSession,
     sendTask,

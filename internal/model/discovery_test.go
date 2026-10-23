@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 type transport func(*http.Request) (*http.Response, error)

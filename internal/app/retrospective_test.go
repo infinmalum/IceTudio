@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 type retrospectiveMock struct {
@@ -64,12 +64,12 @@ func TestRetrospectiveSupportsFailedTaskWithoutDeliveryAndPreservesState(t *test
 			s, c := reviewFixture(t, &reviewMock{}, "on_demand", nil)
 			m := &retrospectiveMock{failOriginal: failed}
 			s.chat = m
-			p, err := s.GetProfile(c.ProfileID)
+			p, err := s.GetRuntimeConfig(c.ConfigID)
 			if err != nil {
 				t.Fatal(err)
 			}
 			p.Data.Execution.Budget.MaxModelCalls = 1
-			if _, err = s.UpdateProfile(p); err != nil {
+			if _, err = s.UpdateRuntimeConfig(p); err != nil {
 				t.Fatal(err)
 			}
 			original, err := s.StartConversationTask(c.ID, "目标：解释材料")
@@ -81,12 +81,12 @@ func TestRetrospectiveSupportsFailedTaskWithoutDeliveryAndPreservesState(t *test
 				want = "failed"
 			}
 			before := waitForRun(t, s, original.ID, want)
-			profileBefore, err := s.GetProfile(c.ProfileID)
+			profileBefore, err := s.GetRuntimeConfig(c.ConfigID)
 			if err != nil {
 				t.Fatal(err)
 			}
 			// Unrelated conversation material must never enter the isolated snapshot.
-			other, err := s.CreateConversation(c.ProfileID, "", "other")
+			other, err := s.CreateConversation(c.ConfigID, "", "other")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -102,7 +102,7 @@ func TestRetrospectiveSupportsFailedTaskWithoutDeliveryAndPreservesState(t *test
 			if err != nil || before != after {
 				t.Fatal(before, after, err)
 			}
-			profileAfter, err := s.GetProfile(c.ProfileID)
+			profileAfter, err := s.GetRuntimeConfig(c.ConfigID)
 			if err != nil || profileAfter.Revision != profileBefore.Revision {
 				t.Fatal(profileAfter, err)
 			}
@@ -173,12 +173,12 @@ func TestRetrospectiveCancellationAndFrozenRemoteGrant(t *testing.T) {
 			}
 			waitForRun(t, s, original.ID, "completed")
 			if remote {
-				p, err := s.GetProfile(c.ProfileID)
+				p, err := s.GetRuntimeConfig(c.ConfigID)
 				if err != nil {
 					t.Fatal(err)
 				}
 				p.Data.Execution.Reviewer.Model = &config.Model{Provider: "openai", BaseURL: "https://api.openai.com/v1", Name: "review-model"}
-				if _, err = s.UpdateProfile(p); err != nil {
+				if _, err = s.UpdateRuntimeConfig(p); err != nil {
 					t.Fatal(err)
 				}
 			} else {
@@ -237,7 +237,7 @@ func TestRetrospectiveInheritsUnknownToolScopeAndRejectsChangedEvidence(t *testi
 			if err = s.runs.Finish(target.ID, "failed", "响应丢失"); err != nil {
 				t.Fatal(err)
 			}
-			request, err := s.CreateConversation(c.ProfileID, c.ID, "同一上下文的复盘")
+			request, err := s.CreateConversation(c.ConfigID, c.ID, "同一上下文的复盘")
 			if err != nil {
 				t.Fatal(err)
 			}

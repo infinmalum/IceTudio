@@ -10,7 +10,7 @@ import (
 	"google.golang.org/genai/interactions/models/interactions"
 	"google.golang.org/genai/interactions/models/operations"
 	"google.golang.org/genai/interactions/retry"
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 func geminiSearchParams(source config.Model, messages []Message, tools []Tool, stream bool, enabled bool) (interactions.CreateModelInteraction, error) {

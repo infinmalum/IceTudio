@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
 )
 
 // Compactor summarizes older complete turns when the prompt history no

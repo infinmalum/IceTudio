@@ -1,0 +1,263 @@
+"use strict";
+
+const GSUmathPrec = n => +n.toPrecision( 15 );
+
+// .............................................................................
+function GSUmathMod( n, m ) { return ( ( n % m ) + m ) % m; }
+function GSUmathLogN( x, y ) { return Math.log( y ) / Math.log( x ); }
+function GSUmathEaseInCirc( n, pow = 2 ) { return 1 - Math.sqrt( 1 - n ** pow ); }
+function GSUmathEaseOutCirc( n, pow = 2 ) { return Math.sqrt( 1 - ( n - 1 ) ** pow ); }
+
+// .............................................................................
+function GSUmathRound( val, step = 1 ) { return GSUmathPrec( Math.round( val / step ) * step ); }
+function GSUmathFloor( val, step = 1 ) { return GSUmathPrec( Math.floor( val / step ) * step ); }
+function GSUmathCeil(  val, step = 1 ) { return GSUmathPrec( Math.ceil(  val / step ) * step ); }
+function GSUmathFix( val, dec = 0 ) {
+	return GSUisNum( val )
+		? +val.toFixed( dec )
+		: val?.map?.( n => +n.toFixed( dec ) ) || +val || 0;
+}
+
+// .............................................................................
+function GSUmathSum( ...arr ) { return arr.reduce( ( sum, n ) => sum + +n, 0 ) || 0; }
+function GSUmathAvg( ...arr ) { return GSUmathSum( ...arr ) / arr.length || 0; }
+function GSUmathStack( arr, x ) {
+	arr.pop();
+	arr.unshift( x );
+	return arr;
+}
+
+// .............................................................................
+function GSUmathSign( n ) { return n >= 0 ? `+${ n }` : `${ n }`; }
+
+// .............................................................................
+function GSUmathInRange( n, min, max ) {
+	if ( n === "" || ( !GSUisStr( n ) && !GSUisNum( n ) ) ) {
+		return false;
+	}
+	return min < max
+		? min <= n && n <= max
+		: max <= n && n <= min;
+}
+function GSUmathApprox( n, x, diff ) { return GSUmathInRange( n, x - diff, x + diff ); }
+function GSUmathClamp( n, min, max ) {
+	return min < max
+		? Math.max( min, Math.min( n || 0, max ) )
+		: Math.max( max, Math.min( n || 0, min ) );
+}
+
+// .............................................................................
+function GSUmathFloatReadable( n ) {
+	if ( !n || !GSUisNum( n ) ) {
+		return [ 0, "K" ];
+	}
+
+	const abs = Math.abs( n );
+	const uni = GSUmathFloatReadable.$units;
+	const ind = uni.findIndex( u => abs >= u[ 0 ] );
+
+	if ( ind === -1 ) {
+		return [ GSUmathRound( n / 1000, .001 ), "K" ];
+	}
+
+	let unit = uni[ ind ];
+	let rounded = Math.round( ( n / unit[ 0 ] ) * 1000 ) / 1000;
+
+	if ( Math.abs( rounded ) >= 1000 && ind > 0 ) {
+		unit = uni[ ind - 1 ];
+		rounded = Math.round( ( n / unit[ 0 ] ) * 1000 ) / 1000;
+	}
+	return [ rounded, unit[ 1 ] ];
+}
+GSUmathFloatReadable.$units = [
+	[ 1e12, "T" ],
+	[ 1e9,  "G" ],
+	[ 1e6,  "M" ],
+	[ 1e3,  "K" ],
+];
+
+// .............................................................................
+function GSUmathWaveSine( len ) {
+	return GSUnewArray( len, i => Math.sin( ( i / ( len - 1 ) ) * Math.PI * 2 ) );
+}
+function GSUmathWaveSquare( len ) {
+	return GSUnewArray( len, i => i < len / 2 ? 1 : -1 );
+}
+function GSUmathWaveSawtooth( len ) {
+	const len2 = ( len - 1 ) * .50;
+
+	return GSUnewArray( len, i => i < len2 ? i / len2 : -1 + ( i - len2 ) / len2 );
+}
+function GSUmathWaveTriangle( len ) {
+	const len25 = ( len - 1 ) * .25;
+	const len75 = ( len - 1 ) * .75;
+
+	return GSUnewArray( len, i =>
+		i < len25 ? i / len25 :
+		i < len75
+			? +1 - ( i - len25 ) / len25
+			: -1 + ( i - len75 ) / len25
+	);
+}
+
+const GSUmathWaveFns = {
+	sine: GSUmathWaveSine,
+	square: GSUmathWaveSquare,
+	sawtooth: GSUmathWaveSawtooth,
+	triangle: GSUmathWaveTriangle,
+};
+
+// .............................................................................
+function GSUmathRealImagToXY_sub( a, b, t ) {
+	return a.reduce( ( val, ai, i ) => {
+		const tmp = Math.PI * 2 * i * t;
+
+		return val + ai * Math.cos( tmp ) + b[ i ] * Math.sin( tmp );
+	}, 0 );
+}
+function GSUmathRealImagToXY( real, imag, width ) {
+	const arr = [];
+	const fn = GSUmathRealImagToXY_sub.bind( null, real, imag );
+
+	for ( let x = 0; x < width; ++x ) {
+		arr.push( fn( x / width ) );
+	}
+	return arr;
+}
+
+// .............................................................................
+function GSUmathLineFindY_sub( ptA, ptB, x ) {
+	const w = ptB.x - ptA.x;
+	const h = ptB.y - ptA.y;
+	const xx = x - ptA.x;
+
+	return xx / w * h + ptA.y;
+}
+function GSUmathLineFindY( ptA, ptB, x ) {
+	return ptA.x < ptB.x
+		? GSUmathLineFindY_sub( ptA, ptB, x )
+		: GSUmathLineFindY_sub( ptB, ptA, x );
+}
+
+// .............................................................................
+function GSUmathSampleDotLine( dots, nb, xstart, xend ) {
+	const dataDots = Object.values( dots ).sort( ( a, b ) => a.x - b.x );
+	const dataFloat = GSUnewArray( nb, 0 );
+
+	if ( dataDots.length > 1 ) {
+		const xa = xstart ?? dataDots[ 0 ].x;
+		const xb = xend ?? dataDots.at( -1 ).x;
+		const stepX = ( xb - xa ) / ( nb - 1 );
+		let currX = xa;
+		let fn = null;
+		let dot = null;
+		let type = null;
+		let prevDot = null;
+		let dotI = 0;
+		let dotW = 0;
+		let dotH = 0;
+		let i2 = 0;
+
+		for ( let i = 0; i < nb; ++i ) {
+			while ( dotI < dataDots.length - 1 && ( !dotI || currX >= dataDots[ dotI ].x ) ) {
+				i2 = 0;
+				prevDot = dataDots[ dotI ];
+				dot = dataDots[ ++dotI ];
+				type = dot.type in GSUmathSampleDotLine.$fns ? dot.type : "line";
+				dotW = dot.x - prevDot.x;
+				dotH = dot.y - prevDot.y;
+				fn = GSUmathSampleDotLine.$fns[ type ].bind( null, GSUmathSampleDotLine.$calcDotVal( type, dot.val ) );
+			}
+
+			const p = GSUmathClamp( ( currX - prevDot.x ) / dotW, 0, 1 );
+			const y = GSUmathClamp( fn( p, i2++ ), 0, 1 );
+
+			dataFloat[ i ] = [ currX, prevDot.y + dotH * y ];
+			currX += stepX;
+		}
+	}
+	return dataFloat;
+}
+GSUmathSampleDotLine.$calcDotVal = ( type, val ) => {
+	const dotVal = !type || type.endsWith( "urve" ) ? val : Math.round( val );
+	const dotVal2 = !dotVal && (
+		type === "stair" ||
+		type === "sineWave" ||
+		type === "triangleWave" ||
+		type === "squareWave"
+	) ? 1 : dotVal;
+
+	return dotVal2;
+};
+GSUmathSampleDotLine.$fns = Object.freeze( {
+	hold: () => 0,
+	line: ( _, p ) => p,
+	curve( val, p ) {
+		return val > 0
+			? 1 - ( ( 1 - p ) ** ( val + 1 ) )
+			: p ** -( val - 1 );
+	},
+	doubleCurve( val, p ) {
+		return p > .5
+			? GSUmathSampleDotLine.$fns.curve( val, ( p - .5 ) * 2 ) / 2 + .5
+			: GSUmathSampleDotLine.$fns.curve( -val, p * 2 ) / 2;
+	},
+	stair( val, p, i ) {
+		const nbStairsAbs = Math.abs( val );
+		const inv = val > 0;
+		const y = ( Math.floor( p / ( 1 / ( nbStairsAbs + inv ) ) ) + !inv ) * ( 1 / ( nbStairsAbs + !inv ) );
+
+		return i ? y : 0;
+	},
+	sineWave( val, p ) {
+		const val2 = Math.abs( val );
+		const val3 = val2 * ( ( val2 - .5 ) / val2 );
+		const p2 = val < 0 ? p + 1 : p;
+
+		return .5 + Math.sin( Math.PI * 1.5 + p2 * val3 * Math.PI * 2 ) / 2;
+	},
+	triangleWave( val, p ) {
+		const val2 = Math.abs( val );
+		const val3 = val2 * ( ( val2 - .5 ) / val2 );
+		const p2 = val < 0 ? p + 1 : p;
+
+		return -Math.abs( 2 * val3 * p2 % 2 - 1 ) + 1;
+	},
+	squareWave( val, p ) {
+		const val2 = Math.floor( p / ( 1 / ( val * 2 ) ) ) % 2 === 0;
+
+		return val2 && p < 1 ? 0 : 1;
+	},
+} );
+
+// .............................................................................
+function GSUmathDotLineGetYFromDot( type, val, p ) {
+	const val2 = GSUmathSampleDotLine.$calcDotVal( type, val );
+
+	return GSUmathClamp( GSUmathSampleDotLine.$fns[ type || "curve" ]( val2, p, 1 ), 0, 1 );
+}
+function GSUmathDotLineGetYFromX( dots, x ) {
+	let a = null;
+	let b = null;
+
+	GSUforEach( dots, d => {
+		if ( GSUmathInRange( d.x, a?.x ?? -Infinity, x ) ) {
+			a = d;
+		}
+	} );
+	GSUforEach( dots, d => {
+		if ( GSUmathInRange( d.x, x, b?.x ?? Infinity ) ) {
+			b = d;
+		}
+	} );
+	if ( a && b ) {
+		const p = GSUmathClamp( ( x - a.x ) / ( b.x - a.x ), 0, 1 );
+		const y = GSUmathDotLineGetYFromDot( b.type, b.val, p );
+		const y2 = a.y < b.y ? y : 1 - y;
+		const yStart = Math.min( a.y, b.y );
+		const h = Math.abs( a.y - b.y );
+
+		return yStart + y2 * h;
+	}
+	return 0;
+}

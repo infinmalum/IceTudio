@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { StatusService } from "../../bindings/icepick";
+import { StatusService } from "../../bindings/icetudio";
 import type { ActivityEntry } from "../hooks/useApp";
 import { ErrorNotice } from "../shared/errors";
 const activityLabels: Record<string, string> = {
@@ -52,7 +52,7 @@ export function HostActivityPanel({
       <details>
         <summary>宿主日志</summary>
         <p className="hint">
-          与命令行 `icepick logs` 相同的本机日志，用于排查启动或连接问题。
+          与命令行 `icetudio logs` 相同的本机日志，用于排查启动或连接问题。
         </p>
         <button type="button" className="secondary" disabled={busy} onClick={loadLogs}>
           {busy ? "正在读取…" : "读取最近 200 行"}

@@ -32,7 +32,7 @@ func (s *Service) ListSkills() ([]SkillInfo, error) {
 
 // ReadHostLogs returns up to limit recent lines of the host log, oldest
 // first, so the desktop UI can offer the same troubleshooting view as
-// `icepick logs`.
+// `icetudio logs`.
 func (s *Service) ReadHostLogs(limit int) ([]string, error) {
 	if s.dataDir == "" {
 		return nil, errors.New("数据目录未配置，无法读取日志")
@@ -40,7 +40,7 @@ func (s *Service) ReadHostLogs(limit int) ([]string, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 200
 	}
-	data, err := os.ReadFile(filepath.Join(s.dataDir, "icepick.log"))
+	data, err := os.ReadFile(filepath.Join(s.dataDir, "icetudio.log"))
 	if errors.Is(err, os.ErrNotExist) {
 		return []string{}, nil
 	}

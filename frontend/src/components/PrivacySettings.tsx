@@ -1,6 +1,6 @@
 import type { LocalContextState } from "../hooks/useLocalContext";
 import type { Workspace } from "../hooks/useWorkspace";
-import type { SearchAvailability } from "../../bindings/icepick/internal/app";
+import type { SearchAvailability } from "../../bindings/icetudio/internal/app";
 import { ErrorNotice } from "../shared/errors";
 export function PrivacySettings({
   local: l,
@@ -13,7 +13,7 @@ export function PrivacySettings({
 }) {
   return (
     <section className="session-card">
-      <h2>当前对话的权限与记忆</h2>
+      <h2>当前对话的权限</h2>
       {!w.selected ? (
         <p>开始对话后，可以在这里管理它的权限。</p>
       ) : (
@@ -38,14 +38,6 @@ export function PrivacySettings({
                 <small>
                   文件修改、命令与敏感操作继续受本机权限和逐次检查限制。
                 </small>
-              </label>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={l.contextDraft.policy.memory}
-                  onChange={(e) => l.updatePolicy({ memory: e.target.checked })}
-                />
-                允许这个对话使用记忆
               </label>
               <p>
                 已允许的文件夹：

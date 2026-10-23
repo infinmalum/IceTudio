@@ -2,27 +2,27 @@ package app
 
 import (
 	"context"
-	"icepick/internal/testfixture"
+	"icetudio/internal/testfixture"
 	"strings"
 	"testing"
 
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
-func findProfile(t *testing.T, svc *Service, id string) storage.Profile {
+func findConfig(t *testing.T, svc *Service, id string) storage.RuntimeConfig {
 	t.Helper()
-	profiles, err := svc.ListProfiles()
+	configs, err := svc.ListRuntimeConfigs()
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range profiles {
-		if p.ID == id {
-			return p
+	for _, c := range configs {
+		if c.ID == id {
+			return c
 		}
 	}
-	t.Fatalf("profile %s not found", id)
-	return storage.Profile{}
+	t.Fatalf("执行配置 %s not found", id)
+	return storage.RuntimeConfig{}
 }
 
 // A system-prompt script asserts, on its second turn, which prompt the run
@@ -48,17 +48,17 @@ func promptScript(t *testing.T, call model.ToolCall, wantPrompt string, firstTur
 	return chat
 }
 
-// Switching a conversation to another profile keeps its history while the
-// next run starts executing with the newly selected combination.
-func TestRunProfileSwitching(t *testing.T) {
+// Switching a conversation to another execution config keeps its history
+// while the next run starts executing with the newly selected combination.
+func TestRunConfigSwitching(t *testing.T) {
 	svc, store := newTestService(t, &scriptModel{}, &scriptTools{})
-	data := storage.BlankProfile()
+	data := storage.BlankRuntimeConfig()
 	data.SystemPrompt = "专属提示词 A"
-	profile, err := store.CreateProfile(context.Background(), "A", data)
+	config, err := store.CreateRuntimeConfig(context.Background(), "A", data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	local, err := testfixture.Context(svc.store, context.Background(), "甲", profile.ID)
+	local, err := testfixture.Context(svc.store, context.Background(), "甲", config.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,11 +73,11 @@ func TestRunProfileSwitching(t *testing.T) {
 	}
 	waitForRun(t, svc, run.ID, "completed")
 	runRow, err := svc.GetRun(run.ID)
-	if err != nil || runRow.ProfileID != profile.ID || runRow.ProfileRevision != 1 {
-		t.Fatalf("run profile record: %+v %v", runRow, err)
+	if err != nil || runRow.ConfigID != config.ID || runRow.ConfigRevision != 1 {
+		t.Fatalf("run config record: %+v %v", runRow, err)
 	}
 
-	if _, err := svc.SelectConversationProfile(session.ID, storage.DefaultProfileID); err != nil {
+	if _, err := svc.SelectConversationConfig(session.ID, storage.DefaultConfigID); err != nil {
 		t.Fatal(err)
 	}
 	// Sessions and history stay with the context across the switch.
@@ -85,7 +85,7 @@ func TestRunProfileSwitching(t *testing.T) {
 	if err != nil || len(messages) == 0 {
 		t.Fatalf("history must survive the switch: %+v %v", messages, err)
 	}
-	svc.chat = promptScript(t, extToolCall("c2", "local__current_time", "{}"), "你是 ICEPick 助手", false)
+	svc.chat = promptScript(t, extToolCall("c2", "local__current_time", "{}"), "你是 IceTudio 创作助手", false)
 	run2, err := svc.StartConversationTask(session.ID, "再问")
 	if err != nil {
 		t.Fatal(err)
@@ -93,14 +93,15 @@ func TestRunProfileSwitching(t *testing.T) {
 	waitForRun(t, svc, run2.ID, "completed")
 }
 
-// Editing a shared profile changes every referencing context's subsequent runs.
-func TestSharedProfileEditAffectsSubsequentRuns(t *testing.T) {
+// Editing a shared execution config changes every referencing context's
+// subsequent runs.
+func TestSharedConfigEditAffectsSubsequentRuns(t *testing.T) {
 	svc, _ := newTestService(t, &scriptModel{}, &scriptTools{})
-	contextA, err := testfixture.Context(svc.store, context.Background(), "甲", storage.DefaultProfileID)
+	contextA, err := testfixture.Context(svc.store, context.Background(), "甲", storage.DefaultConfigID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	contextB, err := testfixture.Context(svc.store, context.Background(), "乙", storage.DefaultProfileID)
+	contextB, err := testfixture.Context(svc.store, context.Background(), "乙", storage.DefaultConfigID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,9 +113,9 @@ func TestSharedProfileEditAffectsSubsequentRuns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	def := findProfile(t, svc, storage.DefaultProfileID)
+	def := findConfig(t, svc, storage.DefaultConfigID)
 	def.Data.SystemPrompt = "共享提示词 v2"
-	if _, err := svc.UpdateProfile(def); err != nil {
+	if _, err := svc.UpdateRuntimeConfig(def); err != nil {
 		t.Fatal(err)
 	}
 	svc.chat = promptScript(t, extToolCall("c", "local__current_time", "{}"), "共享提示词 v2", false)
@@ -130,25 +131,25 @@ func TestSharedProfileEditAffectsSubsequentRuns(t *testing.T) {
 	}
 }
 
-// An in-flight run keeps executing with the profile snapshot it started
-// with, even after the profile is edited while a tool call waits for
+// An in-flight run keeps executing with the 执行配置 snapshot it started
+// with, even after the config is edited while a tool call waits for
 // approval; the next run uses the new content. The run row records both the
-// profile id and the revision it snapshotted.
-func TestInFlightRunKeepsProfileSnapshot(t *testing.T) {
+// config id and the revision it snapshotted.
+func TestInFlightRunKeepsConfigSnapshot(t *testing.T) {
 	release := make(chan struct{})
 	tools := &scriptTools{defs: extToolDef("extsvc__ping"), respond: func(name, _ string) (string, error) {
 		<-release
 		return "pong", nil
 	}}
 	svc, store := newTestService(t, &scriptModel{}, tools)
-	data := storage.BlankProfile()
+	data := storage.BlankRuntimeConfig()
 	data.SystemPrompt = "旧提示词"
 	data.AllMCPServers = true
-	profile, err := store.CreateProfile(context.Background(), "P", data)
+	config, err := store.CreateRuntimeConfig(context.Background(), "P", data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	local, err := testfixture.Context(svc.store, context.Background(), "甲", profile.ID)
+	local, err := testfixture.Context(svc.store, context.Background(), "甲", config.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,12 +165,12 @@ func TestInFlightRunKeepsProfileSnapshot(t *testing.T) {
 	}
 	call := waitForCallState(t, svc, session.ID, storage.CallPending)
 
-	// Edit the shared profile while the run waits for approval.
-	target := findProfile(t, svc, profile.ID)
+	// Edit the shared execution config while the run waits for approval.
+	target := findConfig(t, svc, config.ID)
 	target.Data.SystemPrompt = "新提示词"
 	target.Data.AllMCPServers = false
 	target.Data.EnabledMCPServers = nil
-	if _, err := svc.UpdateProfile(target); err != nil {
+	if _, err := svc.UpdateRuntimeConfig(target); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := svc.ApproveToolCall(call.ID); err != nil {
@@ -178,7 +179,7 @@ func TestInFlightRunKeepsProfileSnapshot(t *testing.T) {
 	close(release)
 	waitForRun(t, svc, run.ID, "completed")
 	runRow, err := svc.GetRun(run.ID)
-	if err != nil || runRow.ProfileID != profile.ID || runRow.ProfileRevision != 1 {
+	if err != nil || runRow.ConfigID != config.ID || runRow.ConfigRevision != 1 {
 		t.Fatalf("in-flight run must record its snapshot revision: %+v %v", runRow, err)
 	}
 	// The next run resolves the newly committed content.
@@ -190,22 +191,23 @@ func TestInFlightRunKeepsProfileSnapshot(t *testing.T) {
 	waitForRun(t, svc, run2.ID, "completed")
 }
 
-// A profile copy is an independent combination: editing the copy leaves the
-// original untouched, and copy edits do not leak into other contexts.
-func TestProfileCopyIndependent(t *testing.T) {
+// An execution config copy is an independent combination: editing the copy
+// leaves the original untouched, and copy edits do not leak into other
+// contexts.
+func TestConfigCopyIndependent(t *testing.T) {
 	svc, _ := newTestService(t, &scriptModel{}, &scriptTools{})
-	copied, err := svc.CreateProfile("", storage.DefaultProfileID)
+	copied, err := svc.CreateRuntimeConfig("", storage.DefaultConfigID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if copied.ID == storage.DefaultProfileID || copied.IsDefault || !strings.HasSuffix(copied.Name, "副本") {
+	if copied.ID == storage.DefaultConfigID || copied.IsDefault || !strings.HasSuffix(copied.Name, "副本") {
 		t.Fatalf("copy identity: %+v", copied)
 	}
 	copied.Data.SystemPrompt = "副本提示词"
-	if _, err := svc.UpdateProfile(copied); err != nil {
+	if _, err := svc.UpdateRuntimeConfig(copied); err != nil {
 		t.Fatal(err)
 	}
-	original := findProfile(t, svc, storage.DefaultProfileID)
+	original := findConfig(t, svc, storage.DefaultConfigID)
 	if strings.Contains(original.Data.SystemPrompt, "副本提示词") {
 		t.Fatalf("copy edit leaked into the original: %+v", original)
 	}
@@ -227,23 +229,23 @@ func TestProfileCopyIndependent(t *testing.T) {
 
 // Saving a combination whose capability references do not exist on this host
 // is rejected before anything is persisted.
-func TestProfileResourceValidation(t *testing.T) {
+func TestConfigResourceValidation(t *testing.T) {
 	svc, _ := newTestService(t, &scriptModel{}, &scriptTools{})
-	def := findProfile(t, svc, storage.DefaultProfileID)
+	def := findConfig(t, svc, storage.DefaultConfigID)
 	def.Data.AllSkills = false
 	def.Data.EnabledSkills = []string{"no-such-skill"}
-	if _, err := svc.UpdateProfile(def); err == nil || !strings.Contains(err.Error(), "Skill") {
+	if _, err := svc.UpdateRuntimeConfig(def); err == nil || !strings.Contains(err.Error(), "Skill") {
 		t.Fatalf("missing skill accepted: %v", err)
 	}
-	def = findProfile(t, svc, storage.DefaultProfileID)
+	def = findConfig(t, svc, storage.DefaultConfigID)
 	def.Data.AllMCPServers = false
 	def.Data.EnabledMCPServers = []string{"no-such-server"}
-	if _, err := svc.UpdateProfile(def); err == nil || !strings.Contains(err.Error(), "MCP") {
+	if _, err := svc.UpdateRuntimeConfig(def); err == nil || !strings.Contains(err.Error(), "MCP") {
 		t.Fatalf("missing MCP server accepted: %v", err)
 	}
 	// The stored combination is unchanged after the failed saves.
-	def = findProfile(t, svc, storage.DefaultProfileID)
+	def = findConfig(t, svc, storage.DefaultConfigID)
 	if !def.Data.AllSkills || !def.Data.AllMCPServers || def.Revision != 1 {
-		t.Fatalf("failed save must leave the profile untouched: %+v", def)
+		t.Fatalf("failed save must leave the 执行配置 untouched: %+v", def)
 	}
 }

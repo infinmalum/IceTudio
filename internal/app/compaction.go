@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"strings"
 
-	"icepick/internal/agent"
-	"icepick/internal/config"
-	"icepick/internal/mcptools"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/config"
+	"icetudio/internal/mcptools"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 // sessionCompactor implements the engine Compactor for one run. The summary
@@ -93,20 +93,11 @@ func summaryRequest(previous string, hasPrevious bool, older []model.Message) st
 	return b.String()
 }
 
-// The two bookkeeping tools are host-backed: memory save writes to the
-// owning context's memory store, plan updates replace the session's plan.
-// They live in the app layer (not the MCP hub) because availability follows
-// the profile preference and the context's own authorization, and dispatching
-// them needs the run's context/session scope.
+// The plan bookkeeping tool is host-backed: plan updates replace the
+// session's plan. It lives in the app layer (not the MCP hub) because
+// availability follows the 执行配置 preference, and dispatching it needs the
+// run's session scope.
 var (
-	memorySaveDefinition = func() model.Tool {
-		t := model.Tool{Type: "function"}
-		t.Function.Name = "local__memory_save"
-		t.Function.Description = "把值得跨会话记住的事实或偏好保存到本机上下文的长期记忆；只保存稳定的事实，不保存临时状态"
-		t.Function.Parameters = json.RawMessage(`{"type":"object","properties":{"content":{"type":"string","description":"要记住的内容，一句话到几句话"}},"required":["content"]}`)
-		return t
-	}()
-
 	updatePlanDefinition = func() model.Tool {
 		t := model.Tool{Type: "function"}
 		t.Function.Name = "local__update_plan"
@@ -118,12 +109,12 @@ var (
 
 // bookkeepingTools extends a run's tool executor with the built-ins and
 // keeps their definitions aligned with what the gate will actually accept.
-// Delegated subtask runs set `delegated`: they never get the memory or plan
+// Delegated subtask runs set `delegated`: they never get the plan
 // bookkeeping, only the delegation tool itself when depth still allows it.
 type bookkeepingTools struct {
 	inner     agent.ToolExecutor
 	svc       *Service
-	profile   storage.RunProfile
+	profile   storage.RunConfigSnapshot
 	sessionID string
 	runID     string
 	delegated bool
@@ -143,6 +134,15 @@ func (t bookkeepingTools) definitionsWith(ctx context.Context, definitions []mod
 	for _, d := range basicDefinitions() {
 		if t.profile.AllowsTool(d.Function.Name) {
 			definitions = append(definitions, d)
+		}
+	}
+	// Project tools exist only when this conversation is bound to a
+	// project; the tools themselves re-check the binding on every call.
+	if session, err := t.svc.store.GetSession(ctx, t.sessionID); err == nil && session.ProjectID != "" {
+		for _, d := range projectDefinitions() {
+			if t.profile.AllowsTool(d.Function.Name) {
+				definitions = append(definitions, d)
+			}
 		}
 	}
 	if t.profile.ResourcesFrozen && len(t.profile.FrozenSkills) > 0 && t.profile.AllowsTool("local__load_skill") {
@@ -183,9 +183,6 @@ func (t bookkeepingTools) definitionsWith(ctx context.Context, definitions []mod
 		}
 	}
 	if !t.delegated {
-		if memoryAllowed(t.profile) && t.profile.AllowsTool(memorySaveDefinition.Function.Name) {
-			definitions = append(definitions, memorySaveDefinition)
-		}
 		if t.profile.PlanEnabled && t.profile.AllowsTool(updatePlanDefinition.Function.Name) {
 			definitions = append(definitions, updatePlanDefinition)
 		}
@@ -206,6 +203,8 @@ func (t bookkeepingTools) Call(ctx context.Context, name, arguments string) (str
 	switch name {
 	case "local__write_file", "local__edit_file", "local__exec":
 		return t.basicCall(ctx, name, arguments)
+	case "project__query", "project__edit":
+		return t.projectCall(ctx, name, arguments)
 	case "local__search_worker_traces", "local__list_worker_traces", "local__get_worker_trace", "local__record_observation":
 		return t.traceCall(ctx, name, arguments)
 	case "local__load_skill":
@@ -228,40 +227,12 @@ func (t bookkeepingTools) Call(ctx context.Context, name, arguments string) (str
 			}
 		}
 		return "", errors.New("Skill 不在任务起始快照中")
-	case "local__memory_save":
-		if t.delegated {
-			return "", errors.New("委派子任务不提供长期记忆写入")
-		}
-		if !memoryAllowed(t.profile) {
-			return "", errors.New("该上下文未启用长期记忆写入")
-		}
-		var args struct {
-			Content string `json:"content"`
-		}
-		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
-			return "", errors.New("memory_save 参数必须是 JSON 对象")
-		}
-		content := strings.TrimSpace(args.Content)
-		if content == "" || len(content) > storage.MaxMemoryContent {
-			return "", fmt.Errorf("记忆内容长度必须在 1 到 %d 字节之间", storage.MaxMemoryContent)
-		}
-		// The memory inherits the most restrictive scope accumulated in the
-		// session it was derived from; injecting it into a later session
-		// accumulates that scope there.
-		scope, err := t.svc.sessionScopeMax(ctx, t.sessionID, t.profile)
-		if err != nil {
-			return "", err
-		}
-		if _, err := t.svc.store.AddContextMemory(ctx, t.profile.ContextID, content, storage.MemorySourceModel, t.sessionID, scope); err != nil {
-			return "", err
-		}
-		return "已保存到长期记忆。", nil
 	case "local__update_plan":
 		if t.delegated {
 			return "", errors.New("委派子任务不提供规划")
 		}
 		if !t.profile.PlanEnabled {
-			return "", errors.New("该 Profile 未启用规划")
+			return "", errors.New("该执行配置未启用规划")
 		}
 		var args struct {
 			Steps            []storage.PlanStep `json:"steps"`
@@ -296,7 +267,7 @@ func (t bookkeepingTools) Call(ctx context.Context, name, arguments string) (str
 // sessionScopeMax folds the session's accumulated data scopes into the
 // single most restrictive token; a session always carries user input, so it
 // never returns empty.
-func (s *Service) sessionScopeMax(ctx context.Context, sessionID string, profile storage.RunProfile) (string, error) {
+func (s *Service) sessionScopeMax(ctx context.Context, sessionID string, profile storage.RunConfigSnapshot) (string, error) {
 	scopes, err := s.sessionScopes(ctx, sessionID, profile)
 	if err != nil {
 		return "", err

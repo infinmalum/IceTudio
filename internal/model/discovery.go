@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"google.golang.org/genai"

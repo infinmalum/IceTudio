@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"icepick/internal/model"
-	"icepick/internal/skills"
-	"icepick/internal/storage"
+	"icetudio/internal/model"
+	"icetudio/internal/skills"
+	"icetudio/internal/storage"
 )
 
 // sessionWindow is the model-facing context of one run: the rendered
@@ -21,18 +21,10 @@ type sessionWindow struct {
 	summary string
 }
 
-// memoryRecallLimit bounds how many memories one run injects, and
-// memoryPromptBudget caps their combined text.
-const (
-	memoryRecallLimit  = 50
-	memoryPromptBudget = 16 * 1024
-)
-
 // buildRunContext assembles what a run sends to the model: the persisted
-// history minus the compacted prefix, plus — when the profile and the
-// context's own authorization allow it — the context's long-term memories, and
-// the session's resumable plan. Nothing here modifies persisted records.
-func (s *Service) buildRunContext(sessionID string, profile storage.RunProfile) (sessionWindow, error) {
+// history minus the compacted prefix, plus the session's resumable plan.
+// Nothing here modifies persisted records.
+func (s *Service) buildRunContext(sessionID string, profile storage.RunConfigSnapshot) (sessionWindow, error) {
 	ctx := context.Background()
 	entries, err := s.store.HistoryEntries(ctx, sessionID)
 	if err != nil {
@@ -80,63 +72,17 @@ func (s *Service) buildRunContext(sessionID string, profile storage.RunProfile) 
 			window.history = append(window.history, model.Message{Role: "tool", ToolCallID: entry.CallID, Content: entry.Content})
 		}
 	}
-	if err := s.injectMemories(ctx, sessionID, profile, &window); err != nil {
-		return sessionWindow{}, err
-	}
 	s.injectPlan(ctx, sessionID, profile, &window)
 	if profile.Resources != nil && profile.Resources.Options.WebSearch {
-		window.history[0].Content += "\n" + searchInstruction(model.NativeSearchSupported(profile.Model) && allowsNativeSearch(profile.ProfileData))
+		window.history[0].Content += "\n" + searchInstruction(model.NativeSearchSupported(profile.Model) && allowsNativeSearch(profile.RuntimeConfigData))
 	}
 	return window, nil
 }
 
-// injectMemories appends the context's long-term memories to the system
-// prompt. Memory content counts as session input from the moment it is
-// injected: its data scopes accumulate into the session, so later sends —
-// including to a remote model — must clear exactly what the memories carry.
-func (s *Service) injectMemories(ctx context.Context, sessionID string, profile storage.RunProfile, window *sessionWindow) error {
-	if !memoryAllowed(profile) {
-		return nil
-	}
-	newest, err := s.store.ListContextMemories(ctx, profile.ContextID, memoryRecallLimit)
-	if err != nil {
-		return err
-	}
-	if len(newest) == 0 {
-		return nil
-	}
-	selected := make([]storage.Memory, 0, len(newest))
-	used := 0
-	for _, memory := range newest {
-		if used+len(memory.Content) > memoryPromptBudget {
-			break
-		}
-		selected = append(selected, memory)
-		used += len(memory.Content)
-	}
-	scopes := make([]string, 0, len(selected))
-	for _, memory := range selected {
-		scopes = append(scopes, memory.Scope)
-	}
-	if err := s.store.AccumulateContextScopes(ctx, sessionID, scopes); err != nil {
-		return err
-	}
-	for i, j := 0, len(selected)-1; i < j; i, j = i+1, j-1 {
-		selected[i], selected[j] = selected[j], selected[i]
-	}
-	var b strings.Builder
-	b.WriteString("长期记忆（此上下文此前沉淀的跨会话记忆，来源与数据范围已标注）：")
-	for _, memory := range selected {
-		fmt.Fprintf(&b, "\n- [%s · %s] %s", memory.Source, memory.Scope, memory.Content)
-	}
-	window.history[0].Content += "\n\n" + b.String()
-	return nil
-}
-
 // injectPlan appends the session's resumable plan to the system prompt when
-// the profile enables the plan capability. The plan is bookkeeping the
+// the 执行配置 enables the plan capability. The plan is bookkeeping the
 // model maintains through local__update_plan; it grants no permission.
-func (s *Service) injectPlan(ctx context.Context, sessionID string, profile storage.RunProfile, window *sessionWindow) {
+func (s *Service) injectPlan(ctx context.Context, sessionID string, profile storage.RunConfigSnapshot, window *sessionWindow) {
 	if !profile.PlanEnabled {
 		return
 	}
@@ -166,15 +112,9 @@ func (s *Service) injectPlan(ctx context.Context, sessionID string, profile stor
 	window.history[0].Content += "\n\n" + b.String()
 }
 
-// memoryAllowed is the effective memory authorization: the profile's
-// preference and the context's own policy must both permit it.
-func memoryAllowed(profile storage.RunProfile) bool {
-	return profile.MemoryEnabled && profile.Policy.Memory
-}
-
-// systemPrompt composes the profile prompt with the enabled Agent Skills
+// systemPrompt composes the 执行配置 prompt with the enabled Agent Skills
 // metadata, mirroring the pre-P1 behavior.
-func (s *Service) systemPrompt(profile storage.RunProfile) string {
+func (s *Service) systemPrompt(profile storage.RunConfigSnapshot) string {
 	prompt := profile.Persona
 	if profile.SystemPrompt != "" {
 		if prompt != "" {
@@ -190,7 +130,7 @@ func (s *Service) systemPrompt(profile storage.RunProfile) string {
 		}
 	}
 	if profile.AllowsTool("local__load_skill") {
-		summary := s.profileSkillSummary(profile)
+		summary := s.snapshotSkillSummary(profile)
 		if summary != "" {
 			prompt += "\n可用 Agent Skills（仅元数据）：\n" + summary + "\n相关任务先调用 local__load_skill 读取完整 SKILL.md。"
 		}
@@ -199,7 +139,7 @@ func (s *Service) systemPrompt(profile storage.RunProfile) string {
 	return prompt
 }
 
-func (s *Service) profileSkillSummary(profile storage.RunProfile) string {
+func (s *Service) snapshotSkillSummary(profile storage.RunConfigSnapshot) string {
 	if profile.ResourcesFrozen {
 		return skills.SnapshotSummary(profile.FrozenSkills)
 	}

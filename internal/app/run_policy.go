@@ -4,19 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"icepick/internal/config"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/storage"
 )
 
 func restrictPolicy(a, b storage.ContextPolicy) storage.ContextPolicy {
 	a.ApprovalMode = stricterMode(a.ApprovalMode, b.ApprovalMode)
 	a.Permissions = intersectPermissions(a.Permissions, b.Permissions)
-	a.Memory = a.Memory && b.Memory
 	return a
 }
 
 // Every component shares the root context. Live changes can only narrow its frozen ceiling.
-func (s *Service) restrictRunPolicy(ctx context.Context, runID string, p storage.RunProfile) (storage.ContextPolicy, error) {
+func (s *Service) restrictRunPolicy(ctx context.Context, runID string, p storage.RunConfigSnapshot) (storage.ContextPolicy, error) {
 	resources, err := s.resourcesFor(ctx, p, runID)
 	if err != nil {
 		return p.Policy, err
@@ -34,7 +33,7 @@ func (s *Service) restrictRunPolicy(ctx context.Context, runID string, p storage
 	}
 	return restrictPolicy(restrictPolicy(p.Policy, resources.RootPolicy), local.Policy), nil
 }
-func (s *Service) exfilCheckRun(ctx context.Context, runID, sessionID string, source config.Model, p storage.RunProfile) error {
+func (s *Service) exfilCheckRun(ctx context.Context, runID, sessionID string, source config.Model, p storage.RunConfigSnapshot) error {
 	if _, err := s.restrictRunPolicy(ctx, runID, p); err != nil {
 		return err
 	}

@@ -1,31 +1,28 @@
-import type { Profiles } from "../hooks/useProfiles";
+import type { Configs } from "../hooks/useConfigs";
 export function ProfileList({
-  profileState,
+  configState,
   startConversation,
 }: {
-  profileState: Profiles;
+  configState: Configs;
   startConversation: (id: string) => void;
 }) {
-  const p = profileState;
+  const p = configState;
   return (
     <section className="session-card" aria-label="你的助手">
       <h2>你的助手</h2>
-      {p.profiles.length === 0 && (
-        <p className="hint">还没有自己的助手；可以从下面的模板快速添加。</p>
+      {p.configs.length === 0 && (
+        <p className="hint">还没有自己的助手；可以在下方创建。</p>
       )}
       <div className="assistant-list">
-        {p.profiles.map((item) => (
+        {p.configs.map((item) => (
           <div
-            className={`assistant-row ${p.profileEditID === item.id ? "selected" : ""}`}
+            className={`assistant-row ${p.configEditID === item.id ? "selected" : ""}`}
             key={item.id}
           >
             <div className="assistant-row-main">
               <strong>
                 {item.name}
                 {item.isDefault && <span className="memory-meta">（默认）</span>}
-                {item.data.templateId && (
-                  <span className="memory-meta">（模板副本）</span>
-                )}
               </strong>
               <span className="memory-meta">
                 {item.data.description || "暂无说明"}
@@ -45,7 +42,7 @@ export function ProfileList({
               <button
                 type="button"
                 className="text-button"
-                disabled={p.profileBusy}
+                disabled={p.configBusy}
                 onClick={() => startConversation(item.id)}
               >
                 开始新对话
@@ -53,9 +50,9 @@ export function ProfileList({
               <button
                 type="button"
                 className="text-button"
-                disabled={p.profileBusy}
+                disabled={p.configBusy}
                 onClick={() => {
-                  void p.setProfileEditID(item.id).then((ok) => {
+                  void p.setConfigEditID(item.id).then((ok) => {
                     if (ok)
                       document
                         .getElementById("assistant-editor")
@@ -64,15 +61,6 @@ export function ProfileList({
                 }}
               >
                 编辑
-              </button>
-              <button
-                type="button"
-                className="text-button"
-                disabled={p.profileBusy || item.isDefault}
-                title={item.isDefault ? "默认助手不能删除" : undefined}
-                onClick={() => void p.deleteProfile(item.id)}
-              >
-                删除
               </button>
             </div>
           </div>

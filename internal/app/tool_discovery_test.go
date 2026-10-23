@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"icepick/internal/config"
-	"icepick/internal/mcptools"
-	"icepick/internal/model"
-	"icepick/internal/storage"
-	"icepick/internal/testfixture"
+	"icetudio/internal/config"
+	"icetudio/internal/mcptools"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
+	"icetudio/internal/testfixture"
 	"os"
 	"strings"
 	"testing"
@@ -27,7 +27,7 @@ func discoveryFixture(t *testing.T) (*Service, *discoveryTools, *scriptTools) {
 		tools.defs = append(tools.defs, d)
 	}
 	s, _ := newTestService(t, &scriptModel{}, tools)
-	p, err := testfixture.Profile(s.store, context.Background(), testfixture.ContextID)
+	p, err := testfixture.RunConfig(s.store, context.Background(), testfixture.ContextID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,12 +139,12 @@ func TestToolDiscoveryModelLoopLoadsAndExecutes(t *testing.T) {
 	if _, err = s.UpdateContextPolicy(a.ID, a.Policy); err != nil {
 		t.Fatal(err)
 	}
-	p, err := s.GetProfile(storage.DefaultProfileID)
+	p, err := s.GetRuntimeConfig(storage.DefaultConfigID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	p.Data.AllMCPServers = true
-	if _, err = s.UpdateProfile(p); err != nil {
+	if _, err = s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
 	session, err := s.createContextSession(a.ID)
@@ -216,7 +216,7 @@ func TestToolDiscoveryRealMCPDefersConnectionAndLoadsSchema(t *testing.T) {
 	}
 	s, _ := newTestService(t, &scriptModel{}, hub)
 	s.endpoints = hub
-	p, err := testfixture.Profile(s.store, ctx, testfixture.ContextID)
+	p, err := testfixture.RunConfig(s.store, ctx, testfixture.ContextID)
 	if err != nil {
 		t.Fatal(err)
 	}

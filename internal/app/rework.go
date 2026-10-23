@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"icepick/internal/storage"
+	"icetudio/internal/storage"
 )
 
 const maxReworkRounds = 2
@@ -22,7 +22,7 @@ type reworkRequest struct {
 	ExistingTasks  map[string]bool             `json:"existingTasks"`
 }
 
-func (s *Service) requireDeliveryReview(ctx context.Context, root, session string, p storage.RunProfile, repair func(reworkRequest) error) error {
+func (s *Service) requireDeliveryReview(ctx context.Context, root, session string, p storage.RunConfigSnapshot, repair func(reworkRequest) error) error {
 	if p.Execution.Review.Mode != "required" {
 		return nil
 	}

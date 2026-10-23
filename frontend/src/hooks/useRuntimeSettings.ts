@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { StatusService, type AppStatus } from "../../bindings/icepick";
+import { StatusService, type AppStatus } from "../../bindings/icetudio";
 import type {
   CredentialStatus,
   MCPEndpointStatus,
-} from "../../bindings/icepick/internal/app";
+} from "../../bindings/icetudio/internal/app";
 import { useDialog } from "../shared/dialogs";
 import { type ModelDraft } from "../shared/config";
 export function useRuntimeSettings() {

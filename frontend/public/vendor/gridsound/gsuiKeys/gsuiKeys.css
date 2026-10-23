@@ -1,0 +1,151 @@
+:root {
+	--gsuiKeys-keyNotation: "do";
+}
+
+gsui-keys {
+	--gsuiKeys-firstOctave: 0;
+	--gsuiKeys-nbOctaves: 0;
+	display: block;
+	position: relative;
+	z-index: 0;
+	touch-action: none;
+	counter-reset: octave calc( var( --gsuiKeys-firstOctave ) + var( --gsuiKeys-nbOctaves ) );
+	background-image: linear-gradient(
+		var( --gsuiKeys-gradientDeg ),
+		var( --gsuiKeys-whiteKey-gradA ),
+		var( --gsuiKeys-whiteKey-gradB )
+	);
+
+	&[ orient="vertical" ] {
+		--gsuiKeys-gradientDeg: 90deg;
+		width: 100%;
+		height: calc( var( --gsuiKeys-nbOctaves ) * 12em );
+	}
+	&[ orient="horizontal" ] {
+		--gsuiKeys-gradientDeg: 180deg;
+		width: calc( var( --gsuiKeys-nbOctaves ) * 12em );
+		height: 100%;
+	}
+}
+
+/* .......................................................................... */
+.gsuiKeys-row {
+	position: absolute;
+	box-sizing: border-box;
+	width: 100%;
+	height: 1em;
+
+	.gsuiKeys-key & {
+		display: none;
+	}
+	&[ data-col="b" ] {
+		background-color: var( --gsuiKeys-blackRow-bg );
+	}
+	> div {
+		position: absolute;
+		inset: 0;
+	}
+	gsui-pianoroll:has( .gsuiBlocksManager-selection-hidden ) &[ data-col="w" ]:hover { background-color: var( --gsuiKeys-whiteRow-hover-bg ); }
+	gsui-pianoroll:has( .gsuiBlocksManager-selection-hidden ) &[ data-col="b" ]:hover { background-color: var( --gsuiKeys-blackRow-hover-bg ); }
+}
+
+/* .......................................................................... */
+*[ data-key="0" ]:not( :last-child ),
+*[ data-key="5" ] {
+	.gsuiKeys-row&,
+	gsui-keys[ orient="vertical" ] .gsuiKeys-key& {
+		border-bottom: 1px solid #0003;
+	}
+	gsui-keys[ orient="horizontal" ] .gsuiKeys-key& {
+		border-left: 1px solid #0003;
+	}
+}
+
+/* .......................................................................... */
+.gsuiKeys-key {
+	box-sizing: border-box;
+	position: absolute;
+
+	gsui-keys[ orient="vertical" ] & {
+		inset: auto 0;
+		top: calc( var( --gsuiKeys-key-id ) * 1em );
+		height: 1.5em;
+
+		&:where( [ data-key="2" ], [ data-key="7" ], [ data-key="9" ] ) {
+			height: 2em;
+		}
+		&:where( [ data-key="0" ], [ data-key="2" ], [ data-key="5" ], [ data-key="7" ], [ data-key="9" ] ) {
+			margin-top: -.5em;
+		}
+	}
+	gsui-keys[ orient="horizontal" ] & {
+		inset: 0 auto;
+		right: calc( var( --gsuiKeys-key-id ) * 1em );
+		width: 1.5em;
+
+		&:where( [ data-key="2" ], [ data-key="7" ], [ data-key="9" ] ) {
+			width: 2em;
+		}
+		&:where( [ data-key="0" ], [ data-key="2" ], [ data-key="5" ], [ data-key="7" ], [ data-key="9" ] ) {
+			margin-right: -.5em;
+		}
+	}
+	&[ data-col="b" ] {
+		position: absolute;
+		z-index: 1;
+		background-image: linear-gradient(
+			var( --gsuiKeys-gradientDeg ),
+			var( --gsuiKeys-blackKey-gradA ),
+			var( --gsuiKeys-blackKey-gradB )
+		);
+
+		gsui-keys[ orient="vertical" ] & {
+			width: 65%;
+			height: 1em;
+			border-radius: 0 .1em .1em 0;
+		}
+		gsui-keys[ orient="horizontal" ] & {
+			width: 1em;
+			height: 65%;
+			border-radius: 0 0 .1em .1em;
+		}
+	}
+	&[ data-key="0" ] {
+		&::before {
+			content: "";
+			position: absolute;
+			inset: 0;
+			background-color: #0000001c;
+		}
+		&::after {
+			counter-increment: octave -1;
+			content: var( --gsuiKeys-keyNotation ) "·" counter( octave );
+			position: absolute;
+			bottom: 2px;
+			color: #000;
+			font-size: calc( 6px + .25em );
+			font-family: monospace;
+		}
+		gsui-keys[ orient="vertical" ] &::after { right: .25em }
+		gsui-keys[ orient="horizontal" ] &::after { left: .35em }
+	}
+	&[ data-root ] {
+		&[ data-key="0" ]::after {
+			color: var( --gsuiKeys-whiteKey-gradB );
+			padding: 0 2px;
+			border-radius: 3px;
+			background-color: var( --gsuiKeys-rootKey );
+		}
+		&.gsui-active::after {
+			color: var( --gsuiKeys-rootKey );
+			background-color: var( --gsuiKeys-whiteKey-gradB );
+		}
+	}
+	&.gsui-active {
+		background-image: linear-gradient(
+			var( --gsuiKeys-gradientDeg ),
+			var( --gsuiKeys-activeKey-gradA ),
+			var( --gsuiKeys-activeKey-gradB )
+		);
+	}
+}

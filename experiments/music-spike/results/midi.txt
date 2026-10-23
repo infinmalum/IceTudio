@@ -1,0 +1,17 @@
+=== RUN   TestEventRoundTrip
+=== RUN   TestEventRoundTrip/format1_ppq
+    midi_test.go:110: preserved 2 tracks; events=1/480 MetricTicks|0:0:ff510307a120|0:0:ff580404021808|0:0:ff59020000|0:0:ff0603414243|0:480:ff51030927c0|0:480:ff580403021808|0:480:ff7f03010203|0:480:ff2f00|1:0:c10a|1:0:b1407f|1:0:e10050|1:0:d13c|1:0:a13c32|1:0:913c64|1:160:913c50|1:320:813c2d|1:480:913c00|1:480:b14000|1:480:f07e7f09f7|1:480:ff2f00
+=== RUN   TestEventRoundTrip/format0_ppq
+    midi_test.go:110: preserved 1 tracks; events=0/480 MetricTicks|0:0:c10a|0:0:b1407f|0:0:e10050|0:0:d13c|0:0:a13c32|0:0:913c64|0:160:913c50|0:320:813c2d|0:480:913c00|0:480:b14000|0:480:f07e7f09f7|0:480:ff2f00
+=== RUN   TestEventRoundTrip/format1_smpte25
+    midi_test.go:66: upstream panic: interface conversion: smf.TimeFormat is smf.TimeCode, not smf.MetricTicks
+--- FAIL: TestEventRoundTrip (0.00s)
+    --- PASS: TestEventRoundTrip/format1_ppq (0.00s)
+    --- PASS: TestEventRoundTrip/format0_ppq (0.00s)
+    --- FAIL: TestEventRoundTrip/format1_smpte25 (0.00s)
+=== RUN   TestTruncation
+    midi_test.go:119: accepted truncated input length 13
+--- FAIL: TestTruncation (0.00s)
+FAIL
+FAIL	icetudio-music-spike	0.002s
+FAIL

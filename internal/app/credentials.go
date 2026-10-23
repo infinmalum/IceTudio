@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 // credentialsPath is the data-directory file holding the remote provider API
@@ -39,7 +39,7 @@ func (c *credentialStore) load() (config.Credentials, error) {
 }
 
 // SaveCredential stores one remote provider's API key in the protected data
-// directory. The key never enters config files, profiles, runs or logs.
+// directory. The key never enters config files, 执行配置, runs or logs.
 func (s *Service) SaveCredential(provider, apiKey string) error {
 	if err := s.checkReady(); err != nil {
 		return err

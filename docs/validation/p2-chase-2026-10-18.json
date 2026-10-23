@@ -1,0 +1,123 @@
+{
+  "date": "2026-10-18",
+  "scope": "P2 CC66 sostenuto and bank/program chase increment; not full P2 acceptance",
+  "environment": {
+    "os": "Linux x86_64",
+    "go": "go1.27.1-X:nodwarf5",
+    "fluidsynth": "2.6.1",
+    "cgo": true
+  },
+  "implementation": {
+    "changed": [
+      "Off-audio-thread Chase reconstructs CC64/66 interactions and orders captured notes before CC66 and later held keys after it",
+      "Restore bank at last Program, selected Program, then pending bank; <=5 events per channel",
+      "CC121 preserves FluidSynth 2.6.1 bank/volume/pan/balance/sound/effects controllers",
+      "Reset controllers and pedals before final all-sounds-off during native clear"
+    ],
+    "unchanged": [
+      "Project persistence schema and editing API",
+      "Real-time event compilation order",
+      "All Agent roles, execution modes, authorization, transaction and recovery contracts"
+    ],
+    "diagnostics": "Internal native CC/preset readers used by tests; not exposed as Wails/CLI/IPC APIs"
+  },
+  "checks": [
+    {
+      "command": "go test ./internal/playback -count=1",
+      "result": "pass",
+      "coverage": [
+        "15 pure chase boundary and pedal/channel-mode cases",
+        "100000 repeated CC66 events compact to a four-event chase",
+        "Historical bank/program order and CC121 retained/reset values",
+        "Real project compilation and FluidSynth bank 1 preset with pending bank 0; seek and loops",
+        "Real PCM sostenuto seek/loop, A4 vs uncaptured E5, release and stop",
+        "Five real PCM dual-pedal/CC120/121/123 cases",
+        "Held key after destination remains uncaptured",
+        "CC66 and new note exactly at seek destination retain dispatch order",
+        "Background revision removes CC66 without moving tick or stopping transport"
+      ]
+    },
+    {
+      "command": "go test ./...",
+      "result": "pass",
+      "scope": "All current Go packages; opt-in live audio run separately; opt-in browser not rerun this increment"
+    },
+    {
+      "command": "go test -race ./internal/playback ./internal/app ./internal/host",
+      "result": "pass",
+      "scope": "Go race detector; no proof of absence of native C races or audio performance limits"
+    },
+    {
+      "command": "env CGO_ENABLED=0 go test ./internal/playback -count=1",
+      "result": "pass",
+      "scope": "Pure Go chase/timeline tests; native tests skip. Does not establish whole-app support without cgo"
+    },
+    {
+      "command": "env ICETUDIO_LIVE_AUDIO=1 go test ./internal/playback -run '^TestLiveAudioDriver$' -count=1 -v",
+      "result": "pass",
+      "observed": {
+        "callbacks": 139,
+        "missedBlocks": 0,
+        "positionFrames": 16896
+      },
+      "scope": "Actual PulseAudio driver progression and Stop smoke test; new CC66/bank cases use offline real FluidSynth rendering, not live driver PCM capture"
+    },
+    {
+      "command": "wails3 task build",
+      "result": "pass",
+      "artifact": "bin/icetudio",
+      "scope": "Linux desktop compile/link and frontend build; no native window acceptance"
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass",
+      "scope": "Tracked diff; touched untracked implementation/document files separately checked for trailing whitespace"
+    }
+  ],
+  "discoveredFix": {
+    "test": "TestManagerRefreshDropsRemovedSostenuto",
+    "before": {
+      "clearOrder": "all-sounds-off then controller/pedal reset",
+      "CC66": 0,
+      "first64Energy": 0.025617463427465736,
+      "remaining1984Energy": 0.036604849476439896
+    },
+    "after": {
+      "clearOrder": "controller/pedal reset then all-sounds-off",
+      "CC66": 0,
+      "first64Energy": 0.01721433563272967,
+      "remaining1984Energy": 0
+    },
+    "interpretation": "Reset releases likely superseded the earlier queued voice-off; based on fixed-version source inspection and controlled reorder test. This sample does not establish physical device latency or all-font behavior."
+  },
+  "referenceSources": [
+    "https://github.com/FluidSynth/fluidsynth/blob/v2.6.1/src/synth/fluid_synth.c",
+    "https://github.com/FluidSynth/fluidsynth/blob/v2.6.1/src/synth/fluid_chan.c",
+    "https://github.com/FluidSynth/fluidsynth/blob/v2.6.1/src/synth/fluid_voice.c"
+  ],
+  "knownLimits": [
+    "RPN/NRPN and full mono/legato/portamento chase remain pending; no replay of entire controller history in loop callbacks",
+    "Latest note per channel/pitch chase policy; old overlapping voice layers, envelopes and release tails are not reconstructed",
+    "Already rendered internal synth PCM can remain for up to the tested 64-frame buffer after snapshot clear; not a universal measured latency guarantee",
+    "New bank test derives a synthetic bank from the original generated font; no external commercial/sample bank rights or behavior verified"
+  ],
+  "notVerified": [
+    "Actual Wails WebView interaction and file dialogs",
+    "Physical latency, listening and musical quality",
+    "Dense audio/xrun/long duration, device loss/switching and clean install",
+    "Other platforms, arbitrary external SoundFonts and actual model editing"
+  ],
+  "warnings": [
+    "Existing FluidSynth fluid_setenv stub error appeared during live initialization; driver advanced and Stop assertions passed",
+    "Existing npm minimum-release-age config warning; desktop build exited successfully"
+  ],
+  "documentReview": {
+    "scope": [
+      "IMPLEMENTATION_PLAN.md",
+      "README.md",
+      "docs/architecture.md",
+      "docs/p2-playback.md"
+    ],
+    "status": "Full affected documents reread; checked completion scope, historical/current distinction, retained runtime, remaining controller/native gaps and local links. No repository-wide completeness claim."
+  }
+}

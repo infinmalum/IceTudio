@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"icepick/internal/model"
+	"icetudio/internal/model"
 )
 
 type SearchRequest struct {

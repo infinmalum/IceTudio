@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/skills"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/skills"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -58,7 +58,7 @@ type Hub struct {
 }
 
 func NewLocal(ctx context.Context, catalog *skills.Catalog) (*Hub, error) {
-	server := mcp.NewServer(&mcp.Implementation{Name: "icepick-local", Version: "0.1.0"}, nil)
+	server := mcp.NewServer(&mcp.Implementation{Name: "icetudio-local", Version: "0.1.0"}, nil)
 	mcp.AddTool(server, &mcp.Tool{Name: "current_time", Description: "读取本机当前时间（含时区）"}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: time.Now().Format(time.RFC3339)}}}, nil, ctx.Err()
 	})
@@ -92,7 +92,7 @@ func NewLocal(ctx context.Context, catalog *skills.Catalog) (*Hub, error) {
 	if err != nil {
 		return nil, err
 	}
-	client := mcp.NewClient(&mcp.Implementation{Name: "icepick", Version: "0.1.0"}, nil)
+	client := mcp.NewClient(&mcp.Implementation{Name: "icetudio", Version: "0.1.0"}, nil)
 	clientSession, err := client.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		serverSession.Close()
@@ -136,7 +136,7 @@ func (h *Hub) ConnectCommand(ctx context.Context, server config.MCPServer) error
 	}
 	cmd.Env = BuildEnv(server.Env)
 	setProcessGroup(cmd)
-	client := mcp.NewClient(&mcp.Implementation{Name: "icepick", Version: "0.1.0"}, nil)
+	client := mcp.NewClient(&mcp.Implementation{Name: "icetudio", Version: "0.1.0"}, nil)
 	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: cmd}, nil)
 	if err != nil {
 		// A failed handshake (including the connect timeout) must not leak

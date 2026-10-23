@@ -63,25 +63,48 @@ try {
     });
   }
   const backend = `
-const blank=()=>({schemaVersion:1,templateId:'',templateVersion:0,description:'',systemPrompt:'日常助手',persona:'',model:{provider:'',baseUrl:'',name:''},allMcpServers:true,enabledMcpServers:[],allowedTools:[],allSkills:false,enabledSkills:[],contextBudget:8192,memoryEnabled:true,planEnabled:false,delegation:{enabled:false,maxDepth:0,maxConcurrency:0,maxSeconds:0},execution:{workflow:'direct',stages:[],main:{},planner:{},reviewer:{},improver:{},worker:{},workerSources:[],budget:{},review:{mode:'off'},improverEnabled:true}});
-const profile=(id,name)=>({id,name,isDefault:id==='default',revision:1,data:blank(),createdAt:'2026-10-15',updatedAt:'2026-10-15'});
-const state=window.__product={n:0,profiles:[profile('default','日常助手')],conversations:[],contexts:{},runs:{},messages:{},pending:[],grants:{},model:{provider:'ollama',baseUrl:'http://127.0.0.1:11434/v1',name:''},savedKey:false,approvals:[],drafts:[],skillDrafts:[],previewRemote:false,skills:[{name:'report-check',description:'检查报告结构',managed:false}],mcpConfig:[]};
+const blank=()=>({schemaVersion:1,description:'',systemPrompt:'',persona:'',model:{provider:'',baseUrl:'',name:''},allMcpServers:true,enabledMcpServers:[],allowedTools:[],allSkills:false,enabledSkills:[],contextBudget:8192,planEnabled:false,delegation:{enabled:false,maxDepth:0,maxConcurrency:0,maxSeconds:0},execution:{workflow:'direct',stages:[],main:{},planner:{},reviewer:{},improver:{},worker:{},workerSources:[],budget:{},review:{mode:'off'},improverEnabled:true}});
+const config=(id,name)=>({id,name,isDefault:id==='default',revision:1,data:blank(),createdAt:'2026-10-17',updatedAt:'2026-10-17'});
+const state=window.__product={n:0,configs:[config('default','创作助手')],conversations:[],contexts:{},runs:{},messages:{},pending:[],grants:{},model:{provider:'ollama',baseUrl:'http://127.0.0.1:11434/v1',name:''},savedKey:false,approvals:[],skillDrafts:[],previewRemote:false,skills:[{name:'report-check',description:'检查报告结构',managed:false}],mcpConfig:[],projects:[],projectHistory:{},projectOps:{},projectResults:{},lastExport:null};
 const status=()=>({storageReady:true,runtimeReady:!!state.model.name,modelConnected:!!state.model.name,model:state.model,availableModels:['mock'],message:state.model.name?'已连接':'请连接模型'});
+export const DesktopService={Ready:async()=>{},CancelClose:async()=>{},ConfirmClose:async()=>{}};
+export const PlaybackService={Status:async()=>({available:false,ready:false,playing:false,settings:{version:1,driver:'pulseaudio',soundFont:''},error:'',engine:'UI mock',sampleRate:48000}),Stop:async()=>{},StopProject:async()=>{},Play:async()=>{},Seek:async()=>{},Configure:async()=>{},PickSoundFont:async()=>''};
 export const StatusService={
 GetStatus:async()=>structuredClone(status()),ListCredentialStatus:async()=>[{provider:'openai',configured:state.savedKey}],SaveCredential:async(p,key)=>{if(key!=='mock-key')throw Error('unexpected key');state.savedKey=true},DeleteCredential:async()=>{state.savedKey=false},SaveModelConfig:async(m)=>{state.model=structuredClone(m);return structuredClone(status())},ListMCPEndpoints:async()=>[],
-ListProfiles:async()=>{if(state.failProfiles)throw Error('助手列表加载失败');return structuredClone(state.profiles)},ListProfileTemplates:async()=>['daily','writing','research','development'].map((id,i)=>({id,name:['日常助手','写作编辑','研究分析（试验）','开发协作（试验）'][i],data:blank(),version:1})),ProfileReferences:async()=>[],GetProfile:async(id)=>structuredClone(state.profiles.find(p=>p.id===id)),UpdateProfile:async(p)=>{const saved={...structuredClone(p),revision:p.revision+1};state.profiles=state.profiles.map(v=>v.id===p.id?saved:v);return structuredClone(saved)},CreateProfile:async(name,from)=>{const p=profile('p'+(++state.n),name||'助手副本');if(from)p.data=structuredClone(state.profiles.find(v=>v.id===from).data);state.profiles.push(p);return structuredClone(p)},CreateTemplateProfile:async(id,name)=>{if(state.failTemplate)throw Error('模板创建失败，请重试');if(state.delayTemplate)await new Promise(r=>setTimeout(r,400));const p=profile('p'+(++state.n),name||id);p.data.templateId=id;state.profiles.push(p);return structuredClone(p)},ArchiveProfile:async(id)=>{state.profiles=state.profiles.filter(p=>p.id!==id)},
-ListConversations:async()=>{if(state.failList)throw Error('列表刷新失败');return structuredClone(state.conversations)},GetConversation:async(id)=>structuredClone(state.conversations.find(c=>c.id===id)),CreateConversation:async(profileId,reuse,title)=>{if(state.failCreate)throw Error('创建失败，请重试');if(state.delayCreate)await new Promise(r=>setTimeout(r,500));const id='c'+(++state.n),contextId=reuse?state.conversations.find(c=>c.id===reuse).contextId:'ctx'+state.n,c={id,profileId,contextId,title:title||'新对话',kind:'normal',profileName:state.profiles.find(p=>p.id===profileId).name,profileArchived:false,createdAt:'2026-10-15',options:{webSearch:false}};state.contexts[contextId]??={id:contextId,name:c.title,policy:{approvalMode:'semi',memory:false,permissions:{unrestricted:false,workspacePaths:[],commands:[],networkHosts:[]}}};state.conversations.unshift(c);state.messages[id]=[];return structuredClone(c)},RenameConversation:async(id,title)=>{state.conversations.find(c=>c.id===id).title=title},DeleteConversation:async(id)=>{state.conversations=state.conversations.filter(c=>c.id!==id);delete state.messages[id]},SelectConversationProfile:async(id,profileId)=>{if(state.failSwitch)throw Error('助手切换失败，请重试');await new Promise(r=>setTimeout(r,100));const c=state.conversations.find(c=>c.id===id);c.profileId=profileId;c.profileName=state.profiles.find(p=>p.id===profileId).name;return structuredClone(c)},
-GetLocalContext:async(id)=>structuredClone(state.contexts[id]),UpdateContextPolicy:async(id,policy)=>{state.contexts[id].policy=structuredClone(policy);return structuredClone(state.contexts[id])},ListMemories:async()=>[],ListExfilGrants:async(id)=>structuredClone(state.grants[id]??[]),GrantExfil:async(id,destination,scopes)=>{state.grants[id]=[{destination,scopes}]},RevokeExfil:async(id)=>{state.grants[id]=[]},PreviewSend:async(id)=>{const c=state.conversations.find(c=>c.id===id);return state.previewRemote&&!state.grants[c.contextId]?.length?[{provider:'openai',destination:'https://custom.example',scopes:['personal','unknown'],missing:['personal','unknown']}]:[]},
+ListRuntimeConfigs:async()=>{if(state.failProfiles)throw Error('助手列表加载失败');return structuredClone(state.configs)},GetRuntimeConfig:async(id)=>structuredClone(state.configs.find(p=>p.id===id)),UpdateRuntimeConfig:async(p)=>{const cur=state.configs.find(v=>v.id===p.id);if(!cur)throw Error('助手不存在');if(cur.revision!==p.revision)throw Error('执行配置已被其他操作修改，请刷新后重试');const saved={...structuredClone(p),revision:p.revision+1,updatedAt:'2026-10-17'};state.configs=state.configs.map(v=>v.id===p.id?saved:v);return structuredClone(saved)},CreateRuntimeConfig:async(name,from)=>{const p=config('p'+(++state.n),name||'新助手');if(from)p.data=structuredClone(state.configs.find(v=>v.id===from).data);state.configs.push(p);return structuredClone(p)},RestoreRuntimeConfigDefault:async(revision)=>{const cur=state.configs.find(p=>p.id==='default');if(!cur||cur.revision!==revision)throw Error('执行配置已被其他操作修改，请刷新后重试');const d=config('default','创作助手');d.revision=revision+2;state.configs=state.configs.map(v=>v.id==='default'?d:v);return structuredClone(d)},
+ListConversations:async()=>{if(state.failList)throw Error('列表刷新失败');return structuredClone(state.conversations)},GetConversation:async(id)=>structuredClone(state.conversations.find(c=>c.id===id)),CreateConversation:async(configId,reuse,title)=>{if(state.failCreate)throw Error('创建失败，请重试');if(state.delayCreate)await new Promise(r=>setTimeout(r,500));const id='c'+(++state.n),contextId=reuse?state.conversations.find(c=>c.id===reuse).contextId:'ctx'+state.n,c={id,configId,contextId,title:title||'新对话',kind:'normal',configName:state.configs.find(p=>p.id===configId).name,configArchived:false,createdAt:'2026-10-17',projectId:'',options:{webSearch:false}};state.contexts[contextId]??={id:contextId,name:c.title,policy:{approvalMode:'semi',permissions:{unrestricted:false,workspacePaths:[],commands:[],networkHosts:[]}}};state.conversations.unshift(c);state.messages[id]=[];return structuredClone(c)},RenameConversation:async(id,title)=>{state.conversations.find(c=>c.id===id).title=title},DeleteConversation:async(id)=>{state.conversations=state.conversations.filter(c=>c.id!==id);delete state.messages[id]},SelectConversationConfig:async(id,configId)=>{if(state.failSwitch)throw Error('助手切换失败，请重试');await new Promise(r=>setTimeout(r,100));const c=state.conversations.find(c=>c.id===id);c.configId=configId;c.configName=state.configs.find(p=>p.id===configId).name;return structuredClone(c)},
+GetLocalContext:async(id)=>structuredClone(state.contexts[id]),UpdateContextPolicy:async(id,policy)=>{state.contexts[id].policy=structuredClone(policy);return structuredClone(state.contexts[id])},ListExfilGrants:async(id)=>structuredClone(state.grants[id]??[]),GrantExfil:async(id,destination,scopes)=>{state.grants[id]=[{destination,scopes}]},RevokeExfil:async(id)=>{state.grants[id]=[]},PreviewSend:async(id)=>{const c=state.conversations.find(c=>c.id===id);return state.previewRemote&&!state.grants[c.contextId]?.length?[{provider:'openai',destination:'https://custom.example',scopes:['personal','unknown'],missing:['personal','unknown']}]:[]},
 ConversationSearchAvailability:async()=>({available:false,reason:'模拟能力不可用'}),ListConversationSearch:async()=>[],SetConversationOptions:async(id,options)=>{const c=state.conversations.find(c=>c.id===id);c.options=structuredClone(options);return structuredClone(c)},
 ListMessages:async(id)=>structuredClone(state.messages[id]??[]),ListChatMessages:async(id)=>({messages:structuredClone(state.messages[id]??[]).map((m,i)=>({...m,seq:i+1,sessionId:id})),beforeSeq:1,hasMore:false}),ListRuns:async(id)=>structuredClone(Object.values(state.runs).filter(r=>r.sessionId===id).reverse()),ListToolCalls:async()=>[],PendingApprovals:async()=>structuredClone(state.pending),GetSessionSummary:async()=>{throw Error('none')},GetSessionPlan:async()=>{throw Error('none')},ListChildRuns:async()=>[],GetTaskGraph:async()=>({tasks:[],attempts:[],artifacts:[],coordination:{state:'complete',rounds:0},continuations:[]}),ListTaskReviews:async()=>[],ListTaskRetrospectives:async()=>[],PendingStreamText:async()=>'',
-StartConversationTask:async(id,input,uploads)=>{state.lastSend={id,input,uploads};const c=state.conversations.find(c=>c.id===id),r={id:'r'+(++state.n),sessionId:id,contextId:c.contextId,profileId:c.profileId,component:'main',status:'completed',createdAt:new Date().toISOString()};state.runs[r.id]=r;c.title=input.slice(0,32)||'附件分析';state.messages[id].push({id:r.id+'u',runId:r.id,role:'user',content:input,attachments:uploads.map(u=>({name:u.name,size:10,mediaType:u.name.endsWith('.png')?'image/png':'text/plain'}))},{id:r.id+'a',runId:r.id,role:'assistant',content:'# 回答\\n\\n- 已处理材料\\n\\n| 项目 | 状态 |\\n| --- | --- |\\n| 文件 | 完成 |\\n\\n\u0060\u0060\u0060js\\nconst answer = 42;\\n\u0060\u0060\u0060\\n\\n<script>window.__unsafe=true</script>'});return {...r,status:'running'}},GetRun:async(id)=>structuredClone(state.runs[id]),CancelTask:async(id)=>{state.runs[id].status='cancelled'},
+StartConversationTask:async(id,input,uploads)=>{state.lastSend={id,input,uploads};const c=state.conversations.find(c=>c.id===id),r={id:'r'+(++state.n),sessionId:id,contextId:c.contextId,profileId:c.configId,profileRevision:0,component:'main',status:'completed',createdAt:new Date().toISOString()};state.runs[r.id]=r;c.title=input.slice(0,32)||'附件分析';state.messages[id].push({id:r.id+'u',runId:r.id,role:'user',content:input,attachments:uploads.map(u=>({name:u.name,size:10,mediaType:u.name.endsWith('.png')?'image/png':'text/plain'}))},{id:r.id+'a',runId:r.id,role:'assistant',content:'# 回答\\n\\n- 已处理材料\\n\\n| 项目 | 状态 |\\n| --- | --- |\\n| 文件 | 完成 |\\n\\n\u0060\u0060\u0060js\\nconst answer = 42;\\n\u0060\u0060\u0060\\n\\n<script>window.__unsafe=true</script>'});return {...r,status:'running'}},GetRun:async(id)=>structuredClone(state.runs[id]),CancelTask:async(id)=>{state.runs[id].status='cancelled'},
 ApproveToolCall:async(id)=>{state.approvals.push(id);state.pending=state.pending.filter(c=>c.id!==id)},DenyToolCall:async(id)=>{state.denied=id;state.pending=state.pending.filter(c=>c.id!==id)},ResolveToolCall:async(id,status,result,note)=>{state.resolution={id,status,result,note};state.pending=state.pending.filter(c=>c.id!==id)},
 PickFolder:async()=>'/home/mock/Documents',MessageAttachment:async()=>({name:'note.txt',mediaType:'text/plain',text:'原始附件内容'}),
-ListProfileDrafts:async()=>state.drafts,ListSkillDrafts:async()=>state.skillDrafts,
+ListSkillDrafts:async()=>state.skillDrafts,
 ListSkills:async()=>structuredClone(state.skills),ListConfiguredMCPServers:async()=>structuredClone(state.mcpConfig),
 SaveMCPServer:async(s)=>{if(!s.name||!s.command)throw Error('MCP 服务名称或命令无效');if(s.name==='local'||s.name.includes('__'))throw Error('MCP 服务名称无效');state.mcpConfig=state.mcpConfig.filter(v=>v.name!==s.name);state.mcpConfig.push(structuredClone(s));return structuredClone(state.mcpConfig)},
 DeleteMCPServer:async(name)=>{if(!state.mcpConfig.some(v=>v.name===name))throw Error('未配置 MCP 服务 '+name);state.mcpConfig=state.mcpConfig.filter(v=>v.name!==name);return structuredClone(state.mcpConfig)},
 ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock: host started','2026-10-16T10:00:01 mock: model connected'],ListWorkerTraces:async()=>[],
+};
+const findProject=(id)=>state.projects.find(p=>p.id===id);
+const projectSummary=(p)=>({id:p.id,title:p.title,ppq:p.ppq,revision:p.revision,createdAt:p.createdAt,updatedAt:p.updatedAt});
+const newProject=(title)=>{const p={id:'pr'+(++state.n),title:title||'未命名工程',ppq:480,revision:0,state:{title:title||'未命名工程',ppq:480,tempo:[{tick:0,usPerQuarter:500000}],meter:[{tick:0,numerator:4,denominator:4}],tracks:[]},createdAt:'2026-10-17',updatedAt:'2026-10-17'};state.projects.push(p);state.projectHistory[p.id]=[];return p};
+const staleRevision=(p,base)=>base!==p.revision?Promise.reject(Error('工程已被其他操作修改（当前修订 '+p.revision+'，请求基于 '+base+'）')):null;
+// 工程条模拟：与真实语义一致的重放幂等、过时修订拒绝、线性撤销/重做。
+export const ProjectService={GetTimeMapDraft:async()=>null,SaveTimeMapDraft:async()=>{},ClearTimeMapDraft:async()=>{},GetPendingProjectEdit:async()=>null,BeginProjectEdit:async()=>{},ClearPendingProjectEdit:async()=>{},
+ListProjects:async()=>state.projects.map(projectSummary),
+GetProject:async(id)=>{const p=findProject(id);if(!p)throw Error('工程不存在');return structuredClone(p)},
+CreateProject:async(title)=>structuredClone(newProject(title)),
+DeleteProject:async(id)=>{state.projects=state.projects.filter(p=>p.id!==id);delete state.projectHistory[id];state.conversations.forEach(c=>{if(c.projectId===id)c.projectId=''})},
+SubmitProjectOps:async(projectId,opId,source,baseRevision,ops)=>{const p=findProject(projectId);if(!p)throw Error('工程不存在');if(state.projectOps[opId])return structuredClone(state.projectOps[opId]);const stale=staleRevision(p,baseRevision);if(stale)return stale;const inverse=[];for(const op of ops){if(op.kind!=='project.rename')throw Error('模拟环境不支持操作 '+op.kind);inverse.push({kind:'project.rename',title:p.title});p.title=op.title}p.revision++;p.updatedAt='2026-10-17';state.projectHistory[projectId].push({opId:opId,kind:'edit',ops:structuredClone(ops),inverse:inverse,undone:false,revision:p.revision});const result={opId:opId,revision:p.revision,baseRevision:baseRevision,source:source,applied:ops.length,summary:{rename:ops.length},createdIds:[]};state.projectOps[opId]=result;state.projectResults[opId]={found:true,result:result};return structuredClone(result)},
+UndoProject:async(projectId,opId,baseRevision)=>{const p=findProject(projectId);if(!p)throw Error('工程不存在');const stale=staleRevision(p,baseRevision);if(stale)return stale;const entry=[...state.projectHistory[projectId]].reverse().find(h=>h.kind==='edit'&&!h.undone);if(!entry)throw Error('没有可撤销的编辑');for(const op of entry.inverse)p.title=op.title;entry.undone=true;p.revision++;const result={opId:opId,revision:p.revision,baseRevision:baseRevision,source:'gui',applied:entry.inverse.length,summary:{undo:1},createdIds:[]};state.projectOps[opId]=result;state.projectResults[opId]={found:true,result:result};return structuredClone(result)},
+RedoProject:async(projectId,opId,baseRevision)=>{const p=findProject(projectId);if(!p)throw Error('工程不存在');const stale=staleRevision(p,baseRevision);if(stale)return stale;const entry=[...state.projectHistory[projectId]].reverse().find(h=>h.undone);if(!entry)throw Error('没有可重做的编辑');for(const op of entry.ops)p.title=op.title;entry.undone=false;p.revision++;const result={opId:opId,revision:p.revision,baseRevision:baseRevision,source:'gui',applied:entry.ops.length,summary:{redo:1},createdIds:[]};state.projectOps[opId]=result;state.projectResults[opId]={found:true,result:result};return structuredClone(result)},
+GetProjectTransaction:async(projectId,opId)=>state.projectResults[opId]?structuredClone(state.projectResults[opId]):{found:false},
+ProjectHistory:async(projectId)=>structuredClone(state.projectHistory[projectId]??[]),
+SetConversationProject:async(conversationId,projectId)=>{const c=state.conversations.find(c=>c.id===conversationId);if(!c)throw Error('对话不存在');c.projectId=projectId},
+ImportProjectMIDI:async(path)=>structuredClone(newProject('导入的工程')),
+ExportProjectMIDI:async(projectId,path)=>{if(!findProject(projectId))throw Error('工程不存在');state.lastExport={projectId:projectId,path:path}},
+PickOpenMIDIFile:async()=>'/home/mock/imports/example.mid',
+PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
 };`;
   ws.onmessage = (e) => {
     const m = JSON.parse(e.data);
@@ -118,7 +141,7 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
   });
   await send("Fetch.enable", {
     patterns: [
-      { urlPattern: "*/bindings/icepick/index.*", requestStage: "Request" },
+      { urlPattern: "*/bindings/icetudio/index.*", requestStage: "Request" },
     ],
   });
   await send("Emulation.setDeviceMetricsOverride", {
@@ -155,20 +178,82 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
       `(()=>{const b=Array.from(document.querySelectorAll('button')).find(e=>e.textContent.trim()===${JSON.stringify(text)});if(!b)throw Error('missing button '+${JSON.stringify(text)});b.click()})()`,
     );
   }
+  // Scope clicks to a container: names like 重命名/删除 exist in several panels.
+  async function clickIn(scope, text) {
+    const s = JSON.stringify(scope);
+    await until(
+      `(()=>{const c=document.querySelector(${s});return c&&Array.from(c.querySelectorAll('button')).some(e=>e.textContent.trim()===${JSON.stringify(text)}&&!e.disabled)})()`,
+    );
+    await evaluate(
+      `(()=>{const c=document.querySelector(${s});const b=Array.from(c.querySelectorAll('button')).find(e=>e.textContent.trim()===${JSON.stringify(text)});if(!b)throw Error('missing button '+${JSON.stringify(text)});b.click()})()`,
+    );
+  }
   async function fill(selector, value) {
     await evaluate(
       `(()=>{const t=document.querySelector(${JSON.stringify(selector)});if(!t)throw Error('missing input');Object.getOwnPropertyDescriptor(t instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(t,${JSON.stringify(value)});t.dispatchEvent(new Event('input',{bubbles:true}))})()`,
     );
   }
+  // 启动即工程工作区：未选工程时提示新建/导入，并标注试听未实现。
   await until(
     `window.__product?.conversations.length===1 && document.querySelector('[aria-label="发送消息"]')`,
   );
   if (
     await evaluate(
-      `/AGENT HARNESS|MCP 服务|Profiles|本地 Agent 宿主/.test(document.body.innerText)`,
+      `/AGENT HARNESS|Profiles|本地 Agent 宿主/.test(document.body.innerText)`,
     )
   )
     throw Error("runtime jargon on home");
+  if (
+    !(await evaluate(
+      `document.body.innerText.includes('选择工程后可用原生播放') && document.body.innerText.includes('新建工程')`,
+    ))
+  )
+    throw Error("workspace must explain project creation and audition entry");
+  // 工程条：新建 → 重命名（经统一编辑事务）→ 撤销 → 重做 → 导入导出 → 绑定对话 → 删除。
+  await clickIn(".project-strip", "新建工程");
+  await fill("dialog[open] input[type=text]", "示例工程");
+  await clickIn("dialog[open]", "创建");
+  await until(
+    `document.body.innerText.includes('示例工程') && document.body.innerText.includes('修订 0')`,
+  );
+  await clickIn(".project-strip", "重命名");
+  await fill("dialog[open] input[type=text]", "夜曲");
+  await clickIn("dialog[open]", "应用");
+  await until(
+    `window.__product.projects[0].revision===1 && document.body.innerText.includes('夜曲')`,
+  );
+  await clickIn(".project-strip", "撤销");
+  await until(
+    `window.__product.projects[0].revision===2 && document.body.innerText.includes('示例工程')`,
+  );
+  await clickIn(".project-strip", "重做");
+  await until(
+    `window.__product.projects[0].revision===3 && document.body.innerText.includes('夜曲')`,
+  );
+  if ((await evaluate(`window.__product.projects[0].title`)) !== "夜曲")
+    throw Error("undo/redo lost the edit");
+  await clickIn(".project-strip", "导入 MIDI");
+  await until(
+    `window.__product.projects.length===2 && document.body.innerText.includes('导入的工程')`,
+  );
+  await clickIn(".project-strip", "导出 MIDI");
+  await until(
+    `window.__product.lastExport?.path.endsWith('.mid') && window.__product.lastExport.projectId===window.__product.projects[1].id`,
+  );
+  await clickIn(".project-strip", "绑定当前对话");
+  await until(
+    `window.__product.conversations.some(c=>c.projectId===window.__product.projects[1].id)`,
+  );
+  await evaluate(`document.querySelectorAll('.project-remove')[1].click()`);
+  await until(
+    `document.querySelector('dialog[open]')?.innerText.includes('删除工程')`,
+  );
+  await clickIn("dialog[open]", "删除");
+  await until(
+    `window.__product.projects.length===1 && document.body.innerText.includes('夜曲')`,
+  );
+  if ((await evaluate(`window.__product.conversations.some(c=>c.projectId)`)))
+    throw Error("deleted project kept the conversation binding");
   await click("连接模型");
   await until(`document.querySelector('.model-form')`);
   await evaluate(
@@ -183,7 +268,6 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
     throw Error("Unified model setup did not save credentials");
   await click("开始聊天 →");
   await fill('[aria-label="发送消息"]', "保留未发送的内容");
-  const first = await evaluate(`window.__product.conversations[0].id`);
   await click("＋ 新对话");
   await until(
     `window.__product.conversations.length===2 && document.querySelector('[aria-label="发送消息"]').value===''`,
@@ -271,7 +355,7 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
   );
   await fill('[aria-label="发送消息"]', "触发审批同步");
   await click("发送 ↑");
-  await until(`document.body.innerText.includes('ICEPick 想写入文件')`);
+  await until(`document.body.innerText.includes('IceTudio 想写入文件')`);
   await click("允许这次操作");
   await until(`window.__product.approvals.includes('child-call')`);
   await evaluate(
@@ -302,18 +386,19 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
   await fill("dialog[open] textarea", "我检查了目标文件，文件尚未生成。");
   await click("记录核对结论");
   await until(`window.__product.resolution?.status==='failed'`);
+  // 助手编辑：未保存修改跨页面保留；保存走 UpdateRuntimeConfig（修订 +1）。
   await click("◇ 助手");
-  await until(`document.querySelector('.template-grid')`);
-  await fill(".model-form input[required]", "未保存的助手名称");
-  await click("返回对话");
+  await until(`document.querySelector('#assistant-editor')`);
+  await fill("#assistant-editor input[required]", "未保存的助手名称");
+  await click("返回工程");
   await click("◇ 助手");
   await until(
-    `document.querySelector('.model-form input[required]').value==='未保存的助手名称'`,
+    `document.querySelector('#assistant-editor input[required]').value==='未保存的助手名称'`,
   );
   await click("保存助手");
-  await until(`window.__product.profiles[0].name==='未保存的助手名称'`);
+  await until(`window.__product.configs[0].name==='未保存的助手名称'`);
   // Normal navigation does not change which assistant an existing chat uses.
-  await click("返回对话");
+  await click("返回工程");
   await until(`document.querySelector('.chat-page')`);
   await evaluate(
     `document.querySelector('.conversation-menu summary').click()`,
@@ -348,7 +433,7 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
   );
   await until(`window.__product.conversations.length===1`);
   await send("Page.captureScreenshot", { format: "png" }).then((r) =>
-    writeFileSync(resolve(dir, "chat.png"), Buffer.from(r.data, "base64")),
+    writeFileSync(resolve(dir, "workspace.png"), Buffer.from(r.data, "base64")),
   );
   await send("Emulation.setDeviceMetricsOverride", {
     width: 800,
@@ -392,17 +477,21 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
   await evaluate(
     `window.__product.delayCreate=false;window.__product.failList=false`,
   );
+  // 创建助手（经名称对话框），并把新助手用于一次全新对话。
   await click("◇ 助手");
-  await evaluate(`document.querySelector('.template-card').click()`);
+  await click("＋ 创建助手");
+  await until(`document.querySelector('dialog[open] input[type=text]')`);
+  await fill("dialog[open] input[type=text]", "资料助手");
+  await click("创建");
   await until(
-    `document.querySelectorAll('[aria-label="编辑哪个助手"] option').length>1 || window.__product.profiles.length===2`,
+    `window.__product.configs.length===2 && document.querySelector('#assistant-editor select').value===window.__product.configs[1].id`,
   );
   await until(
     `!Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='使用这个助手开始新对话')?.disabled`,
   );
   await click("使用这个助手开始新对话");
   await until(
-    `document.querySelector('[aria-label="当前助手"]')?.value===window.__product.profiles[1].id`,
+    `document.querySelector('[aria-label="当前助手"]')?.value===window.__product.configs[1].id`,
   );
   const switchAssistant = async (value) =>
     evaluate(
@@ -416,7 +505,7 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
   await evaluate(
     `window.__product.failList=false;window.__product.failSwitch=true`,
   );
-  await switchAssistant(await evaluate(`window.__product.profiles[1].id`));
+  await switchAssistant(await evaluate(`window.__product.configs[1].id`));
   await until(
     `document.querySelector('[role=alert]')?.innerText.includes('助手切换失败')`,
   );
@@ -427,21 +516,22 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
   )
     throw Error("Failed switch changed selected assistant");
   await evaluate(`window.__product.failSwitch=false`);
+  // 权限合并：这里只保存编辑过的字段，不覆盖聊天中新授权的文件夹。
   await click("⚙ 设置");
-  await click("权限与记忆");
-  await until(`document.querySelector('.model-form input[type=checkbox]')`);
+  await click("权限");
+  await until(`document.querySelector('.model-form select')`);
   await evaluate(
-    `document.querySelector('.model-form input[type=checkbox]').click()`,
+    `(()=>{const s=document.querySelector('.model-form select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'manual');s.dispatchEvent(new Event('change',{bubbles:true}))})()`,
   );
-  await click("返回对话");
+  await click("返回工程");
   await evaluate(
     `window.__product.contexts[window.__product.conversations[0].contextId].policy.permissions.workspacePaths=['/newly-authorized']`,
   );
   await click("⚙ 设置");
-  await click("权限与记忆");
+  await click("权限");
   await click("保存偏好");
   await until(
-    `window.__product.contexts[window.__product.conversations[0].contextId].policy.memory`,
+    `window.__product.contexts[window.__product.conversations[0].contextId].policy.approvalMode==='manual'`,
   );
   if (
     !(await evaluate(
@@ -449,9 +539,9 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
     ))
   )
     throw Error("Saving preferences overwrote folder consent");
-  await click("返回对话");
+  await click("返回工程");
   await click("⚙ 设置");
-  await click("权限与记忆");
+  await click("权限");
   await until(`document.body.innerText.includes('/newly-authorized')`);
   await click("模型连接");
   await evaluate(
@@ -470,10 +560,10 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
   await until(
     `!window.__product.savedKey && document.body.innerText.includes('尚未保存密钥')`,
   );
-  await click("返回对话");
+  await click("返回工程");
   await switchAssistant("__manage__");
-  await until(`document.querySelector('.template-grid')`);
-  await click("返回对话");
+  await until(`document.querySelector('#assistant-editor')`);
+  await click("返回工程");
   if (
     await evaluate(
       `document.querySelector('[aria-label="当前助手"]').value!=='default'`,
@@ -481,100 +571,9 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
   )
     throw Error("Managing assistants changed current assistant");
   console.log(
-    "PASS: unique credential settings, failed/delayed new-chat navigation, list-refresh failure isolation, assistant activation/switch success and failure, live permission refresh and preservation.",
+    "PASS: honest workspace home, unified model connection, preserved drafts, assistant editing/creation/activation and switch success-failure, live permission merge without overwriting folder consent, credential lifecycle, failed/delayed new-chat navigation.",
   );
-  await click("◇ 助手");
-  // Use real mouse coordinates: DOM .click() alone cannot catch an obstructed card.
-  async function clickTemplate(index) {
-    const point = await evaluate(
-      `(()=>{const e=document.querySelectorAll('.template-card')[${index}];e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`,
-    );
-    await send("Input.dispatchMouseEvent", {
-      type: "mousePressed",
-      button: "left",
-      clickCount: 1,
-      ...point,
-    });
-    await send("Input.dispatchMouseEvent", {
-      type: "mouseReleased",
-      button: "left",
-      clickCount: 1,
-      ...point,
-    });
-    // A template that already produced an assistant asks edit-or-create
-    // first; proceeding means "create another one".
-    if (
-      await evaluate(
-        `Array.from(document.querySelectorAll('dialog[open] button')).some(b=>b.textContent==='再新建一个')`,
-      )
-    )
-      await click("再新建一个");
-  }
-  await evaluate(`window.__product.failTemplate=true`);
-  const beforeFailure = await evaluate(`window.__product.profiles.length`);
-  await clickTemplate(0);
-  await until(
-    `document.querySelector('.template-grid').parentElement.querySelector('[role=alert]')?.innerText.includes('模板创建失败')`,
-  );
-  if (await evaluate(`window.__product.profiles.length!==${beforeFailure}`))
-    throw Error("Failed template added assistant");
-  await evaluate(
-    `window.__product.failTemplate=false;window.__product.failProfiles=true;window.__product.delayTemplate=true`,
-  );
-  for (let i = 0; i < 4; i++) {
-    const before = await evaluate(`window.__product.profiles.length`);
-    await clickTemplate(i);
-    await until(
-      `document.querySelectorAll('.template-card')[${i}].innerText.includes('正在添加')`,
-    );
-    await clickTemplate(i);
-    await until(
-      `window.__product.profiles.length===${before + 1} && document.querySelector('.template-grid').parentElement.innerText.includes('已添加') && !document.querySelector('.template-card').disabled`,
-    );
-    await until(
-      `document.querySelector('#assistant-editor select').value===window.__product.profiles.at(-1).id`,
-    );
-  }
-  await evaluate(
-    `window.__product.failProfiles=false;window.__product.delayTemplate=false`,
-  );
-  await fill("#assistant-editor input[required]", "继续保留的助手草稿");
-  const beforeCancel = await evaluate(`window.__product.profiles.length`);
-  await clickTemplate(1);
-  await until(
-    `document.querySelector('dialog[open]')?.innerText.includes('保留修改并添加')`,
-  );
-  await click("取消");
-  if (await evaluate(`window.__product.profiles.length!==${beforeCancel}`))
-    throw Error("Cancel created an unwanted assistant");
-  await until(
-    `document.querySelector('#assistant-editor input[required]').value==='继续保留的助手草稿'`,
-  );
-  if (
-    await evaluate(
-      `document.querySelector('#assistant-editor').innerText.includes('开发者设置 ·')`,
-    )
-  )
-    throw Error("Duplicate developer settings remain");
-  if (
-    !(await evaluate(
-      `document.querySelector('[aria-label="助手的技能与扩展"]').innerText.includes('Skills')`,
-    ))
-  )
-    throw Error("Skill configuration hidden");
-  await click("配置模型覆盖与工作流程 →");
-  await until(`document.querySelector('[aria-label="开发者设置中的助手"]')`);
-  if (
-    !(await evaluate(`document.body.innerText.includes('有未保存的助手修改')`))
-  )
-    throw Error("Developer page lost assistant draft");
-  await click("返回助手编辑");
-  await until(
-    `document.querySelector('#assistant-editor input[required]').value==='继续保留的助手草稿'`,
-  );
-  // MCP services are installed and re-trusted in ordinary settings
-  // (技能与服务); the assistant editor then picks them from the catalog
-  // instead of typing names.
+  // MCP 服务在普通设置安装；助手编辑页从目录勾选，而不是手填名称。
   await click("⚙ 设置");
   await click("技能与服务");
   await until(`document.querySelector('[aria-label="MCP 服务管理"]')`);
@@ -609,54 +608,8 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
   await click("读取最近 200 行");
   await until(`document.body.innerText.includes('host started')`);
   console.log(
-    "PASS: actual mouse clicks on all four templates, visible failure and progress, double-click guard, list failure isolation, cancellation before creation, visible Skills/MCP, MCP managed in ordinary settings, single developer page and shared drafts.",
+    "PASS: assistant editor picks installed MCP/Skills from the catalog, MCP managed in ordinary settings, developer settings and host logs.",
   );
-  // 助手页：重复模板引导编辑现有；列表可见、默认不可删、其余可删。
-  await click("◇ 助手");
-  const beforeDedupe = await evaluate(`window.__product.profiles.length`);
-  await evaluate(`document.querySelectorAll('.template-card')[0].click()`);
-  await until(
-    `document.querySelector('dialog[open]')?.innerText.includes('保留修改并添加')`,
-  );
-  await click("保留并添加");
-  await until(
-    `document.querySelector('dialog[open]')?.innerText.includes('编辑现有的')`,
-  );
-  await click("编辑现有的");
-  await until(
-    `document.querySelector('dialog[open]')?.innerText.includes('保留未保存的修改')`,
-  );
-  await click("保留并切换");
-  await until(
-    `document.querySelector('#assistant-editor select').value===window.__product.profiles[1].id && window.__product.profiles.length===${beforeDedupe}`,
-  );
-  await until(
-    `document.body.innerText.includes('已选择') && document.querySelectorAll('[aria-label="你的助手"] .assistant-row').length===window.__product.profiles.length`,
-  );
-  if (
-    !(await evaluate(
-      `Array.from(document.querySelectorAll('[aria-label="你的助手"] .assistant-row')).find(r=>r.innerText.includes('（默认）'))?.querySelector('.assistant-row-actions button:last-child').disabled`,
-    ))
-  )
-    throw Error("Default assistant deletable");
-  const beforeDelete = await evaluate(`window.__product.profiles.length`);
-  await evaluate(
-    `(()=>{const rows=document.querySelectorAll('[aria-label="你的助手"] .assistant-row');const del=Array.from(rows[rows.length-1].querySelectorAll('button')).find(b=>b.textContent==='删除');if(del.disabled)throw Error('delete disabled');del.click()})()`,
-  );
-  await until(
-    `document.querySelector('dialog[open]')?.innerText.includes('删除助手')`,
-  );
-  await click("删除助手");
-  await until(
-    `window.__product.profiles.length===${beforeDelete - 1} && document.querySelectorAll('[aria-label="你的助手"] .assistant-row').length===${beforeDelete - 1}`,
-  );
-  if (
-    await evaluate(
-      `document.querySelector('#assistant-editor select').value!==window.__product.profiles[1].id`,
-    )
-  )
-    throw Error("Deleting another assistant changed editor");
-  console.log("PASS: assistant list, template dedupe and safe deletion.");
   await click("🌙 深色模式");
   await until(`document.documentElement.dataset.theme==='dark'`);
   if (
@@ -665,11 +618,11 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
     ))
   )
     throw Error("Dark palette not applied");
-  await click("返回对话");
+  await click("返回工程");
   await until(`document.querySelector('.chat-page')`);
   await new Promise((r) => setTimeout(r, 400));
   writeFileSync(
-    resolve(dir, "theme-dark-chat.png"),
+    resolve(dir, "theme-dark-workspace.png"),
     Buffer.from(
       (await send("Page.captureScreenshot", { format: "png" })).data,
       "base64",
@@ -704,11 +657,11 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
       "base64",
     ),
   );
-  await click("返回对话");
+  await click("返回工程");
   await until(`document.querySelector('.chat-page')`);
   await new Promise((r) => setTimeout(r, 400));
   writeFileSync(
-    resolve(dir, "theme-light-chat.png"),
+    resolve(dir, "theme-light-workspace.png"),
     Buffer.from(
       (await send("Page.captureScreenshot", { format: "png" })).data,
       "base64",
@@ -717,7 +670,7 @@ ConfirmMCPEndpoint:async()=>[],ReadHostLogs:async()=>['2026-10-16T10:00:00 mock:
   console.log("PASS: theme toggle switches palettes in place.");
   if (errors.length) throw Error(errors.join("\n"));
   console.log(
-    "PASS: default chat, model connection, preserved drafts, file upload/preview, Markdown/table/code and HTML safety, IME/Enter, search recovery, explicit endpoint consent, folder permission, child approval aggregation, assistant editing, conversation rename/search/delete, drag/paste thumbnails, guided unknown outcome and cancellable denial, narrow layout and single chat scroll.",
+    "PASS: workspace-first home with audition entry status, project strip (create/rename transaction/undo/redo/import/export/bind/delete), docked assistant chat, file upload/preview, Markdown/table/code and HTML safety, IME/Enter, search recovery, explicit endpoint consent, folder permission, child approval aggregation, conversation rename/search/delete, drag/paste thumbnails, guided unknown outcome and cancellable denial, narrow layout and single chat scroll.",
   );
 } finally {
   try {

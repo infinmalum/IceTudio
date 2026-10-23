@@ -27,7 +27,7 @@ func TestDependencyPlanRejectsInvalidGraphs(t *testing.T) {
 func TestPlanRevisionDependenciesAndClear(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
-	session, err := s.CreateContextSession(ctx, testContextID, DefaultProfileID, "dependency")
+	session, err := s.CreateContextSession(ctx, testContextID, DefaultConfigID, "dependency")
 	if err != nil {
 		t.Fatal(err)
 	}

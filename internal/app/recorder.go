@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 
-	"icepick/internal/agent"
-	"icepick/internal/config"
-	"icepick/internal/mcptools"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/config"
+	"icetudio/internal/mcptools"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 // runRecorder adapts the storage layer to the engine's Recorder interface for

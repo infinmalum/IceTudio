@@ -1,4 +1,4 @@
-module icepick
+module icetudio
 
 go 1.25.0
 
@@ -8,6 +8,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/openai/openai-go v1.12.0
 	github.com/wailsapp/wails/v3 v3.0.0-beta.12
+	gitlab.com/gomidi/midi/v2 v2.3.24
 	golang.org/x/sys v0.46.0
 	google.golang.org/genai v1.74.0
 	gopkg.in/yaml.v3 v3.0.1

@@ -60,7 +60,7 @@ type TaskGraph struct {
 
 func taskGraphInTx(ctx context.Context, tx *sql.Tx, root string) (TaskGraph, error) {
 	g := TaskGraph{RootRunID: root, Tasks: []TaskItem{}, Attempts: []TaskAttempt{}}
-	if err := tx.QueryRowContext(ctx, `SELECT t.goal,t.revision,CASE WHEN r.status='failed' AND c.state IN ('waiting','blocked') THEN c.state ELSE r.status END,CASE WHEN json_valid(r.profile_snapshot) THEN COALESCE(json_extract(r.profile_snapshot,'$.execution.workflow'),'') ELSE '' END FROM task_roots t JOIN runs r ON r.id=t.run_id JOIN task_coordination c ON c.root_run_id=t.run_id WHERE t.run_id=?`, root).Scan(&g.Goal, &g.Revision, &g.RunStatus, &g.Workflow); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT t.goal,t.revision,CASE WHEN r.status='failed' AND c.state IN ('waiting','blocked') THEN c.state ELSE r.status END,CASE WHEN json_valid(r.config_snapshot) THEN COALESCE(json_extract(r.config_snapshot,'$.execution.workflow'),'') ELSE '' END FROM task_roots t JOIN runs r ON r.id=t.run_id JOIN task_coordination c ON c.root_run_id=t.run_id WHERE t.run_id=?`, root).Scan(&g.Goal, &g.Revision, &g.RunStatus, &g.Workflow); err != nil {
 		return g, err
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT i.spec,i.state,COALESCE(m.id,''),COALESCE(m.content,'') FROM task_items i LEFT JOIN task_inputs u ON u.root_run_id=i.root_run_id AND u.task_id=i.id LEFT JOIN messages m ON m.id=u.message_id WHERE i.root_run_id=? ORDER BY i.position`, root)

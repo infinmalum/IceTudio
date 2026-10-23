@@ -3,7 +3,7 @@
 #
 # The lines below are called `modelines`. See `:help modeline`
 
-name: "icepick"
+name: "icetudio"
 arch: ${GOARCH}
 platform: "linux"
 version: "0.1.0"
@@ -11,25 +11,28 @@ section: "default"
 priority: "extra"
 maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
 description: "Local desktop agent"
-vendor: "ICEPick"
+vendor: "IceTudio"
 homepage: "https://wails.io"
 license: "AGPL-3.0-only"
 release: "1"
 
 contents:
   - src: "./LICENSE"
-    dst: "/usr/share/licenses/icepick/LICENSE"
-  - src: "./bin/icepick"
-    dst: "/usr/local/bin/icepick"
+    dst: "/usr/share/licenses/icetudio/LICENSE"
+  - src: "./licenses/"
+    dst: "/usr/share/licenses/icetudio/audio/"
+  - src: "./bin/icetudio"
+    dst: "/usr/local/bin/icetudio"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/icepick.png"
-  - src: "./build/linux/icepick.desktop"
-    dst: "/usr/share/applications/icepick.desktop"
+    dst: "/usr/share/icons/hicolor/128x128/apps/icetudio.png"
+  - src: "./build/linux/icetudio.desktop"
+    dst: "/usr/share/applications/icetudio.desktop"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:
   - libgtk-4-1
   - libwebkitgtk-6.0-4
+  - libfluidsynth3
 
 # Distribution-specific overrides for different package formats
 overrides:
@@ -38,12 +41,14 @@ overrides:
     depends:
       - gtk4
       - webkitgtk6.0
+      - libfluidsynth.so.3()(64bit)
 
   # Arch Linux packages
   archlinux:
     depends:
       - gtk4
       - webkitgtk-6.0
+      - fluidsynth
 
 # scripts section to ensure desktop database is updated after install
 scripts:
@@ -58,15 +63,18 @@ scripts:
 # depends:
 #   - libgtk-3-0
 #   - libwebkit2gtk-4.1-0
+#   - libfluidsynth3
 # overrides:
 #   rpm:
 #     depends:
 #       - gtk3
 #       - webkit2gtk4.1
+#       - libfluidsynth.so.3()(64bit)
 #   archlinux:
 #     depends:
 #       - gtk3
 #       - webkit2gtk-4.1
+#       - fluidsynth
 #
 # replaces:
 #   - foobar

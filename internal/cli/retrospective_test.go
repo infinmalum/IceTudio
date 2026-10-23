@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 type cliRetrospectiveMock struct{}
@@ -27,11 +27,7 @@ func (cliRetrospectiveMock) Chat(_ context.Context, _ config.Model, messages []m
 }
 func TestCLIRetrospectiveIPCAndStatus(t *testing.T) {
 	client, svc := newCLIHost(t, cliRetrospectiveMock{}, time.Second)
-	p, err := svc.CreateTemplateProfile("daily", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := svc.CreateConversation(p.ID, "", "")
+	c, err := svc.CreateConversation(storage.DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -87,11 +87,11 @@ func TestReadFileTool(t *testing.T) {
 	defer hub.Close()
 	dir := t.TempDir()
 	file := filepath.Join(dir, "note.txt")
-	if err := os.WriteFile(file, []byte("hello icepick"), 0600); err != nil {
+	if err := os.WriteFile(file, []byte("hello icetudio"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	content, err := hub.Call(t.Context(), "local__read_file", `{"path":`+quoteJSON(file)+`}`)
-	if err != nil || !strings.Contains(content, "hello icepick") {
+	if err != nil || !strings.Contains(content, "hello icetudio") {
 		t.Fatalf("read: %q %v", content, err)
 	}
 	if _, err := hub.Call(t.Context(), "local__read_file", `{"path":"`+filepath.Join(dir, "missing.txt")+`"}`); err == nil {
@@ -114,24 +114,24 @@ func TestReadFileTool(t *testing.T) {
 }
 
 func TestBuildEnvAllowlist(t *testing.T) {
-	t.Setenv("ICEPICK_SECRET_TOKEN", "do-not-leak")
-	t.Setenv("ICEPICK_VISIBLE", "fine")
+	t.Setenv("ICETUDIO_SECRET_TOKEN", "do-not-leak")
+	t.Setenv("ICETUDIO_VISIBLE", "fine")
 
 	env := BuildEnv(nil)
 	joined := strings.Join(env, "\n")
-	if strings.Contains(joined, "ICEPICK_SECRET_TOKEN") {
+	if strings.Contains(joined, "ICETUDIO_SECRET_TOKEN") {
 		t.Fatalf("secret inherited by default: %v", env)
 	}
 	if !strings.Contains(joined, "PATH=") || !strings.Contains(joined, "HOME=") {
 		t.Fatalf("default allowlist must keep PATH and HOME: %v", env)
 	}
 
-	env = BuildEnv([]string{"ICEPICK_VISIBLE", "ICEPICK_MISSING_VAR"})
+	env = BuildEnv([]string{"ICETUDIO_VISIBLE", "ICETUDIO_MISSING_VAR"})
 	joined = strings.Join(env, "\n")
-	if !strings.Contains(joined, "ICEPICK_VISIBLE=fine") {
+	if !strings.Contains(joined, "ICETUDIO_VISIBLE=fine") {
 		t.Fatalf("allowlisted variable not passed: %v", env)
 	}
-	if strings.Contains(joined, "ICEPICK_SECRET_TOKEN") || strings.Contains(joined, "ICEPICK_MISSING_VAR") {
+	if strings.Contains(joined, "ICETUDIO_SECRET_TOKEN") || strings.Contains(joined, "ICETUDIO_MISSING_VAR") {
 		t.Fatalf("non-allowlisted variables leaked: %v", env)
 	}
 }

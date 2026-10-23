@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 func TestLMStudioChatToolCall(t *testing.T) {

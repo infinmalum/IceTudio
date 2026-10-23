@@ -1,6 +1,6 @@
 import type { Workspace } from "../hooks/useWorkspace";
 import { useTheme } from "../shared/theme";
-type Page = "chat" | "assistants" | "settings";
+type Page = "workspace" | "assistants" | "settings";
 export function Sidebar({
   workspace: w,
   page,
@@ -20,10 +20,10 @@ export function Sidebar({
         href="#"
         onClick={(e) => {
           e.preventDefault();
-          setPage("chat");
+          setPage("workspace");
         }}
       >
-        <span>✳</span> ICEPick
+        <span>✳</span> IceTudio
       </a>
       <button
         className="new-session"
@@ -49,14 +49,14 @@ export function Sidebar({
           )
           .map((s) => (
             <div
-              className={`session-row ${page === "chat" && w.selected === s.id ? "selected" : ""}`}
+              className={`session-row ${page === "workspace" && w.selected === s.id ? "selected" : ""}`}
               key={s.id}
             >
               <button
                 className="session-link"
                 onClick={() => {
                   w.openConversation(s);
-                  setPage("chat");
+                  setPage("workspace");
                 }}
                 title={s.title}
               >
@@ -97,6 +97,12 @@ export function Sidebar({
           ) && <p className="hint">没有找到匹配的对话</p>}
       </nav>
       <div className="sidebar-bottom">
+        <button
+          className={page === "workspace" ? "selected" : ""}
+          onClick={() => setPage("workspace")}
+        >
+          ♬ 工程
+        </button>
         <button
           className={page === "assistants" ? "selected" : ""}
           onClick={() => setPage("assistants")}

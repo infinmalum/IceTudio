@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ConversationState } from "../hooks/useConversation";
-import type { ToolCall } from "../../bindings/icepick/internal/storage";
+import type { ToolCall } from "../../bindings/icetudio/internal/storage";
 export function describeCall(call: ToolCall) {
   let args: Record<string, unknown> = {};
   try {
@@ -69,7 +69,7 @@ export function ToolApprovals({
         const d = describeCall(call);
         return (
           <section className="approval-card" key={call.id}>
-            <strong>ICEPick 想{d.title}</strong>
+            <strong>IceTudio 想{d.title}</strong>
             <p className="operation-target">{d.target}</p>
             <p>{d.detail}</p>
             {!!d.args.cwd && <p>执行位置：{String(d.args.cwd)}</p>}
@@ -115,7 +115,7 @@ export function ToolApprovals({
             <strong>需要核对：{d.title}是否已经完成？</strong>
             <p className="operation-target">{d.target}</p>
             <p>
-              运行被中断，ICEPick
+              运行被中断，IceTudio
               无法确认操作结果。请检查文件或目标服务；无法核实可以暂时保留，不会自动重复执行。
             </p>
             {deferred.includes(call.id) && (

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 // ModelLister is the discovery surface: list the model IDs one configured
@@ -26,7 +26,7 @@ type CredentialLookup = config.CredentialLookup
 // Client dispatches to the adapter of the configured provider: the key-less
 // OpenAI-compatible client for local Ollama / LM Studio, and the official
 // SDKs for OpenAI, Anthropic and Gemini. The SDKs only implement the model
-// protocol; tools, permissions, approvals and sessions stay with ICEPick.
+// protocol; tools, permissions, approvals and sessions stay with IceTudio.
 // API keys are resolved per request through Keys and never enter messages,
 // snapshots or logs.
 type Client struct {

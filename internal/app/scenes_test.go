@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 // These scripted scenes verify assembly, evidence and publication, not model quality.
@@ -98,25 +98,55 @@ func (m *sceneModel) Chat(ctx context.Context, source config.Model, messages []m
 	}
 }
 
+// sceneData builds the inline execution data each scripted scene needs:
+// direct answers for daily/writing, a dynamic planned workflow with a named
+// worker and required review for research/development.
+func sceneData(scene string) storage.RuntimeConfigData {
+	data := storage.BlankRuntimeConfig()
+	switch scene {
+	case "research", "development":
+		data.PlanEnabled = true
+		data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1, MaxConcurrency: 2}
+		data.Execution.Workflow = "dynamic"
+		data.Execution.Review.Mode = "required"
+		data.EnabledMCPServers = []string{"local"}
+		if scene == "research" {
+			data.Execution.WorkerSources = []storage.WorkerSource{{Name: "analyst"}}
+		} else {
+			data.Execution.WorkerSources = []storage.WorkerSource{{Name: "developer"}}
+		}
+	default:
+		data.Execution.Review.Mode = "on_demand"
+		data.Execution.ImproverEnabled = true
+		if scene == "daily" {
+			data.EnabledMCPServers = []string{"local"}
+		}
+	}
+	return data
+}
+
 func TestDefaultSceneExecutionContracts(t *testing.T) {
+	inputs := map[string]string{
+		"daily":       "把这些事项整理为三项待办，每项包含负责人和期限；缺失的信息标为待确认：小林周五交稿，小周负责审核，发布时间未定。",
+		"writing":     "面向新用户，把下面通知改为亲切、清楚的两段正文，不超过120字，保留时间与联系方式，不添加承诺：周六10点进行维护，问题请联系support@example.com。",
+		"research":    "只比较下面两份材料的价格和保留期限，引用[A]/[B]，不要联网；缺失项标未知：[A]每月20元，保留30天。[B]每月15元，未说明保留期限。",
+		"development": "修复已授权工作区check.sh的错误退出码，只修改该文件；用/bin/sh check.sh检查并报告真实结果。",
+	}
 	for _, scene := range []string{"daily", "writing", "research", "development"} {
 		t.Run(scene, func(t *testing.T) {
 			m := &sceneModel{scene: scene, dir: t.TempDir()}
 			s, _ := newTestService(t, m, &scriptTools{})
-			p, err := s.CreateTemplateProfile(scene, "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			p.Data.Execution.Planner.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "scene-plan"}
-			p.Data.Execution.Worker.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "scene-worker"}
-			p.Data.Execution.Reviewer.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "scene-review"}
+			data := sceneData(scene)
+			data.Execution.Planner.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "scene-plan"}
+			data.Execution.Worker.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "scene-worker"}
+			data.Execution.Reviewer.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "scene-review"}
 			if scene == "development" {
-				p.Data.Execution.Review.RequiredChecks = []string{"local__exec"}
-				if err = os.WriteFile(filepath.Join(m.dir, "check.sh"), []byte("exit 1\n"), 0600); err != nil {
+				data.Execution.Review.RequiredChecks = []string{"local__exec"}
+				if err := os.WriteFile(filepath.Join(m.dir, "check.sh"), []byte("exit 1\n"), 0600); err != nil {
 					t.Fatal(err)
 				}
 			}
-			p, err = s.UpdateProfile(p)
+			p, err := s.configureDefault(data)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -127,12 +157,7 @@ func TestDefaultSceneExecutionContracts(t *testing.T) {
 			if _, err = s.UpdateContextPolicy(c.ContextID, storage.ContextPolicy{ApprovalMode: "semi", Permissions: storage.PermissionScope{WorkspacePaths: []string{m.dir}, Commands: []string{"/bin/sh"}}}); err != nil {
 				t.Fatal(err)
 			}
-			template, _ := storage.ProfileTemplateByID(scene)
-			input := template.Guide.Example
-			if scene == "development" {
-				input = "修复已授权工作区check.sh的错误退出码，只修改该文件；用/bin/sh check.sh检查并报告真实结果。"
-			}
-			run, err := s.StartConversationTask(c.ID, input)
+			run, err := s.StartConversationTask(c.ID, inputs[scene])
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -175,12 +200,10 @@ func TestDefaultSceneExecutionContracts(t *testing.T) {
 
 func TestResearchSceneMissingMaterialsWaits(t *testing.T) {
 	s, _ := newTestService(t, &sceneModel{scene: "research", blocked: true}, &scriptTools{})
-	p, err := s.CreateTemplateProfile("research", "")
+	data := sceneData("research")
+	data.Execution.Planner.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "scene-plan"}
+	p, err := s.configureDefault(data)
 	if err != nil {
-		t.Fatal(err)
-	}
-	p.Data.Execution.Planner.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "scene-plan"}
-	if _, err = s.UpdateProfile(p); err != nil {
 		t.Fatal(err)
 	}
 	c, err := s.CreateConversation(p.ID, "", "")

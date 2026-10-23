@@ -2,13 +2,13 @@ package app
 
 import (
 	"context"
-	"icepick/internal/testfixture"
+	"icetudio/internal/testfixture"
 	"strings"
 	"testing"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 // buildClosedTurnHistory crafts a session with one closed first task and an
@@ -52,33 +52,20 @@ func buildClosedTurnHistory(t *testing.T, svc *Service, store *storage.Store) (s
 }
 
 // The run context sends only the uncovered history, carries the summary text
-// for the engine to mirror, injects memories (accumulating their scopes for
-// the exfiltration gate) and the resumable plan.
-func TestRunContextSummaryMemoryAndPlan(t *testing.T) {
+// for the engine to mirror and the resumable plan.
+func TestRunContextSummaryAndPlan(t *testing.T) {
 	svc, store := newTestService(t, &scriptModel{}, &scriptTools{})
 	ctx := context.Background()
 	sessionID, _ := buildClosedTurnHistory(t, svc, store)
-	profile, err := testfixture.Profile(store, ctx, testfixture.ContextID)
+	profile, err := testfixture.RunConfig(store, ctx, testfixture.ContextID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !profile.MemoryEnabled || !profile.PlanEnabled {
-		t.Fatalf("default profile runtime prefs: %+v", profile.ProfileData)
-	}
-	setContextPolicy(t, svc, testfixture.ContextID, func(p *storage.ContextPolicy) { p.Memory = true })
-	// The run reads the live policy together with the profile snapshot.
-	profile, err = testfixture.Profile(store, ctx, testfixture.ContextID)
-	if err != nil {
-		t.Fatal(err)
+	if !profile.PlanEnabled {
+		t.Fatalf("default config runtime prefs: %+v", profile.RuntimeConfigData)
 	}
 
 	if _, err := store.SaveSessionSummaryCovering(ctx, sessionID, 4, "第一问已询问时间并得到回答"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.AddMemory(testfixture.ContextID, "用户偏好深色主题"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.AddContextMemory(ctx, testfixture.ContextID, "凭据备份放在保险柜", storage.MemorySourceModel, sessionID, storage.ScopeCredential); err != nil {
 		t.Fatal(err)
 	}
 	steps := []storage.PlanStep{{Title: "回答新任务", Status: storage.PlanInProgress}}
@@ -98,129 +85,8 @@ func TestRunContextSummaryMemoryAndPlan(t *testing.T) {
 		t.Fatalf("history after summary: %+v", window.history)
 	}
 	system := window.history[0].Content
-	if !strings.Contains(system, "用户偏好深色主题") || !strings.Contains(system, "凭据备份放在保险柜") {
-		t.Fatalf("memories not injected: %q", system)
-	}
 	if !strings.Contains(system, "回答新任务") {
 		t.Fatalf("plan not injected: %q", system)
-	}
-	// Memory scopes accumulate into the session, so a remote send without a
-	// credential grant is refused even though the session itself only read
-	// public data.
-	hasUser, toolScopes, err := store.SessionDataScopes(ctx, sessionID)
-	if err != nil || !hasUser {
-		t.Fatalf("scopes: %v %v", toolScopes, err)
-	}
-	joined := strings.Join(toolScopes, ",")
-	if !strings.Contains(joined, storage.ScopeCredential) {
-		t.Fatalf("memory scope not accumulated: %v", toolScopes)
-	}
-	remote := config.Model{Provider: "openai", BaseURL: "https://example.com/v1", Name: "m"}
-	if err := svc.exfilCheck(ctx, sessionID, remote, profile); err == nil {
-		t.Fatal("memory content bypassed the exfiltration gate")
-	}
-
-	// With memory authorization off, nothing is injected and no scope
-	// accumulates in a fresh session.
-	other, err := svc.CreateSession()
-	if err != nil {
-		t.Fatal(err)
-	}
-	setContextPolicy(t, svc, testfixture.ContextID, func(p *storage.ContextPolicy) { p.Memory = false })
-	profile, err = testfixture.Profile(store, ctx, testfixture.ContextID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	window, err = svc.buildRunContext(other.ID, profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(window.history[0].Content, "深色主题") {
-		t.Fatal("memory injected although the local revoked it")
-	}
-	_, toolScopes, err = store.SessionDataScopes(ctx, other.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, scope := range toolScopes {
-		if scope == storage.ScopeCredential {
-			t.Fatalf("memory scope accumulated without injection: %v", toolScopes)
-		}
-	}
-}
-
-// The memory_save tool is offered only to authorized contexts, needs a user
-// approval in semi mode, and stores the session's data scope with the item.
-func TestMemorySaveToolApprovalAndScope(t *testing.T) {
-	chat := &scriptModel{steps: []func([]model.Message) (model.ChatResponse, error){
-		func([]model.Message) (model.ChatResponse, error) {
-			call := model.ToolCall{ID: "m1", Type: "function"}
-			call.Function.Name = "local__memory_save"
-			call.Function.Arguments = `{"content":"记住用户偏好深色主题"}`
-			return model.ChatResponse{Message: model.Message{Role: "assistant", ToolCalls: []model.ToolCall{call}}}, nil
-		},
-		func(messages []model.Message) (model.ChatResponse, error) {
-			if !strings.Contains(messages[len(messages)-1].Content, "已保存") {
-				t.Fatalf("save result not returned: %+v", messages)
-			}
-			return model.ChatResponse{Message: model.Message{Role: "assistant", Content: "完成"}}, nil
-		},
-	}}
-	svc, _ := newTestService(t, chat, &scriptTools{})
-	setContextPolicy(t, svc, testfixture.ContextID, func(p *storage.ContextPolicy) { p.Memory = true })
-	session, err := svc.CreateSession()
-	if err != nil {
-		t.Fatal(err)
-	}
-	run, err := svc.StartConversationTask(session.ID, "记住这个偏好")
-	if err != nil {
-		t.Fatal(err)
-	}
-	call := waitForCallState(t, svc, session.ID, storage.CallPending)
-	if _, err := svc.ApproveToolCall(call.ID); err != nil {
-		t.Fatal(err)
-	}
-	waitForRun(t, svc, run.ID, "completed")
-	memories, err := svc.ListMemories(testfixture.ContextID)
-	if err != nil || len(memories) != 1 {
-		t.Fatalf("memories: %+v %v", memories, err)
-	}
-	// The memory inherits the session's accumulated scope. This session
-	// carried model-written tool arguments, which are unclassified input, so
-	// the conservative scope is unknown rather than personal.
-	if memories[0].Content != "记住用户偏好深色主题" || memories[0].Source != storage.MemorySourceModel || memories[0].Scope != storage.ScopeUnknown {
-		t.Fatalf("memory row: %+v", memories[0])
-	}
-
-	// Without the context authorization the tool is never offered; the call
-	// comes back as an unprovided-tool denial and nothing is stored.
-	chat2 := &scriptModel{steps: []func([]model.Message) (model.ChatResponse, error){
-		func([]model.Message) (model.ChatResponse, error) {
-			call := model.ToolCall{ID: "m2", Type: "function"}
-			call.Function.Name = "local__memory_save"
-			call.Function.Arguments = `{"content":"不应该被保存"}`
-			return model.ChatResponse{Message: model.Message{Role: "assistant", ToolCalls: []model.ToolCall{call}}}, nil
-		},
-		func(messages []model.Message) (model.ChatResponse, error) {
-			if !strings.Contains(messages[len(messages)-1].Content, "未提供") {
-				t.Fatalf("expected denial: %+v", messages)
-			}
-			return model.ChatResponse{Message: model.Message{Role: "assistant", Content: "了解"}}, nil
-		},
-	}}
-	svc2, _ := newTestService(t, chat2, &scriptTools{})
-	session2, err := svc2.CreateSession()
-	if err != nil {
-		t.Fatal(err)
-	}
-	run2, err := svc2.StartConversationTask(session2.ID, "记住这个偏好")
-	if err != nil {
-		t.Fatal(err)
-	}
-	waitForRun(t, svc2, run2.ID, "completed")
-	left, err := svc2.ListMemories(testfixture.ContextID)
-	if err != nil || len(left) != 0 {
-		t.Fatalf("unauthorized memory saved: %+v %v", left, err)
 	}
 }
 
@@ -255,7 +121,7 @@ func TestPlanToolPersistsAndReviews(t *testing.T) {
 	if len(plan.Steps) != 2 || plan.Steps[0].Status != storage.PlanDone || plan.Steps[1].Note != "等待结果" {
 		t.Fatalf("plan: %+v", plan)
 	}
-	profile, err := testfixture.Profile(store, context.Background(), testfixture.ContextID)
+	profile, err := testfixture.RunConfig(store, context.Background(), testfixture.ContextID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +163,7 @@ func TestSessionCompactorGatedByExfil(t *testing.T) {
 	if err := store.FinishToolCall(ctx, call.ID, storage.CallSucceeded, "PRIVATE KEY", "", storage.ScopeCredential); err != nil {
 		t.Fatal(err)
 	}
-	profile, err := testfixture.Profile(store, ctx, testfixture.ContextID)
+	profile, err := testfixture.RunConfig(store, ctx, testfixture.ContextID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,37 +203,6 @@ func TestSessionCompactorGatedByExfil(t *testing.T) {
 	}
 	if _, err := compactor(remote).Summarize(ctx, remote, older); err != nil {
 		t.Fatalf("granted summarization blocked: %v", err)
-	}
-}
-
-// Memories are context-owned: one context cannot list, edit or delete another's.
-func TestMemoryServiceIsolation(t *testing.T) {
-	svc, _ := newTestService(t, &scriptModel{}, &scriptTools{})
-	other, err := testfixture.Context(svc.store, context.Background(), "other", storage.DefaultProfileID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mine, err := svc.AddMemory(testfixture.ContextID, "我的记忆")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.AddMemory(other.ID, strings.Repeat("超", storage.MaxMemoryContent+1)); err == nil {
-		t.Fatal("oversized memory accepted")
-	}
-	if list, err := svc.ListMemories(other.ID); err != nil || len(list) != 0 {
-		t.Fatalf("cross-local list: %+v %v", list, err)
-	}
-	if _, err := svc.UpdateMemory(other.ID, mine.ID, "劫持"); err == nil {
-		t.Fatal("cross-local edit allowed")
-	}
-	if err := svc.DeleteMemory(other.ID, mine.ID); err == nil {
-		t.Fatal("cross-local delete allowed")
-	}
-	if err := svc.DeleteMemory(testfixture.ContextID, mine.ID); err != nil {
-		t.Fatal(err)
-	}
-	if list, err := svc.ListMemories(testfixture.ContextID); err != nil || len(list) != 0 {
-		t.Fatalf("delete failed: %+v %v", list, err)
 	}
 }
 

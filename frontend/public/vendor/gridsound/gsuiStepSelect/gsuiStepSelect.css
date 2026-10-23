@@ -1,0 +1,49 @@
+gsui-step-select {
+	box-sizing: border-box;
+	position: relative;
+	overflow: hidden;
+	display: inline-flex;
+	align-items: center;
+	justify-content: end;
+	gap: 4px;
+	height: 20px;
+	padding: 0 6px;
+	border-radius: 4px;
+	font-size: 14px;
+	cursor: var( --gsuiCursor-pointer );
+	background-color: #fff3;
+	opacity: .8;
+
+	&:hover {
+		opacity: 1;
+
+		> gsui-icon {
+			opacity: .6;
+		}
+	}
+	gsui-toggle {
+		line-height: 20px;
+		padding-left: 6px;
+		margin-left: -6px;
+	}
+	> gsui-icon {
+		font-size: 11px;
+		line-height: 20px;
+		opacity: .5;
+	}
+	span {
+		font-family: var( --gsui-font-number );
+	}
+	> div {
+		position: absolute;
+		inset: auto 0 0;
+		height: 1px;
+		background-color: #fff4;
+
+		div {
+			position: absolute;
+			inset: 0 auto;
+			background-color: currentColor;
+		}
+	}
+}

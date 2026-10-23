@@ -1,26 +1,26 @@
-import type { MCPServer } from "../../bindings/icepick/internal/config";
-import type { SkillInfo } from "../../bindings/icepick/internal/app";
-import type { Profiles } from "../hooks/useProfiles";
+import type { MCPServer } from "../../bindings/icetudio/internal/config";
+import type { SkillInfo } from "../../bindings/icetudio/internal/app";
+import type { Configs } from "../hooks/useConfigs";
 function toggle(list: string[], name: string) {
   return list.includes(name)
     ? list.filter((item) => item !== name)
     : [...list, name];
 }
 export function ProfileCapabilities({
-  profileState,
+  configState,
   skills,
   mcpServers,
   openExtensions,
 }: {
-  profileState: Pick<Profiles, "profileDraft" | "setProfileDraft">;
+  configState: Pick<Configs, "configDraft" | "setConfigDraft">;
   skills: SkillInfo[];
   mcpServers: MCPServer[];
   openExtensions: () => void;
 }) {
-  const { profileDraft, setProfileDraft } = profileState;
-  if (!profileDraft) return null;
-  const enabledMcp = profileDraft.data.enabledMcpServers ?? [];
-  const enabledSkills = profileDraft.data.enabledSkills ?? [];
+  const { configDraft, setConfigDraft } = configState;
+  if (!configDraft) return null;
+  const enabledMcp = configDraft.data.enabledMcpServers ?? [];
+  const enabledSkills = configDraft.data.enabledSkills ?? [];
   const missingMcp = enabledMcp.filter(
     (name) => !mcpServers.some((server) => server.name === name),
   );
@@ -42,12 +42,12 @@ export function ProfileCapabilities({
       <label className="checkbox-label">
         <input
           type="checkbox"
-          checked={profileDraft.data.allMcpServers}
+          checked={configDraft.data.allMcpServers}
           onChange={(event) =>
-            setProfileDraft({
-              ...profileDraft,
+            setConfigDraft({
+              ...configDraft,
               data: {
-                ...profileDraft.data,
+                ...configDraft.data,
                 allMcpServers: event.target.checked,
               },
             })
@@ -55,7 +55,7 @@ export function ProfileCapabilities({
         />
         启用全部已接入的 MCP 服务
       </label>
-      {!profileDraft.data.allMcpServers && (
+      {!configDraft.data.allMcpServers && (
         <div className="capability-list">
           {mcpServers.map((server) => (
             <label className="checkbox-label" key={server.name}>
@@ -63,10 +63,10 @@ export function ProfileCapabilities({
                 type="checkbox"
                 checked={enabledMcp.includes(server.name)}
                 onChange={() =>
-                  setProfileDraft({
-                    ...profileDraft,
+                  setConfigDraft({
+                    ...configDraft,
                     data: {
-                      ...profileDraft.data,
+                      ...configDraft.data,
                       enabledMcpServers: toggle(enabledMcp, server.name),
                     },
                   })
@@ -82,10 +82,10 @@ export function ProfileCapabilities({
                 type="checkbox"
                 checked
                 onChange={() =>
-                  setProfileDraft({
-                    ...profileDraft,
+                  setConfigDraft({
+                    ...configDraft,
                     data: {
-                      ...profileDraft.data,
+                      ...configDraft.data,
                       enabledMcpServers: toggle(enabledMcp, name),
                     },
                   })
@@ -103,12 +103,12 @@ export function ProfileCapabilities({
       <label className="checkbox-label">
         <input
           type="checkbox"
-          checked={profileDraft.data.allSkills}
+          checked={configDraft.data.allSkills}
           onChange={(event) =>
-            setProfileDraft({
-              ...profileDraft,
+            setConfigDraft({
+              ...configDraft,
               data: {
-                ...profileDraft.data,
+                ...configDraft.data,
                 allSkills: event.target.checked,
               },
             })
@@ -116,7 +116,7 @@ export function ProfileCapabilities({
         />
         启用全部已安装的 Skills
       </label>
-      {!profileDraft.data.allSkills && (
+      {!configDraft.data.allSkills && (
         <div className="capability-list">
           {skills.map((skill) => (
             <label className="checkbox-label" key={skill.name}>
@@ -124,10 +124,10 @@ export function ProfileCapabilities({
                 type="checkbox"
                 checked={enabledSkills.includes(skill.name)}
                 onChange={() =>
-                  setProfileDraft({
-                    ...profileDraft,
+                  setConfigDraft({
+                    ...configDraft,
                     data: {
-                      ...profileDraft.data,
+                      ...configDraft.data,
                       enabledSkills: toggle(enabledSkills, skill.name),
                     },
                   })
@@ -146,10 +146,10 @@ export function ProfileCapabilities({
                 type="checkbox"
                 checked
                 onChange={() =>
-                  setProfileDraft({
-                    ...profileDraft,
+                  setConfigDraft({
+                    ...configDraft,
                     data: {
-                      ...profileDraft.data,
+                      ...configDraft.data,
                       enabledSkills: toggle(enabledSkills, name),
                     },
                   })

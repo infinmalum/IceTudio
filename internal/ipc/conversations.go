@@ -1,28 +1,22 @@
 package ipc
 
 import (
-	"icepick/internal/materials"
-	"icepick/internal/storage"
+	"icetudio/internal/materials"
+	"icetudio/internal/storage"
 )
 
-// The same application contract is used by Profile-first CLI and desktop.
+// The same application contract is used by the RuntimeConfig (执行配置)
+// oriented CLI and desktop.
 func (s *Server) dispatchConversation(request Request) (any, error) {
 	var params struct {
 		Attachments  []materials.Upload          `json:"attachments"`
 		Options      storage.ConversationOptions `json:"options"`
 		ID           string                      `json:"id"`
-		ProfileID    string                      `json:"profileId"`
+		ConfigID     string                      `json:"configId"`
 		ReuseSession string                      `json:"reuseSession"`
 		Title        string                      `json:"title"`
-		Name         string                      `json:"name"`
-		ContextID    string                      `json:"contextId"`
 		Input        string                      `json:"input"`
-		Revision     int                         `json:"revision"`
-		Groups       []string                    `json:"groups"`
 		Policy       storage.ContextPolicy       `json:"policy"`
-		Replacement  string                      `json:"replacement"`
-		Own          bool                        `json:"own"`
-		Expected     []storage.ProfileReference  `json:"expected"`
 	}
 	if err := decodeParams(request.Params, &params); err != nil {
 		return nil, err
@@ -34,36 +28,20 @@ func (s *Server) dispatchConversation(request Request) (any, error) {
 		return s.svc.ConversationSearchAvailability(params.ID)
 	case "conversations.searchRecords":
 		return s.svc.ListConversationSearch(params.ID)
-	case "profiles.references":
-		return s.svc.ProfileReferences(params.ID)
-	case "profiles.replaceArchive":
-		return nil, s.svc.ArchiveProfileReplacing(params.ID, params.Replacement, params.Own, params.Expected)
-	case "profiles.exportWorkers":
-		return s.svc.ExportProfileIncludingWorkers(params.ID)
 	case "conversations.list":
 		return s.svc.ListConversations()
 	case "conversations.get":
 		return s.svc.GetConversation(params.ID)
 	case "conversations.create":
-		return s.svc.CreateConversation(params.ProfileID, params.ReuseSession, params.Title)
-	case "conversations.select":
-		return s.svc.SelectConversationProfile(params.ID, params.ProfileID)
+		return s.svc.CreateConversation(params.ConfigID, params.ReuseSession, params.Title)
 	case "conversations.start":
 		return s.svc.StartConversationTask(params.ID, params.Input, params.Attachments...)
 	case "contexts.get":
 		return s.svc.GetLocalContext(params.ID)
 	case "contexts.update":
 		return s.svc.UpdateContextPolicy(params.ID, params.Policy)
-	case "templates.list":
-		return storage.ProfileTemplates(), nil
-	case "templates.create":
-		return s.svc.CreateTemplateProfile(params.ID, params.Name)
-	case "templates.restore":
-		return s.svc.RestoreTemplateProfile(params.ID, params.Revision, params.Groups)
 	case "components.list":
 		return storage.Components(), nil
-	case "profiles.archive":
-		return nil, s.svc.ArchiveProfile(params.ID)
 	}
 	return nil, nil
 }

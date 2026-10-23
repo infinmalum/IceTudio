@@ -1,23 +1,20 @@
 import { useEffect, useRef } from "react";
 import { useApp } from "./hooks/useApp";
 import { Sidebar } from "./components/Sidebar";
+import { ProjectWorkspace } from "./components/ProjectWorkspace";
 import { ConversationPanel } from "./components/ConversationPanel";
-import { ProfileTemplates } from "./components/ProfileTemplates";
 import { ProfileList } from "./components/ProfileList";
 import { ProfileAdvanced } from "./components/ProfileAdvanced";
 import { ProfileEditor } from "./components/ProfileEditor";
-import { ProfileImport } from "./components/ProfileImport";
 import { ModelSettings } from "./components/ModelSettings";
-import { MemoryPanel } from "./components/MemoryPanel";
 import { PrivacySettings } from "./components/PrivacySettings";
 import { ContextPolicyPanel } from "./components/ContextPolicyPanel";
 import { ExfilPanel } from "./components/ExfilPanel";
 import { MCPServersPanel } from "./components/MCPServersPanel";
 import { HostActivityPanel } from "./components/HostActivityPanel";
-import { ProfileDrafts } from "./components/ProfileDrafts";
 import { SkillDrafts } from "./components/SkillDrafts";
 import { ErrorNotice } from "./shared/errors";
-import { StatusService } from "../bindings/icepick";
+import { StatusService } from "../bindings/icetudio";
 function App() {
   const app = useApp();
   const boot = useRef(false);
@@ -50,38 +47,26 @@ function App() {
         " · " +
         new Date(r.createdAt).toLocaleString(),
     }));
-  async function improveLatest() {
-    const target = w.activeConversation;
-    const run = app.conversation.runs[0];
-    if (!target || target.profileArchived || !run) return;
-    if (!(await app.profileState.setProfileEditID(target.profileId))) return;
-    app.drafts.setImprove(true);
-    app.drafts.setEvidenceIDs(run.id);
-    app.drafts.setRequest(
-      "根据这次工作的实际过程，提出能检查、可调整的助手改进建议。",
-    );
-    app.setPage("assistants");
-  }
   async function useMethod(name: string) {
-    const profile = app.profileState.profileDraft;
-    if (!profile) return;
-    if (app.profileState.dirty) {
-      await app.profileState.reportError("请先保存助手修改，再添加工作方法。");
+    const config = app.configState.configDraft;
+    if (!config) return;
+    if (app.configState.dirty) {
+      await app.configState.reportError("请先保存助手修改，再添加工作方法。");
       return;
     }
     try {
-      await StatusService.UpdateProfile({
-        ...profile,
+      await StatusService.UpdateRuntimeConfig({
+        ...config,
         data: {
-          ...profile.data,
+          ...config.data,
           enabledSkills: [
-            ...new Set([...(profile.data.enabledSkills ?? []), name]),
+            ...new Set([...(config.data.enabledSkills ?? []), name]),
           ],
         },
       });
-      await app.profileState.refreshProfiles();
+      await app.configState.refreshConfigs();
     } catch (e) {
-      await app.profileState.reportError(e);
+      await app.configState.reportError(e);
     }
   }
   return (
@@ -93,34 +78,45 @@ function App() {
         createSession={app.createSession}
       />
       <main className="content">
-        {app.page === "chat" ? (
-          <>
-            <ErrorNotice
-              error={
-                app.runtime.status && !app.runtime.status.storageReady
-                  ? app.runtime.status.message
-                  : app.error
-              }
-            />
-            <ConversationPanel
-              workspace={w}
-              conversation={app.conversation}
-              profileState={app.profileState}
-              runtime={app.runtime}
-              openModel={openModel}
-              openAssistants={() => app.setPage("assistants")}
-              onImprove={improveLatest}
-            />
-          </>
+        {app.page === "workspace" ? (
+          <div className="workspace-page">
+            <section className="project-stage">
+              <ErrorNotice
+                error={
+                  app.runtime.status && !app.runtime.status.storageReady
+                    ? app.runtime.status.message
+                    : app.error
+                }
+              />
+              <ProjectWorkspace
+                projects={app.projects}
+                openModel={openModel}
+                openAssistants={() => app.setPage("assistants")}
+              />
+            </section>
+            <aside className="agent-dock">
+              <ConversationPanel
+                workspace={w}
+                conversation={app.conversation}
+                configState={app.configState}
+                runtime={app.runtime}
+                openModel={openModel}
+                openAssistants={() => app.setPage("assistants")}
+              />
+            </aside>
+          </div>
         ) : (
           <div className="settings-page">
             <header className="page-header">
               <div>
-                <p className="eyebrow">ICEPick</p>
+                <p className="eyebrow">IceTudio</p>
                 <h1>{app.page === "assistants" ? "你的助手" : "设置"}</h1>
               </div>
-              <button className="secondary" onClick={() => app.setPage("chat")}>
-                返回对话
+              <button
+                className="secondary"
+                onClick={() => app.setPage("workspace")}
+              >
+                返回工程
               </button>
             </header>
             <ErrorNotice
@@ -133,12 +129,11 @@ function App() {
             {app.page === "assistants" ? (
               <>
                 <ProfileList
-                  profileState={app.profileState}
+                  configState={app.configState}
                   startConversation={(id) => void app.createSession(id)}
                 />
-                <ProfileTemplates profileState={app.profileState} />
                 <ProfileEditor
-                  profileState={app.profileState}
+                  configState={app.configState}
                   skillCatalog={app.skillCatalog}
                   mcpCatalog={app.mcpCatalog}
                   openDeveloper={() => {
@@ -152,13 +147,13 @@ function App() {
                 />
                 <button
                   disabled={
-                    !app.profileState.profileEditID ||
-                    app.profileState.dirty ||
+                    !app.configState.configEditID ||
+                    app.configState.dirty ||
                     w.creating
                   }
                   onClick={() =>
                     void app.createSession(
-                      app.profileState.profileEditID ?? undefined,
+                      app.configState.configEditID ?? undefined,
                     )
                   }
                 >
@@ -167,18 +162,11 @@ function App() {
                 <p className="hint">
                   编辑助手不会切换当前对话。聊天顶部可以切换当前助手；这里会开启独立的新对话。
                 </p>
-                {app.profileState.dirty && (
+                {app.configState.dirty && (
                   <p className="unsaved-note" role="status">
                     有未保存的助手修改，切换页面时会保留草稿。
                   </p>
                 )}
-                <ProfileImport profileState={app.profileState} />
-                <ProfileDrafts
-                  state={app.drafts}
-                  hasConversation={!!w.selected}
-                  targetName={app.profileState.profileDraft?.name ?? ""}
-                  tasks={tasks}
-                />
                 <SkillDrafts
                   state={app.skillDrafts}
                   hasConversation={!!w.selected}
@@ -193,7 +181,7 @@ function App() {
                   {[
                     ["model", "模型连接"],
                     ["extensions", "技能与服务"],
-                    ["privacy", "权限与记忆"],
+                    ["privacy", "权限"],
                     ["developer", "开发者设置"],
                   ].map(([id, label]) => (
                     <button
@@ -210,7 +198,7 @@ function App() {
                 {app.settingsTab === "model" ? (
                   <ModelSettings
                     runtime={app.runtime}
-                    onConnected={() => app.setPage("chat")}
+                    onConnected={() => app.setPage("workspace")}
                   />
                 ) : app.settingsTab === "extensions" ? (
                   <>
@@ -257,12 +245,11 @@ function App() {
                       workspace={w}
                       searchAvailability={app.conversation.searchAvailability}
                     />
-                    <MemoryPanel local={app.local} workspace={w} />
                   </>
                 ) : (
                   <>
                     <p>集中管理助手的执行配置与本机高级选项。</p>
-                    <ProfileAdvanced profileState={app.profileState} />
+                    <ProfileAdvanced configState={app.configState} />
                     <button
                       className="secondary"
                       onClick={() => app.setPage("assistants")}

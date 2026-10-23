@@ -16,7 +16,7 @@ func testOpen(path string) (*Store, error) {
 	return s, err
 }
 func (s *Store) CreateSession(ctx context.Context, title string) (Session, error) {
-	return s.CreateContextSession(ctx, testContextID, DefaultProfileID, title)
+	return s.CreateContextSession(ctx, testContextID, DefaultConfigID, title)
 }
 func (s *Store) ListSessions(ctx context.Context) ([]Session, error) {
 	return s.ListContextSessions(ctx, testContextID)

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { StatusService } from "../../bindings/icepick";
-import type { MCPServer } from "../../bindings/icepick/internal/config";
-import type { MCPEndpointStatus } from "../../bindings/icepick/internal/app";
+import { StatusService } from "../../bindings/icetudio";
+import type { MCPServer } from "../../bindings/icetudio/internal/config";
+import type { MCPEndpointStatus } from "../../bindings/icetudio/internal/app";
 import type { RuntimeSettings } from "../hooks/useRuntimeSettings";
 import { ErrorNotice } from "../shared/errors";
 import { useDialog } from "../shared/dialogs";

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/materials"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/materials"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 type continuationMock struct {
@@ -71,17 +71,9 @@ func TestFixedWorkflowWaitAnswerContinueOriginalWithoutRepeatingStages(t *testin
 	p.Data.Execution.Review.Mode = "required"
 	p.Data.Execution.Reviewer.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "review-model"}
 	var err error
-	p, err = s.UpdateProfile(p)
+	p, err = s.UpdateRuntimeConfig(p)
 	if err != nil {
 		t.Fatal(err)
-	}
-	exported, err := s.ExportProfile(p.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	imported, _, err := s.ImportProfile(decodeBase64(t, exported.Data))
-	if err != nil || imported.Data.Execution.Stages[1].InputPrompt != "请提供 B" {
-		t.Fatal("share lost input gate", imported, err)
 	}
 	r, err := s.StartConversationTask(c.ID, "用户特定目标")
 	if err != nil {
@@ -97,7 +89,7 @@ func TestFixedWorkflowWaitAnswerContinueOriginalWithoutRepeatingStages(t *testin
 	}
 	// Mutating both the source and provider defaults cannot alter resumed work.
 	p.Data.Execution.Stages[1].Task = "incorrect changed task"
-	if _, err = s.UpdateProfile(p); err != nil {
+	if _, err = s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
 	s.mu.Lock()
@@ -133,7 +125,7 @@ func TestFixedWorkflowTwoInputGatesKeepSuccessfulStages(t *testing.T) {
 	p.Data.Execution.Stages[0].InputPrompt = "补充 A"
 	p.Data.Execution.Stages[1].InputPrompt = "补充 B"
 	p.Data.Execution.Stages[1].DependsOn = []string{"a"}
-	if _, err := s.UpdateProfile(p); err != nil {
+	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
 	r, err := s.StartConversationTask(c.ID, "用户特定目标")

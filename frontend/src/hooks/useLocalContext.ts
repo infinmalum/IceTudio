@@ -1,17 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useDialog } from "../shared/dialogs";
-import { StatusService } from "../../bindings/icepick";
+import { StatusService } from "../../bindings/icetudio";
 import type {
   ContextPolicy,
   LocalContext,
   ExfilGrant,
-  Memory,
-} from "../../bindings/icepick/internal/storage";
+} from "../../bindings/icetudio/internal/storage";
 export function useLocalContext(contextID: string, selected: string | null) {
   const dialog = useDialog();
   useEffect(() => {
     setGrantForm({ destination: "", scopes: [] });
-    setMemoryDraft("");
   }, [contextID]);
   const activeContextID = useRef(contextID);
   activeContextID.current = contextID;
@@ -28,14 +26,6 @@ export function useLocalContext(contextID: string, selected: string | null) {
   }>({ destination: "", scopes: [] });
   const [grantBusy, setGrantBusy] = useState(false);
   const [grantError, setGrantError] = useState("");
-  const [memories, setMemories] = useState<Memory[]>([]);
-  const [memoryDraft, setMemoryDraft] = useState("");
-  const [memoryEdit, setMemoryEdit] = useState<{
-    id: string;
-    content: string;
-  } | null>(null);
-  const [memoryBusy, setMemoryBusy] = useState(false);
-  const [memoryError, setMemoryError] = useState("");
   useEffect(() => {
     let current = true;
     setGrants([]);
@@ -52,31 +42,9 @@ export function useLocalContext(contextID: string, selected: string | null) {
       current = false;
     };
   }, [contextID]);
-  useEffect(() => {
-    let current = true;
-    setMemories([]);
-    setMemoryError("");
-    setMemoryEdit(null);
-    if (!contextID) return;
-    StatusService.ListMemories(contextID)
-      .then((items) => {
-        if (current) setMemories(items ?? []);
-      })
-      .catch((reason) => {
-        if (current) setMemoryError(String(reason));
-      });
-    return () => {
-      current = false;
-    };
-  }, [contextID]);
-  const memoryEditRef = useRef(memoryEdit);
-  memoryEditRef.current = memoryEdit;
   // Unsaved edits survive switching conversations: they are stashed per
   // context and restored on return instead of being silently dropped.
   const contextCache = useRef(new Map<string, LocalContext>());
-  const memoryEditCache = useRef(
-    new Map<string, { id: string; content: string } | null>(),
-  );
   const prevContext = useRef("");
   useEffect(() => {
     const previous = prevContext.current;
@@ -92,16 +60,12 @@ export function useLocalContext(contextID: string, selected: string | null) {
       )
         contextCache.current.set(previous, draft);
       else contextCache.current.delete(previous);
-      if (memoryEditRef.current)
-        memoryEditCache.current.set(previous, memoryEditRef.current);
-      else memoryEditCache.current.delete(previous);
     }
     let current = true;
     contextBase.current = null;
     setContextError("");
     const cached = contextCache.current.get(contextID) ?? null;
     setContextDraft(cached);
-    setMemoryEdit(memoryEditCache.current.get(contextID) ?? null);
     if (selected)
       StatusService.GetLocalContext(contextID)
         .then((item) => {
@@ -124,25 +88,6 @@ export function useLocalContext(contextID: string, selected: string | null) {
     contextCache.current.delete(contextID);
     setContextDraft(contextBase.current);
     setContextError("");
-  }
-  async function chooseMemoryEdit(
-    next: { id: string; content: string } | null,
-  ) {
-    if (
-      memoryEdit &&
-      next &&
-      next.id !== memoryEdit.id &&
-      memoryEdit.content !==
-        (memories.find((item) => item.id === memoryEdit.id)?.content ?? "") &&
-      !(await dialog.confirm({
-        title: "放弃这条记忆的未保存修改？",
-        body: "切换后会丢弃刚才输入的内容；也可以先保存修改。",
-        confirm: "放弃并切换",
-        danger: true,
-      }))
-    )
-      return;
-    setMemoryEdit(next);
   }
   async function refreshContext() {
     if (selected) {
@@ -269,83 +214,6 @@ export function useLocalContext(contextID: string, selected: string | null) {
       setGrantBusy(false);
     }
   }
-  async function refreshMemories(contextID: string) {
-    const items = (await StatusService.ListMemories(contextID)) ?? [];
-    if (activeContextID.current === contextID) setMemories(items);
-  }
-  async function addMemory(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!memoryDraft.trim()) return;
-    setMemoryBusy(true);
-    try {
-      await StatusService.AddMemory(contextID, memoryDraft);
-      await refreshMemories(contextID);
-      if (activeContextID.current !== contextID) return;
-      setMemoryDraft("");
-      setMemoryError("");
-    } catch (reason) {
-      setMemoryError(String(reason));
-    } finally {
-      setMemoryBusy(false);
-    }
-  }
-  async function saveMemoryEdit() {
-    if (!memoryEdit || !memoryEdit.content.trim()) return;
-    setMemoryBusy(true);
-    try {
-      await StatusService.UpdateMemory(
-        contextID,
-        memoryEdit.id,
-        memoryEdit.content,
-      );
-      await refreshMemories(contextID);
-      if (activeContextID.current !== contextID) return;
-      setMemoryEdit(null);
-      setMemoryError("");
-    } catch (reason) {
-      setMemoryError(String(reason));
-    } finally {
-      setMemoryBusy(false);
-    }
-  }
-  async function deleteMemory(id: string) {
-    if (
-      !(await dialog.confirm({
-        title: "删除这条记忆？",
-        body: "删除后，助手不再使用这条记忆。",
-        confirm: "删除",
-        danger: true,
-      }))
-    )
-      return;
-    setMemoryBusy(true);
-    try {
-      await StatusService.DeleteMemory(contextID, id);
-      await refreshMemories(contextID);
-      setMemoryError("");
-    } catch (reason) {
-      setMemoryError(String(reason));
-    } finally {
-      setMemoryBusy(false);
-    }
-  }
-  async function exportMemory() {
-    try {
-      const markdown = await StatusService.ExportMemories(contextID);
-      const blob = new Blob([markdown], {
-        type: "text/markdown;charset=utf-8",
-      });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `icepick-memory-${contextID}.md`;
-      anchor.click();
-      URL.revokeObjectURL(url);
-      setMemoryError("");
-    } catch (reason) {
-      setMemoryError(String(reason));
-    }
-  }
   function updatePolicy(patch: Partial<ContextPolicy>) {
     if (!contextDraft) return;
     setContextDraft({
@@ -374,21 +242,10 @@ export function useLocalContext(contextID: string, selected: string | null) {
     setGrantForm,
     grantBusy,
     grantError,
-    memories,
-    memoryDraft,
-    setMemoryDraft,
-    memoryEdit,
-    chooseMemoryEdit,
-    memoryBusy,
-    memoryError,
     refreshVisible,
     saveContext,
     saveGrant,
     revokeGrant,
-    addMemory,
-    saveMemoryEdit,
-    deleteMemory,
-    exportMemory,
     updatePolicy,
     updatePermissions,
   };

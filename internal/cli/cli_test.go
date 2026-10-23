@@ -4,20 +4,20 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"icepick/internal/testfixture"
+	"icetudio/internal/testfixture"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"icepick/internal/agent"
-	"icepick/internal/app"
-	"icepick/internal/config"
-	"icepick/internal/ipc"
-	"icepick/internal/model"
-	"icepick/internal/skills"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/app"
+	"icetudio/internal/config"
+	"icetudio/internal/ipc"
+	"icetudio/internal/model"
+	"icetudio/internal/skills"
+	"icetudio/internal/storage"
 )
 
 type chatSteps struct {
@@ -94,7 +94,7 @@ func newCLIHost(t *testing.T, chat agent.ChatModel, approvalTimeout time.Duratio
 func startSessionTask(t *testing.T, client *ipc.Client, svc *app.Service) (string, string) {
 	t.Helper()
 	var session storage.Conversation
-	if err := client.Call("conversations.create", map[string]any{"profileId": storage.DefaultProfileID, "reuseSession": reuseDefaultConversation(t, svc)}, &session); err != nil {
+	if err := client.Call("conversations.create", map[string]any{"reuseSession": reuseDefaultConversation(t, svc)}, &session); err != nil {
 		t.Fatal(err)
 	}
 	var run storage.Run
@@ -165,7 +165,7 @@ func TestWaitTaskInteractiveApproval(t *testing.T) {
 
 func reuseDefaultConversation(t *testing.T, svc *app.Service) string {
 	t.Helper()
-	session, err := svc.CreateConversation(storage.DefaultProfileID, "", "test")
+	session, err := svc.CreateConversation(storage.DefaultConfigID, "", "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func reuseDefaultConversation(t *testing.T, svc *app.Service) string {
 func TestConversationSearchCLIAndIPCContract(t *testing.T) {
 	client, _ := newCLIHost(t, &chatSteps{}, time.Second)
 	var conversation storage.Conversation
-	if err := client.Call("conversations.create", map[string]any{"profileId": storage.DefaultProfileID}, &conversation); err != nil {
+	if err := client.Call("conversations.create", map[string]any{}, &conversation); err != nil {
 		t.Fatal(err)
 	}
 	if code := cmdConversations(client, []string{"search", conversation.ID, "on"}); code != 0 {

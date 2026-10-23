@@ -1,0 +1,202 @@
+{
+  "date": "2026-10-18",
+  "scope": "P2 durable GUI edit/undo/redo intention journal and original-outcome recovery; not unapplied draft recovery or full P2 acceptance",
+  "contract": "docs/p2-operation-recovery.md",
+  "browserReportPath": ".cache/browser/music/run-3402429808/results.json",
+  "browser": {
+    "checks": [
+      "Close initialization failure keeps the editor inert until explicit retry",
+      "Recovery read failure blocks edits until retry",
+      "Recovery initialization failure blocks close approval (mock desktop)",
+      "Existing application dialog remains editable instead of queuing a close prompt",
+      "External committed edits refresh the UI",
+      "Failed recovery write prevents the music command from being sent",
+      "Lost intention acknowledgment retains a durable query target without sending the edit",
+      "No committed result remains uncertain when the user continues waiting",
+      "Cleanup failure reports the committed result and retains recovery instead of replaying",
+      "Querying a committed operation retries cleanup without a second edit",
+      "Arrangement mouse move changes only clip origin and preserves local events",
+      "Arrangement edits share project undo and redo",
+      "Arrangement right edge resize changes length without rewriting notes or controls",
+      "Arrangement shortening rejects a clip that cannot contain its existing note",
+      "Arrangement negative origin preview is rejected without a transaction",
+      "Arrangement gesture retains its original revision and rejects a concurrent edit conflict",
+      "Arrangement Escape cancels the preview without saving",
+      "Arrangement pointercancel cancels the preview without saving",
+      "Arrangement blur cancels the preview without saving",
+      "Arrangement active gesture blocks native-close request (mock desktop)",
+      "Fractional snap keeps the off-grid origin and rounds positive and negative half steps symmetrically",
+      "Overlapping clips use distinct accessible lanes and cropped ends have no fake resize handle",
+      "Changing selected clip cancels an arrangement gesture without retargeting it",
+      "A clip spanning the page renders its continuation with its real right edge",
+      "Off-page clips remain selectable and reveal their absolute timeline page",
+      "Selecting a clip on another track opens that clip without creating history",
+      "Arrangement retains mute and solo edits in shared undo history",
+      "Transport UI play/stop/seek/loop and device error handling (mock audio)",
+      "Tempo/meter forms commit atomically, preserve untouched precision and note/control data",
+      "Undo restores both time maps together",
+      "Ruler follows 4/4 to 6/8 to 5/8 changes",
+      "Ruler labels accept hover inspection while pointer input stays read-only",
+      "Invalid time-map input leaves the project untouched",
+      "Closing a dirty map requires explicit discard and cancellation preserves inputs",
+      "Replacement form edits the initial tempo and meter without losing later points",
+      "Time-map draft freezes its revision and does not overwrite a background edit",
+      "Ruler absolute tick origin aligns with note positions",
+      "Ruler remains aligned after horizontal scroll",
+      "Ruler remains aligned after zoom",
+      "Ctrl-wheel zoom keeps the ruler and host zoom control synchronized",
+      "Nonzero clip start uses absolute project meter positions",
+      "A clip at the maximum map tick still has a ruler extending beyond that tick",
+      "Numeric Enter commits preserve the focus revision and reject concurrent edits",
+      "Real mouse move commits to SQLite",
+      "Shared undo/redo refreshes the editor",
+      "Real resize commits duration",
+      "MIDI velocity preserves controllers",
+      "Selection, copy, atomic deletion and undo",
+      "Gesture freezes revision and rejects conflicts",
+      "Escape cancels without committing",
+      "Empty-row click adds a note",
+      "Arrow key submits one atomic selected-note batch",
+      "Composition/input events do not edit notes",
+      "Zoom does not change the project revision",
+      "Boundary resize atomically extends the clip",
+      "Ruler page offset follows absolute tick for 1000 notes",
+      "Ruler page offset follows absolute tick for 10000 notes",
+      "1k/10k spread-out notes mount at most 64 notes per page",
+      "Lost commit reply is resolved without replay",
+      "Unknown project outcome blocks native exit without replay",
+      "Browser reload with empty sessionStorage restores the Go journal without replay",
+      "Recovery queries the original operation while preserving the newly selected project",
+      "Unknown outcome retains a queryable operation ID",
+      "Deleted project recovery keeps its original identity and requires explicit stop-waiting",
+      "Explicitly stopping recovery for a deleted project does not recreate or replay music",
+      "Delayed project reads and drag unmount cannot retarget edits",
+      "Remounted editor centers on its first note",
+      "React remount restores a single editor",
+      "Large time maps mount only 24 form rows per map page",
+      "Paginated edits and point deletion preserve hidden rows and exact values",
+      "Active note gesture blocks exit before committing its preview",
+      "Native close blurs numeric input and waits for its original commit",
+      "Repeated close requests show one explicit discard dialog and disable editor input",
+      "Cancelled native exit retains time-map draft and frozen revision",
+      "Discard confirmation cannot cover a later draft version",
+      "In-flight project save blocks exit; completion never silently resumes it",
+      "Quit transport failure leaves the draft and permits retry",
+      "Explicit discard permits exit without submitting draft or enabling new edits",
+      "Clean editor exits without a discard prompt after checks initialize"
+    ],
+    "errors": [],
+    "timings": [
+      {
+        "count": 1000,
+        "mounted": 64,
+        "serviceCommitAndRefreshMs": 125.42459600000075,
+        "projectionMs": 10.200000001117587,
+        "pageFlipMs": 108.30612800000017
+      },
+      {
+        "count": 10000,
+        "mounted": 64,
+        "serviceCommitAndRefreshMs": 179.3566920000012,
+        "projectionMs": 9.699999999254942,
+        "pageFlipMs": 105.44108000000051
+      }
+    ],
+    "environment": {
+      "cpu": "AMD Ryzen 7 7735H with Radeon Graphics",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "browser": "Chrome/154.0.8037.97"
+    }
+  },
+  "commands": [
+    {
+      "command": "env ICETUDIO_MUSIC_BROWSER=1 go test ./internal/app -run '^TestMusicEditorBrowser$' -count=1 -v",
+      "result": "pass",
+      "seconds": 22.659,
+      "checks": 79
+    },
+    {
+      "command": "go test -race ./internal/app -run '^TestProjectRecovery' -count=1 -v",
+      "result": "pass",
+      "topLevelTests": 4,
+      "invalidFileSubcases": 7,
+      "coverage": [
+        "database close/reopen and service reconstruction",
+        "unsubmitted versus committed intention",
+        "32 competing begins, 16 idempotent concurrent clears",
+        "intent mismatch, stale clear, deleted project",
+        "failed-host ownership guard",
+        "malformed/future/oversize file preservation",
+        "missing configuration, non-directory and non-regular-file errors"
+      ]
+    },
+    {
+      "command": "go test ./...",
+      "result": "pass",
+      "limit": "Final backend source; subsequent changes were frontend-only and documentation."
+    },
+    {
+      "command": "node frontend/e2e/product.mjs",
+      "result": "pass",
+      "scope": "Simulated product facade regression; no native bridge acceptance."
+    },
+    {
+      "command": "wails3 task build",
+      "result": "pass",
+      "output": "bin/icetudio",
+      "services": 4,
+      "methods": 91,
+      "models": 95,
+      "frontendModules": 350,
+      "bundle": "index-DNC8Tqrb.js"
+    }
+  ],
+  "environment": {
+    "os": "Linux amd64",
+    "go": "go1.27.1-X:nodwarf5",
+    "wailsCLI": "v3.0.0-beta.12",
+    "wailsRuntime": "3.0.0-beta.26"
+  },
+  "realVsMock": {
+    "real": [
+      "Go service and SQLite",
+      "journal file I/O, file Sync, rename and directory Sync",
+      "production React hooks and components",
+      "Chromium mouse/keyboard/reload with cleared sessionStorage"
+    ],
+    "mock": [
+      "Wails bridge replaced by authenticated HTTP test transport",
+      "desktop exit events and methods",
+      "audio transport facade",
+      "write/read/clear and reply-loss faults injected at browser transport boundary"
+    ]
+  },
+  "limits": [
+    "Service/SQLite reopen and page reload tested; no native Wails process kill or power-loss acceptance",
+    "No injected fsync/rename hardware failure or full-disk exercise; filesystem errors tested through invalid file/directory paths",
+    "No cross-platform file-system or Windows/macOS acceptance",
+    "No recovery for unapplied time-map forms, numeric/velocity/playback drafts or pointer previews",
+    "Journal ownership relies on existing single-host directory lock; independently constructed concurrent Services sharing one directory are unsupported",
+    "Journal records metadata only; it cannot replay an operation or replace music history",
+    "No model, physical audio/device or dense-arrangement performance acceptance in this increment"
+  ],
+  "developmentFindings": [
+    "Browser mute/solo regression now waits for the whole GUI operation to finish, including journal cleanup, before clicking the next disabled control",
+    "Go reopen assertion checks the authoritative state title; existing denormalized storage title behavior was outside this scope",
+    "Recovery status identifies the original project when a different project is selected"
+  ],
+  "documentationReview": {
+    "scope": [
+      "IMPLEMENTATION_PLAN.md",
+      "README.md",
+      "docs/architecture.md",
+      "docs/p2-midi-editor.md",
+      "docs/p2-close-guard.md",
+      "docs/p2-operation-recovery.md"
+    ],
+    "limit": "Affected-document consistency review, not repository-wide completeness."
+  }
+}

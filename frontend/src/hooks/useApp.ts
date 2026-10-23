@@ -1,13 +1,13 @@
 import { useSkillDrafts } from "./useSkillDrafts";
-import { useProfileDrafts } from "./useProfileDrafts";
 import { useEffect, useState } from "react";
 import { Events } from "@wailsio/runtime";
-import { StatusService } from "../../bindings/icepick";
-import type { SkillInfo } from "../../bindings/icepick/internal/app";
-import type { MCPServer } from "../../bindings/icepick/internal/config";
+import { StatusService } from "../../bindings/icetudio";
+import type { SkillInfo } from "../../bindings/icetudio/internal/app";
+import type { MCPServer } from "../../bindings/icetudio/internal/config";
 import { useWorkspace } from "./useWorkspace";
+import { useProjects } from "./useProjects";
 import { useRuntimeSettings } from "./useRuntimeSettings";
-import { useProfiles } from "./useProfiles";
+import { useConfigs } from "./useConfigs";
 import { useLocalContext } from "./useLocalContext";
 import { useConversation } from "./useConversation";
 export type ActivityEntry = {
@@ -20,26 +20,20 @@ export type ActivityEntry = {
 export function useApp() {
   const workspace = useWorkspace();
   const runtime = useRuntimeSettings();
-  const profiles = useProfiles(async () => {
-    await workspace.refreshConversations();
-  });
+  const configs = useConfigs();
   const local = useLocalContext(workspace.contextID, workspace.selected);
-  const conversation = useConversation(
-    workspace,
-    profiles.profiles,
-    runtime.status,
+  const conversation = useConversation(workspace, runtime.status);
+  // The music project strip: stored projects plus the shared edit service
+  // (rename/undo/redo), bound to the active conversation's project.
+  const projects = useProjects(
+    workspace.activeConversation?.id ?? null,
+    workspace.activeConversation?.projectId ?? "",
+    workspace.refreshConversations,
   );
   const skillDrafts = useSkillDrafts(workspace.selected);
-  const drafts = useProfileDrafts(
-    workspace.selected,
-    profiles.profileEditID,
-    async (id) => {
-      await profiles.refreshProfiles();
-      await workspace.refreshConversations();
-      profiles.setProfileEditID(id);
-    },
+  const [page, setPage] = useState<"workspace" | "assistants" | "settings">(
+    "workspace",
   );
-  const [page, setPage] = useState<"chat" | "assistants" | "settings">("chat");
   const [settingsTab, setSettingsTab] = useState("model");
   // The installed-capability catalogs: assistant editing picks from these
   // instead of typing names, and the MCP panel edits the same source.
@@ -66,7 +60,7 @@ export function useApp() {
   // activity view so "what is the host doing" is visible without the CLI.
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   useEffect(() => {
-    const off = Events.On("icepick:service-event", (event) => {
+    const off = Events.On("icetudio:service-event", (event) => {
       const detail =
         (event.data as {
           type?: string;
@@ -89,25 +83,22 @@ export function useApp() {
     });
     return () => off();
   }, []);
-  async function createSession(profileID?: string) {
-    setPage("chat");
+  async function createSession(configID?: string) {
+    setPage("workspace");
     workspace.setQuery("");
     const item = await workspace.createSession(
-      profileID ??
-        (workspace.activeConversation?.profileArchived
-          ? null
-          : (workspace.activeConversation?.profileId ?? null)),
+      configID ?? workspace.activeConversation?.configId ?? undefined,
     );
-    if (item) await profiles.refreshProfiles().catch(profiles.reportError);
+    if (item) await configs.refreshConfigs().catch(configs.reportError);
   }
   return {
     workspace,
-    drafts,
     skillDrafts,
     runtime,
-    profileState: profiles,
+    configState: configs,
     local,
     conversation,
+    projects,
     error: runtime.error || workspace.workspaceError,
     page,
     setPage,

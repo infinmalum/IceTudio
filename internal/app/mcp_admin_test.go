@@ -9,12 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"icepick/internal/agent"
-	"icepick/internal/config"
-	"icepick/internal/mcptools"
-	"icepick/internal/skills"
-	"icepick/internal/storage"
-	"icepick/internal/testfixture"
+	"icetudio/internal/agent"
+	"icetudio/internal/config"
+	"icetudio/internal/mcptools"
+	"icetudio/internal/skills"
+	"icetudio/internal/storage"
+	"icetudio/internal/testfixture"
 )
 
 // fakeManager records how the service drove the hub's mutable surface.

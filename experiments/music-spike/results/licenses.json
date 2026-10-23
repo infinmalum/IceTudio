@@ -1,0 +1,64 @@
+[
+  {
+    "name": "IceTudio",
+    "path": "LICENSE",
+    "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+  },
+  {
+    "name": "GridSound",
+    "path": ".cache/music-spike/gs-ui-components/LICENSE",
+    "sha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef"
+  },
+  {
+    "name": "gs-utils",
+    "path": ".cache/music-spike/gs-ui-components/gs-utils/LICENSE",
+    "sha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef"
+  },
+  {
+    "name": "webaudio-pianoroll",
+    "path": ".cache/music-spike/webaudio-pianoroll/LICENSE",
+    "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+  },
+  {
+    "name": "gomidi/LICENSE",
+    "sha256": "99d0e1f36a3857ff1371d8da1045eab4e672146b6c0d364af31dc932ac74012f"
+  },
+  {
+    "name": "gomidi/drivers/rtmididrv/LICENSE",
+    "sha256": "6c11b3ca84cdfa2ea7f70de9c9078a6960fb6a526bd84d2cfc772cd13b6b426c"
+  },
+  {
+    "name": "gomidi/drivers/rtmididrv/imported/rtmidi/LICENSE",
+    "sha256": "6962ec832452dabd339aa80a42d47546ae10c54469bf3ed15872ab2cedae55e8"
+  },
+  {
+    "name": "loose-envify",
+    "version": "1.4.0",
+    "declaredLicense": "MIT",
+    "sha256": "4eb7543b08d955a6d23fcc224601d43ff566e775be918805e26210d7f6eb4893"
+  },
+  {
+    "name": "react",
+    "version": "18.2.0",
+    "declaredLicense": "MIT",
+    "sha256": "52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85"
+  },
+  {
+    "name": "js-tokens",
+    "version": "4.0.0",
+    "declaredLicense": "MIT",
+    "sha256": "2213d91c606205c71eb051a199478cdc2adde945893404d7f1421436dd6d5cc1"
+  },
+  {
+    "name": "react-dom",
+    "version": "18.2.0",
+    "declaredLicense": "MIT",
+    "sha256": "52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85"
+  },
+  {
+    "name": "scheduler",
+    "version": "0.23.2",
+    "declaredLicense": "MIT",
+    "sha256": "52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85"
+  }
+]

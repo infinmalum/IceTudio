@@ -1,16 +1,16 @@
 import { ProfileStages } from "./ProfileStages";
-import type { Profiles } from "../hooks/useProfiles";
+import type { Configs } from "../hooks/useConfigs";
 import {
   blankRootBudget,
   providerDefaults,
   providerLabels,
 } from "../shared/config";
 type Props = {
-  profileState: Pick<Profiles, "profileDraft" | "profiles" | "setProfileDraft">;
+  configState: Pick<Configs, "configDraft" | "setConfigDraft">;
 };
 export function ProfileExecution(props: Props) {
-  const { profileDraft, profiles, setProfileDraft } = props.profileState;
-  if (!profileDraft) return null;
+  const { configDraft, setConfigDraft } = props.configState;
+  if (!configDraft) return null;
   return (
     <>
       <details>
@@ -23,58 +23,58 @@ export function ProfileExecution(props: Props) {
         <label className="checkbox-label">
           <input
             type="checkbox"
-            checked={profileDraft.data.execution.improverEnabled}
+            checked={configDraft.data.execution.improverEnabled}
             onChange={(e) =>
-              setProfileDraft({
-                ...profileDraft,
+              setConfigDraft({
+                ...configDraft,
                 data: {
-                  ...profileDraft.data,
+                  ...configDraft.data,
                   execution: {
-                    ...profileDraft.data.execution,
+                    ...configDraft.data.execution,
                     improverEnabled: e.target.checked,
                   },
                 },
               })
             }
           />
-          允许显式生成配置草案
+          允许显式生成配置改进建议
         </label>
         <label>
           执行流程
           <select
-            value={profileDraft.data.execution.workflow}
+            value={configDraft.data.execution.workflow}
             onChange={(event) => {
               const dynamic = event.target.value === "dynamic";
               const fixed = event.target.value === "fixed";
               const scheduled = dynamic || fixed;
-              const workers = profileDraft.data.execution.workerSources ?? [];
+              const workers = configDraft.data.execution.workerSources ?? [];
               const worker = workers[0]?.name || "worker1";
-              setProfileDraft({
-                ...profileDraft,
+              setConfigDraft({
+                ...configDraft,
                 data: {
-                  ...profileDraft.data,
+                  ...configDraft.data,
                   planEnabled: fixed
                     ? false
-                    : dynamic || profileDraft.data.planEnabled,
+                    : dynamic || configDraft.data.planEnabled,
                   delegation: {
-                    ...profileDraft.data.delegation,
-                    enabled: scheduled || profileDraft.data.delegation.enabled,
+                    ...configDraft.data.delegation,
+                    enabled: scheduled || configDraft.data.delegation.enabled,
                     maxDepth: scheduled
-                      ? Math.max(1, profileDraft.data.delegation.maxDepth)
-                      : profileDraft.data.delegation.maxDepth,
+                      ? Math.max(1, configDraft.data.delegation.maxDepth)
+                      : configDraft.data.delegation.maxDepth,
                   },
                   execution: {
-                    ...profileDraft.data.execution,
+                    ...configDraft.data.execution,
                     workflow: event.target.value,
                     budget: {
-                      ...profileDraft.data.execution.budget,
+                      ...configDraft.data.execution.budget,
                       autoRetry: fixed
                         ? false
-                        : profileDraft.data.execution.budget.autoRetry,
+                        : configDraft.data.execution.budget.autoRetry,
                     },
                     stages:
                       fixed &&
-                      !(profileDraft.data.execution.stages ?? []).length
+                      !(configDraft.data.execution.stages ?? []).length
                         ? [
                             {
                               id: "stage1",
@@ -85,17 +85,16 @@ export function ProfileExecution(props: Props) {
                               acceptance: "给出具体结果",
                             },
                           ]
-                        : profileDraft.data.execution.stages,
+                        : configDraft.data.execution.stages,
                     workerSources:
                       scheduled && !workers.length
                         ? [
                             {
                               name: "worker1",
-                              profileId: "",
                               configuration: null,
                             },
                           ]
-                        : profileDraft.data.execution.workerSources,
+                        : configDraft.data.execution.workerSources,
                   },
                 },
               });
@@ -117,17 +116,17 @@ export function ProfileExecution(props: Props) {
         <label className="checkbox-label">
           <input
             type="checkbox"
-            disabled={profileDraft.data.execution.workflow === "fixed"}
-            checked={profileDraft.data.execution.budget?.autoRetry ?? false}
+            disabled={configDraft.data.execution.workflow === "fixed"}
+            checked={configDraft.data.execution.budget?.autoRetry ?? false}
             onChange={(event) =>
-              setProfileDraft({
-                ...profileDraft,
+              setConfigDraft({
+                ...configDraft,
                 data: {
-                  ...profileDraft.data,
+                  ...configDraft.data,
                   execution: {
-                    ...profileDraft.data.execution,
+                    ...configDraft.data.execution,
                     budget: {
-                      ...(profileDraft.data.execution.budget ??
+                      ...(configDraft.data.execution.budget ??
                         blankRootBudget),
                       autoRetry: event.target.checked,
                     },
@@ -164,16 +163,16 @@ export function ProfileExecution(props: Props) {
             <input
               type="number"
               min={0}
-              value={profileDraft.data.execution.budget?.[key] ?? 0}
+              value={configDraft.data.execution.budget?.[key] ?? 0}
               onChange={(event) =>
-                setProfileDraft({
-                  ...profileDraft,
+                setConfigDraft({
+                  ...configDraft,
                   data: {
-                    ...profileDraft.data,
+                    ...configDraft.data,
                     execution: {
-                      ...profileDraft.data.execution,
+                      ...configDraft.data.execution,
                       budget: {
-                        ...(profileDraft.data.execution.budget ??
+                        ...(configDraft.data.execution.budget ??
                           blankRootBudget),
                         [key]: Number(event.target.value),
                       },
@@ -187,16 +186,16 @@ export function ProfileExecution(props: Props) {
         <label>
           独立审查
           <select
-            value={profileDraft.data.execution.review?.mode || "off"}
+            value={configDraft.data.execution.review?.mode || "off"}
             onChange={(event) =>
-              setProfileDraft({
-                ...profileDraft,
+              setConfigDraft({
+                ...configDraft,
                 data: {
-                  ...profileDraft.data,
+                  ...configDraft.data,
                   execution: {
-                    ...profileDraft.data.execution,
+                    ...configDraft.data.execution,
                     review: {
-                      ...(profileDraft.data.execution.review ?? {
+                      ...(configDraft.data.execution.review ?? {
                         requiredChecks: [],
                       }),
                       mode: event.target.value,
@@ -215,17 +214,17 @@ export function ProfileExecution(props: Props) {
           必要检查工具（逗号分隔）
           <input
             value={(
-              profileDraft.data.execution.review?.requiredChecks ?? []
+              configDraft.data.execution.review?.requiredChecks ?? []
             ).join(",")}
             onChange={(event) =>
-              setProfileDraft({
-                ...profileDraft,
+              setConfigDraft({
+                ...configDraft,
                 data: {
-                  ...profileDraft.data,
+                  ...configDraft.data,
                   execution: {
-                    ...profileDraft.data.execution,
+                    ...configDraft.data.execution,
                     review: {
-                      mode: profileDraft.data.execution.review?.mode || "off",
+                      mode: configDraft.data.execution.review?.mode || "off",
                       requiredChecks: event.target.value
                         .split(",")
                         .map((x) => x.trim())
@@ -244,19 +243,19 @@ export function ProfileExecution(props: Props) {
         </p>
         {(["main", "planner", "worker", "reviewer", "improver"] as const).map(
           (role) => {
-            const component = profileDraft.data.execution[role] ?? {
+            const component = configDraft.data.execution[role] ?? {
               systemPrompt: "",
               restrictTools: false,
               allowedTools: [],
               model: null,
             };
             const update = (patch: Partial<typeof component>) =>
-              setProfileDraft({
-                ...profileDraft,
+              setConfigDraft({
+                ...configDraft,
                 data: {
-                  ...profileDraft.data,
+                  ...configDraft.data,
                   execution: {
-                    ...profileDraft.data.execution,
+                    ...configDraft.data.execution,
                     [role]: { ...component, ...patch },
                   },
                 },
@@ -271,7 +270,7 @@ export function ProfileExecution(props: Props) {
                       : role === "reviewer"
                         ? "独立审查（无工具）"
                         : role === "improver"
-                          ? "配置草案（无工具，仅手动采用）"
+                          ? "配置改进（无工具，仅手动采用）"
                           : "子任务执行"}
                 </strong>
                 <label>
@@ -301,7 +300,7 @@ export function ProfileExecution(props: Props) {
                       })
                     }
                   >
-                    <option value="">使用 Profile 公共模型</option>
+                    <option value="">使用执行配置公共模型</option>
                     {Object.entries(providerLabels).map(([id, name]) => (
                       <option key={id} value={id}>
                         {name}
@@ -381,18 +380,18 @@ export function ProfileExecution(props: Props) {
         <label className="checkbox-label">
           <input
             type="checkbox"
-            checked={profileDraft.data.delegation.enabled}
+            checked={configDraft.data.delegation.enabled}
             onChange={(event) =>
-              setProfileDraft({
-                ...profileDraft,
+              setConfigDraft({
+                ...configDraft,
                 data: {
-                  ...profileDraft.data,
+                  ...configDraft.data,
                   delegation: {
-                    ...profileDraft.data.delegation,
+                    ...configDraft.data.delegation,
                     enabled: event.target.checked,
                     maxDepth: event.target.checked
-                      ? Math.max(1, profileDraft.data.delegation.maxDepth)
-                      : profileDraft.data.delegation.maxDepth,
+                      ? Math.max(1, configDraft.data.delegation.maxDepth)
+                      : configDraft.data.delegation.maxDepth,
                   },
                 },
               })
@@ -400,13 +399,12 @@ export function ProfileExecution(props: Props) {
           />
           允许调用 worker（受对话授权与审批策略约束）
         </label>
-        <div className="card-title">Worker 配置来源</div>
+        <div className="card-title">Worker 槽位</div>
         <p className="hint">
-          选择当前 Profile 的 worker 或其他 Profile 的 worker
-          配置。任务开始时固定配置和 Skill
-          内容；子任务只使用明确材料和此对话的权限，不读取配置来源的历史或记忆。
+          任务开始时固定 worker 配置和 Skill
+          内容；子任务只使用明确材料和此对话的权限，不读取历史或记忆。
         </p>
-        {(profileDraft.data.execution.workerSources ?? []).map(
+        {(configDraft.data.execution.workerSources ?? []).map(
           (source, index) => (
             <div key={index} className="model-form">
               <label>
@@ -415,15 +413,15 @@ export function ProfileExecution(props: Props) {
                   value={source.name}
                   onChange={(event) => {
                     const sources = [
-                      ...(profileDraft.data.execution.workerSources ?? []),
+                      ...(configDraft.data.execution.workerSources ?? []),
                     ];
                     sources[index] = { ...source, name: event.target.value };
-                    setProfileDraft({
-                      ...profileDraft,
+                    setConfigDraft({
+                      ...configDraft,
                       data: {
-                        ...profileDraft.data,
+                        ...configDraft.data,
                         execution: {
-                          ...profileDraft.data.execution,
+                          ...configDraft.data.execution,
                           workerSources: sources,
                         },
                       },
@@ -431,60 +429,18 @@ export function ProfileExecution(props: Props) {
                   }}
                 />
               </label>
-              <label>
-                配置来源
-                <select
-                  value={
-                    source.configuration ? "__bundled__" : source.profileId
-                  }
-                  onChange={(event) => {
-                    const sources = [
-                      ...(profileDraft.data.execution.workerSources ?? []),
-                    ];
-                    sources[index] = {
-                      ...source,
-                      profileId: event.target.value,
-                      configuration: null,
-                    };
-                    setProfileDraft({
-                      ...profileDraft,
-                      data: {
-                        ...profileDraft.data,
-                        execution: {
-                          ...profileDraft.data.execution,
-                          workerSources: sources,
-                        },
-                      },
-                    });
-                  }}
-                >
-                  {source.configuration && (
-                    <option value="__bundled__" disabled>
-                      包内配置：{source.configuration.name}
-                    </option>
-                  )}
-                  <option value="">当前 Profile 的 worker</option>
-                  {profiles
-                    .filter((item) => item.id !== profileDraft.id)
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
               <button
                 type="button"
                 className="secondary"
                 onClick={() =>
-                  setProfileDraft({
-                    ...profileDraft,
+                  setConfigDraft({
+                    ...configDraft,
                     data: {
-                      ...profileDraft.data,
+                      ...configDraft.data,
                       execution: {
-                        ...profileDraft.data.execution,
+                        ...configDraft.data.execution,
                         workerSources: (
-                          profileDraft.data.execution.workerSources ?? []
+                          configDraft.data.execution.workerSources ?? []
                         ).filter((_, i) => i !== index),
                       },
                     },
@@ -500,21 +456,21 @@ export function ProfileExecution(props: Props) {
           type="button"
           className="secondary"
           disabled={
-            (profileDraft.data.execution.workerSources ?? []).length >= 8
+            (configDraft.data.execution.workerSources ?? []).length >= 8
           }
           onClick={() => {
-            const current = profileDraft.data.execution.workerSources ?? [];
+            const current = configDraft.data.execution.workerSources ?? [];
             let n = 1;
             while (current.some((source) => source.name === `worker${n}`)) n++;
-            setProfileDraft({
-              ...profileDraft,
+            setConfigDraft({
+              ...configDraft,
               data: {
-                ...profileDraft.data,
+                ...configDraft.data,
                 execution: {
-                  ...profileDraft.data.execution,
+                  ...configDraft.data.execution,
                   workerSources: [
                     ...current,
-                    { name: `worker${n}`, profileId: "", configuration: null },
+                    { name: `worker${n}`, configuration: null },
                   ],
                 },
               },
@@ -525,9 +481,9 @@ export function ProfileExecution(props: Props) {
         </button>
         <p className="hint">
           direct 中委派按调用顺序同步执行；dynamic 由 planner 与宿主调度。worker
-          来源只提供配置，权限使用当前对话授权。
+          槽位只提供配置，权限使用当前对话授权。
         </p>
-        <ProfileStages profileState={props.profileState} />
+        <ProfileStages configState={props.configState} />
       </details>
     </>
   );

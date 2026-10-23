@@ -23,8 +23,9 @@ func (s *Store) RenameConversation(ctx context.Context, id, title string) (Conve
 	return s.GetConversation(ctx, id)
 }
 
-// Delete only this conversation and its private component sessions. Context
-// memory, permissions and Profiles may be shared and are deliberately retained.
+// Delete only this conversation and its private component sessions. The
+// context, permissions and execution configs may be shared and are
+// deliberately retained.
 func (s *Store) DeleteConversation(ctx context.Context, id string) error {
 	return s.withTx(ctx, func(tx *sql.Tx) error {
 		var kind string

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"icepick/internal/materials"
+	"icetudio/internal/materials"
 )
 
 func (s *Store) MessageFiles(ctx context.Context, id string) ([]materials.File, error) {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ConversationState } from "../hooks/useConversation";
-import { StatusService } from "../../bindings/icepick";
+import { StatusService } from "../../bindings/icetudio";
 import { Markdown } from "./Markdown";
 import { ErrorNotice } from "../shared/errors";
 import { downloadBase64, bytesToBase64 } from "../shared/download";
@@ -133,7 +133,7 @@ export function Transcript({
         {visible.map((m) => (
           <article className={`message message-${m.role}`} key={m.id}>
             <div className="message-role">
-              {m.role === "user" ? "你" : "ICEPick"}
+              {m.role === "user" ? "你" : "IceTudio"}
             </div>
             {m.role === "assistant" ? (
               <Markdown text={m.content} />
@@ -187,7 +187,7 @@ export function Transcript({
         ))}
         {c.streamText && (
           <article className="message message-assistant streaming">
-            <div className="message-role">ICEPick · 正在回复</div>
+            <div className="message-role">IceTudio · 正在回复</div>
             <Markdown text={c.streamText} />
           </article>
         )}

@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 func TestAGNativeSearchThroughHostGrantBudgetAndRecords(t *testing.T) {
@@ -62,11 +62,7 @@ func TestAGNativeSearchThroughHostGrantBudgetAndRecords(t *testing.T) {
 				s.mu.Lock()
 				s.config.Model = config.Model{Provider: provider, Name: name, BaseURL: server.URL}
 				s.mu.Unlock()
-				p, err := s.CreateTemplateProfile("daily", "")
-				if err != nil {
-					t.Fatal(err)
-				}
-				c, err := s.CreateConversation(p.ID, "", "")
+				c, err := s.CreateConversation(storage.DefaultConfigID, "", "")
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -8,7 +8,7 @@ import (
 // logPath is the host's log file inside the data directory. The CLI reads it
 // directly — same user, same machine, so no IPC round-trip is needed.
 func logPath(dataDir string) string {
-	return filepath.Join(dataDir, "icepick.log")
+	return filepath.Join(dataDir, "icetudio.log")
 }
 
 func splitLines(data string) []string {

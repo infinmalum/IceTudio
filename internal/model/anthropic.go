@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"strings"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
-// anthropicMaxTokens is the required Messages API output cap for ICEPick
-// requests; the loop's own budgets bound what ICEPick does with the reply.
+// anthropicMaxTokens is the required Messages API output cap for IceTudio
+// requests; the loop's own budgets bound what IceTudio does with the reply.
 const anthropicMaxTokens = 8192
 
 // anthropicClient builds the official SDK client for one request. The

@@ -3,9 +3,9 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 	"strings"
 	"testing"
 	"time"
@@ -24,11 +24,7 @@ func (cliSkillModel) Chat(_ context.Context, _ config.Model, messages []model.Me
 }
 func TestSkillDraftCLI(t *testing.T) {
 	client, s := newCLIHost(t, cliSkillModel{}, time.Second)
-	p, err := s.CreateTemplateProfile("daily", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := s.CreateConversation(p.ID, "", "")
+	c, err := s.CreateConversation(storage.DefaultConfigID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

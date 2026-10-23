@@ -1,0 +1,63 @@
+.gsuiBlocksManager {
+	--gsuiBlocksManager-timeline-height: 32px;
+	--gsuiBlocksManager-selection-bgColor: #b226;
+	--gsuiBlocksManager-selection-borderColor: #f44;
+	--gsuiBlocksManager-blockColor: var( --gsui-col-pattern8 );
+	--gsuiBlocksManager-blockSelectedColor: var( --gsui-col-patternSelected8 );
+}
+
+/* .......................................................................... */
+.gsuiBlocksManager-selection {
+	position: absolute;
+	box-sizing: border-box;
+	top: 0;
+	z-index: 2;
+	border: 2px solid var( --gsuiBlocksManager-selection-borderColor );
+	border-radius: 4px;
+	background-color: var( --gsuiBlocksManager-selection-bgColor );
+	transition: .2s;
+	transition-property: opacity, visibility;
+}
+.gsuiBlocksManager-selection-hidden {
+	opacity: 0;
+	visibility: hidden;
+}
+
+/* .......................................................................... */
+.gsuiBlocksManager-block {
+	position: absolute;
+	z-index: 1;
+	top: 0;
+	bottom: 1px;
+	background-color: var( --gsuiBlocksManager-blockColor );
+	cursor: var( --gsuiCursor-move );
+	transition: .1s;
+	transition-property: opacity, background-color;
+
+	&[ data-selected ] {
+		--gsuiBlocksManager-blockColor: var( --gsuiBlocksManager-blockSelectedColor );
+	}
+	&[ data-hidden ] {
+		z-index: 0;
+		opacity: .3;
+	}
+	&[ data-missing ] {
+		background-image: repeating-linear-gradient( 45deg, #0002 0 10px, transparent 10px 20px );
+	}
+	[ data-action^="crop" ] {
+		position: absolute;
+		opacity: 0;
+		z-index: 2;
+		inset: -2px;
+		width: 25%;
+		max-width: 8px;
+	}
+	[ data-action="cropA" ] {
+		right: auto;
+		cursor: var( --gsuiCursor-w-resize );
+	}
+	[ data-action="cropB" ] {
+		left: auto;
+		cursor: var( --gsuiCursor-e-resize );
+	}
+}

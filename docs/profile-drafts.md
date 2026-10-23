@@ -1,3 +1,5 @@
+> 历史实现参考，不是删除授权。当前范围由 [P0 执行契约](p0-refactor-contract.md)、[逐项清单](p0-api-storage-inventory.md)及[实施计划](../IMPLEMENTATION_PLAN.md)规定。只删除 Profile 草案产品；Skill 草案、improver、共享模型调用和证据逻辑保留。
+
 # Profile / Skill 草案
 
 在当前对话下，通过“AI 配置草案”输入工作方式要求。默认生成新 Profile；勾选“改进当前编辑的 Profile”时，以编辑器选中的已保存配置为基础。没有保存的编辑不会作为基础。生成使用当前对话 Profile 的 improver 模型（未指定时使用公共或宿主模型），并沿用该对话的外发授权；目标 Profile 的模型不会用于生成。

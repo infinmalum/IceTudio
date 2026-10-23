@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 type repairMock struct {
@@ -80,12 +80,12 @@ func TestReworkUsesRemainingBudgetAndCancellation(t *testing.T) {
 			if cancel {
 				m.entered = make(chan struct{})
 			} else {
-				p, err := s.GetProfile(c.ProfileID)
+				p, err := s.GetRuntimeConfig(c.ConfigID)
 				if err != nil {
 					t.Fatal(err)
 				}
 				p.Data.Execution.Budget.MaxModelCalls = 2
-				if _, err = s.UpdateProfile(p); err != nil {
+				if _, err = s.UpdateRuntimeConfig(p); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -166,7 +166,7 @@ func TestDynamicReworkRoutesDefectToOriginalWorker(t *testing.T) {
 			s.chat = &repairDynamicMock{execution: execution, ignore: ignore}
 			p.Data.Execution.Review.Mode = "required"
 			p.Data.Execution.Reviewer.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "review-model"}
-			if _, err := s.UpdateProfile(p); err != nil {
+			if _, err := s.UpdateRuntimeConfig(p); err != nil {
 				t.Fatal(err)
 			}
 			r, err := s.StartConversationTask(c.ID, "整合")

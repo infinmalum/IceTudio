@@ -7,20 +7,20 @@ import (
 	"sync"
 	"testing"
 
-	"icepick/internal/model"
+	"icetudio/internal/model"
 )
 
 func searchRoot(t *testing.T, limit int) (*Store, Conversation, Run) {
 	t.Helper()
 	s := openTestStore(t)
 	ctx := context.Background()
-	p, err := s.CreateTemplateProfile(ctx, "daily", "search")
+	p, err := s.CreateRuntimeConfig(ctx, "search", assistantData())
 	if err != nil {
 		t.Fatal(err)
 	}
 	p.Data.Execution.Budget.MaxToolCalls = limit
 	p.Data.Execution.WorkerSources = []WorkerSource{{Name: "worker"}}
-	if _, err := s.UpdateProfile(ctx, p); err != nil {
+	if _, err := s.UpdateRuntimeConfig(ctx, p); err != nil {
 		t.Fatal(err)
 	}
 	c, err := s.CreateConversation(ctx, p.ID, "", "")
@@ -49,7 +49,7 @@ func TestSearchOptionsFreezeAndWorkerInheritance(t *testing.T) {
 	if err != nil || !resources.Options.WebSearch || len(resources.SearchTools) != 1 {
 		t.Fatal(resources, err)
 	}
-	session, err := s.CreateDelegationSession(ctx, c.ContextID, DefaultProfileID, "worker")
+	session, err := s.CreateDelegationSession(ctx, c.ContextID, DefaultConfigID, "worker")
 	if err != nil {
 		t.Fatal(err)
 	}

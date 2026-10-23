@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
-func fixedFixture(t *testing.T, m *dynamicMock) (*Service, storage.Conversation, storage.Profile) {
+func fixedFixture(t *testing.T, m *dynamicMock) (*Service, storage.Conversation, storage.RuntimeConfig) {
 	t.Helper()
 	s, c, p := dynamicFixture(t, m)
 	p.Data.Execution.Workflow = "fixed"
@@ -24,7 +24,7 @@ func fixedFixture(t *testing.T, m *dynamicMock) (*Service, storage.Conversation,
 		{ID: "c", Worker: "worker", Task: "Combine", AccessMode: "read", DependsOn: []string{"a", "b"}},
 	}
 	var err error
-	p, err = s.UpdateProfile(p)
+	p, err = s.UpdateRuntimeConfig(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,24 +34,13 @@ func fixedFixture(t *testing.T, m *dynamicMock) (*Service, storage.Conversation,
 func TestFixedWorkflowParallelJoinFrozenConfigurationAndShare(t *testing.T) {
 	m := &dynamicMock{barrier: make(chan struct{})}
 	s, c, p := fixedFixture(t, m)
-	exported, err := s.ExportProfile(p.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	imported, _, err := s.ImportProfile(decodeBase64(t, exported.Data))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if imported.Data.Execution.Workflow != "fixed" || len(imported.Data.Execution.Stages) != 3 || imported.Data.PlanEnabled {
-		t.Fatal("fixed workflow lost in share", imported)
-	}
 	r, err := s.StartConversationTask(c.ID, "分析用户材料")
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Editing after start cannot alter the graph or workers awaiting approval.
 	p.Data.Execution.Stages[0].Task = "Changed after start"
-	if _, err = s.UpdateProfile(p); err != nil {
+	if _, err = s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
 	final := approveDynamicUntilDone(t, s, c, r)
@@ -68,21 +57,6 @@ func TestFixedWorkflowParallelJoinFrozenConfigurationAndShare(t *testing.T) {
 	}
 	if resources.Planner.ID != "" {
 		t.Fatal("fixed workflow captured a planner")
-	}
-	current, err := s.GetProfile(p.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	restored, err := s.RestoreTemplateProfile(p.ID, current.Revision, []string{"execution"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if restored.Data.Execution.Workflow != "direct" || len(restored.Data.Execution.Stages) != 0 {
-		t.Fatal("execution group restoration retained fixed stages")
-	}
-	old, err := s.GetTaskGraph(r.ID)
-	if err != nil || len(old.Tasks) != 3 || old.Tasks[0].Spec.Task != "Analyze A" {
-		t.Fatal("restoration rewrote prior task", err)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -148,7 +122,7 @@ func TestFixedWorkflowSerialEffectsAndReviewGate(t *testing.T) {
 			p.Data.Execution.Stages = []storage.TaskSpec{{ID: "one", Worker: "worker", Task: "第一步", AccessMode: "write"}, {ID: "two", Worker: "worker", Task: "第二步", AccessMode: "unknown"}}
 			p.Data.Execution.Review.Mode = "required"
 			p.Data.Execution.Reviewer.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "review-model"}
-			if _, err := s.UpdateProfile(p); err != nil {
+			if _, err := s.UpdateRuntimeConfig(p); err != nil {
 				t.Fatal(err)
 			}
 			r, err := s.StartConversationTask(c.ID, "用户特定目标")
@@ -188,7 +162,7 @@ func TestFixedWorkflowFailureStopsSuccessorsAndDoesNotRetry(t *testing.T) {
 			s.chat = m
 			p.Data.Execution.Stages = p.Data.Execution.Stages[:2]
 			p.Data.Execution.Stages[1].DependsOn = []string{"a"}
-			if _, err := s.UpdateProfile(p); err != nil {
+			if _, err := s.UpdateRuntimeConfig(p); err != nil {
 				t.Fatal(err)
 			}
 			r, err := s.StartConversationTask(c.ID, "用户特定目标")
@@ -215,7 +189,7 @@ func TestFixedWorkflowFailureStopsSuccessorsAndDoesNotRetry(t *testing.T) {
 func TestFixedWorkflowApprovalDenialStopsDispatch(t *testing.T) {
 	s, c, p := fixedFixture(t, &dynamicMock{})
 	p.Data.Execution.Stages = p.Data.Execution.Stages[:1]
-	if _, err := s.UpdateProfile(p); err != nil {
+	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
 	r, err := s.StartConversationTask(c.ID, "用户特定目标")
@@ -262,7 +236,7 @@ func TestFixedWorkflowIndependentInspectionsDoNotExecuteStages(t *testing.T) {
 	s.chat = m
 	p.Data.Execution.Stages = p.Data.Execution.Stages[:1]
 	p.Data.Execution.Reviewer.Model = &config.Model{Provider: "lmstudio", BaseURL: "http://127.0.0.1:1234/v1", Name: "review-model"}
-	if _, err := s.UpdateProfile(p); err != nil {
+	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
 	original, err := s.StartConversationTask(c.ID, "用户特定目标")

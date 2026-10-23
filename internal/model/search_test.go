@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 const searchResponseFixture = `{"id":"resp_search","object":"response","status":"completed","output":[{"id":"ws1","type":"web_search_call","status":"completed","action":{"type":"search","query":"test query","queries":["test query"]}},{"id":"rs1","type":"reasoning","summary":[],"encrypted_content":"opaque-state"},{"id":"m1","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"有出处的回答","annotations":[{"type":"url_citation","url":"https://example.org/source","title":"来源","start_index":0,"end_index":6},{"type":"url_citation","url":"javascript:alert(1)","title":"拒绝","start_index":0,"end_index":1}]}]},{"id":"fn1","type":"function_call","call_id":"call1","name":"local__current_time","arguments":"{}"}],"usage":{"input_tokens":12,"output_tokens":8,"total_tokens":20}}`

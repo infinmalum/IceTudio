@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-17",
+  "command": "env ICETUDIO_MUSIC_BROWSER=1 go test ./internal/app -run '^TestMusicEditorBrowser$' -count=1 -v",
+  "scope": "Production React editor, test bridge, real Go app service and SQLite; no native Wails bridge or audio device",
+  "checks": [
+    "External committed edits refresh the UI",
+    "Real mouse move commits to SQLite",
+    "Shared undo/redo refreshes the editor",
+    "Real resize commits duration",
+    "MIDI velocity preserves controllers",
+    "Selection, copy, atomic deletion and undo",
+    "Gesture freezes revision and rejects conflicts",
+    "Escape cancels without committing",
+    "Empty-row click adds a note",
+    "Arrow key submits one atomic selected-note batch",
+    "Composition/input events do not edit notes",
+    "Zoom does not change the project revision",
+    "Boundary resize atomically extends the clip",
+    "1k/10k spread-out notes mount at most 64 notes per page",
+    "Lost commit reply is resolved without replay",
+    "Unknown outcome retains a queryable operation ID",
+    "Delayed project reads and drag unmount cannot retarget edits",
+    "Remounted editor centers on its first note",
+    "React remount restores a single editor"
+  ],
+  "errors": [],
+  "timings": [
+    {
+      "count": 1000,
+      "mounted": 64,
+      "serviceCommitAndRefreshMs": 122.76967799999966,
+      "projectionMs": 10.800000000745058,
+      "pageFlipMs": 112.08566899999914
+    },
+    {
+      "count": 10000,
+      "mounted": 64,
+      "serviceCommitAndRefreshMs": 187.1278110000003,
+      "projectionMs": 10.299999997019768,
+      "pageFlipMs": 106.1387939999995
+    }
+  ],
+  "environment": {
+    "cpu": "AMD Ryzen 7 7735H with Radeon Graphics",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "browser": "Chrome/154.0.8037.97"
+  }
+}

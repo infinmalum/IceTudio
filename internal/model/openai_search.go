@@ -12,7 +12,7 @@ import (
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/responses"
 	"github.com/openai/openai-go/shared"
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 func responseSearchParams(source config.Model, messages []Message, tools []Tool, maxCalls int) (responses.ResponseNewParams, error) {

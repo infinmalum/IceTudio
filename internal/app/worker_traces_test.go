@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"icepick/internal/storage"
+	"icetudio/internal/storage"
 	"strings"
 	"testing"
 )
@@ -11,14 +11,11 @@ import (
 func TestWorkerTracePagingAccumulatesSensitivity(t *testing.T) {
 	svc, store := newTestService(t, &scriptModel{}, &scriptTools{})
 	ctx := context.Background()
-	p, err := svc.CreateTemplateProfile("daily", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	p.Data.PlanEnabled = true
-	p.Data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1, MaxConcurrency: 2}
-	p.Data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker"}}
-	p, err = svc.UpdateProfile(p)
+	data := storage.DefaultRuntimeConfig()
+	data.PlanEnabled = true
+	data.Delegation = storage.DelegationPolicy{Enabled: true, MaxDepth: 1, MaxConcurrency: 2}
+	data.Execution.WorkerSources = []storage.WorkerSource{{Name: "worker"}}
+	p, err := svc.configureDefault(data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,8 +31,8 @@ func TestWorkerTracePagingAccumulatesSensitivity(t *testing.T) {
 	if _, err = store.SetTaskGraph(ctx, root.ID, 0, specs); err != nil {
 		t.Fatal(err)
 	}
-	create := func(spec storage.TaskSpec) (storage.Run, storage.RunProfile) {
-		session, e := store.CreateDelegationSession(ctx, c.ContextID, storage.DefaultProfileID, spec.ID)
+	create := func(spec storage.TaskSpec) (storage.Run, storage.RunConfigSnapshot) {
+		session, e := store.CreateDelegationSession(ctx, c.ContextID, storage.DefaultConfigID, spec.ID)
 		if e != nil {
 			t.Fatal(e)
 		}

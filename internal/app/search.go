@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"sort"
 
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 type SearchAvailability struct {
@@ -30,7 +30,7 @@ func (s *Service) configuredSearchTools() []string {
 	}
 	return names
 }
-func searchRoute(source config.Model, p storage.ProfileData, tools []string) SearchAvailability {
+func searchRoute(source config.Model, p storage.RuntimeConfigData, tools []string) SearchAvailability {
 	if model.NativeSearchSupported(source) && allowsNativeSearch(p) {
 		reason := source.Provider + " 原生搜索；账户与端点支持情况在请求时验证"
 		if source.Provider == "gemini" {
@@ -43,17 +43,17 @@ func searchRoute(source config.Model, p storage.ProfileData, tools []string) Sea
 			return SearchAvailability{Available: true, Route: "mcp", Reason: "使用已配置搜索 MCP，实际执行仍需现有权限与审批"}
 		}
 	}
-	return SearchAvailability{Reason: "当前接口未支持原生搜索，或组件未允许搜索。可在已接入 MCP 服务配置 webSearchTools，然后在 Profile 中允许该工具。"}
+	return SearchAvailability{Reason: "当前接口未支持原生搜索，或组件未允许搜索。可在已接入 MCP 服务配置 webSearchTools，然后在执行配置中允许该工具。"}
 }
 func (s *Service) ConversationSearchAvailability(id string) (SearchAvailability, error) {
 	if err := s.checkReady(); err != nil {
 		return SearchAvailability{}, err
 	}
-	p, err := s.store.ResolveRunProfile(context.Background(), id)
+	p, err := s.store.ResolveRunConfig(context.Background(), id)
 	if err != nil {
 		return SearchAvailability{}, err
 	}
-	main, err := p.ProfileData.ResolveComponent("main")
+	main, err := p.RuntimeConfigData.ResolveComponent("main")
 	if err != nil {
 		return SearchAvailability{}, err
 	}
@@ -292,7 +292,7 @@ func (d *discoveryTools) loadSearchFallback(ctx context.Context) error {
 			return nil
 		}
 	}
-	if model.NativeSearchSupported(d.inner.profile.Model) && allowsNativeSearch(d.inner.profile.ProfileData) {
+	if model.NativeSearchSupported(d.inner.profile.Model) && allowsNativeSearch(d.inner.profile.RuntimeConfigData) {
 		return nil
 	}
 	allowed := false
@@ -349,7 +349,7 @@ func (s *Service) checkNativeSearchGrant(ctx context.Context, source config.Mode
 	if err != nil {
 		return err
 	}
-	p := storage.RunProfile{ContextID: resources.RootContextID}
+	p := storage.RunConfigSnapshot{ContextID: resources.RootContextID}
 	scopes, err := s.sessionScopes(ctx, run.SessionID, p)
 	if err != nil {
 		return err
@@ -368,6 +368,6 @@ func (s *Service) checkNativeSearchGrant(ctx context.Context, source config.Mode
 
 // Native search is not an MCP server. Disabling MCP does not disable it;
 // an explicit component/tool whitelist can still narrow execution capability.
-func allowsNativeSearch(p storage.ProfileData) bool {
+func allowsNativeSearch(p storage.RuntimeConfigData) bool {
 	return len(p.AllowedTools) == 0 || containsTool(p.AllowedTools, "local__web_search")
 }

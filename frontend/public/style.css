@@ -1224,3 +1224,315 @@ small {
     transition: none !important;
   }
 }
+
+/* 工程工作区：工程居中，助手停靠在右侧 */
+.workspace-page {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  overflow: hidden;
+}
+.project-stage {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 30px;
+  overflow: auto;
+}
+.project-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 24px 0 4px;
+  flex: none;
+}
+.project-header h1 {
+  font-size: 26px;
+  margin: 2px 0 0;
+  letter-spacing: -0.5px;
+}
+.project-badge {
+  flex: none;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: var(--panel);
+}
+.project-canvas {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  padding: 12px 0 32px;
+  overflow: auto;
+}
+.project-strip {
+  flex: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow-soft);
+  padding: 14px 16px;
+  display: grid;
+  gap: 10px;
+}
+.project-strip .project-actions {
+  margin-top: 0;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+.project-meta {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.project-error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--danger-text);
+}
+.project-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+.project-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.project-select {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 9px;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+.project-list li.active .project-select {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.project-remove {
+  flex: none;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.project-remove:hover {
+  color: var(--danger-text);
+  border-color: var(--danger-border);
+}
+.project-list-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.project-empty {
+  margin: auto;
+  max-width: 560px;
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow-soft);
+  padding: 38px 36px;
+}
+.project-symbol {
+  color: var(--accent);
+  font-size: 44px;
+  line-height: 1;
+}
+.project-empty h2 {
+  font-size: 22px;
+  letter-spacing: -0.5px;
+  margin: 14px 0 8px;
+}
+.project-empty > p {
+  color: var(--text-muted);
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+.project-roadmap {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+.project-roadmap li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  padding: 9px 12px;
+}
+.project-roadmap .not-yet {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.project-now {
+  margin: 16px 0 0;
+  text-align: left;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.project-actions {
+  margin-top: 18px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.agent-dock {
+  flex: 0 0 460px;
+  width: 460px;
+  min-width: 0;
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+.agent-dock .chat-page {
+  flex: 1;
+  min-height: 0;
+}
+.agent-dock .chat-header {
+  height: 60px;
+  padding: 0 16px;
+}
+.agent-dock .assistant-selector select {
+  max-width: 168px;
+  font-size: 14.5px;
+}
+.agent-dock .chat-body {
+  max-width: none;
+  padding: 18px 16px 8px;
+}
+.agent-dock .composer-wrap {
+  max-width: none;
+  padding: 10px 14px 14px;
+}
+.agent-dock .welcome {
+  min-height: 26vh;
+}
+.agent-dock .welcome h1 {
+  font-size: 24px;
+}
+@media (max-width: 1080px) {
+  .agent-dock {
+    flex: 0 0 380px;
+    width: 380px;
+  }
+  .project-stage {
+    padding: 0 20px;
+  }
+}
+
+/* Native MIDI workspace. Upstream reset styles and asset fonts are excluded. */
+.project-canvas { justify-content: flex-start; }
+.music-editor { width: 100%; min-width: 0; }
+.project-save { font-size: 12px; color: var(--text-muted); }
+.project-reload { align-self: flex-start; }
+.editor-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; font-size: 12px; }
+.editor-toolbar button { font-size: 12px; padding: 6px 9px; }
+.editor-toolbar label { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.editor-toolbar input[type=number] { width: 94px; padding: 5px; }
+.editor-toolbar input[type=range] { width: 90px; }
+.editor-toolbar select { width: auto; padding: 5px; }
+.editor-toolbar span { color: var(--text-muted); }
+.arrangement { border: 1px solid var(--line); border-radius: 10px; max-height: 280px; overflow: auto; position: relative; }
+.arrangement-row { display: flex; width: max-content; min-width: 100%; border-bottom: 1px solid var(--line); }
+.arrangement-label { position: sticky; left: 0; z-index: 2; display: flex; align-items: center; gap: 4px; width: 190px; flex: none; padding: 6px; background: var(--panel); box-sizing: border-box; }
+.arrangement-header { position: sticky; top: 0; z-index: 3; }
+.arrangement-track { border-left: 2px solid transparent; box-sizing: border-box; }
+.arrangement-header { border-left: 2px solid transparent; }
+.arrangement-track.selected { border-color: var(--accent); }
+.arrangement-track button { padding: 6px; font-size: 12px; }
+.track-name { width: 110px; flex: none; overflow: hidden; text-overflow: ellipsis; }
+.arrangement-track button[aria-pressed=true] { border-color: var(--accent); color: var(--accent); }
+.arrangement-lane { position: relative; flex: none; background-image: linear-gradient(to right, var(--line) 1px, transparent 1px); }
+.arrangement-block { position: absolute; height: 31px; display: flex; min-width: 2px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; box-sizing: border-box; }
+.arrangement-block.selected { border-color: var(--accent); }
+.arrangement-block.dragging { outline: 1px dashed var(--accent); z-index: 1; }
+.arrangement-block.invalid { outline-color: #ff6666; }
+.arrangement-block[data-crop-left=true] { border-left-style: dashed; border-radius: 0 4px 4px 0; }
+.arrangement-block[data-crop-right=true] { border-right-style: dashed; border-radius: 4px 0 0 4px; }
+.arrangement-track .arrangement-clip { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; border: 0; background: transparent; color: var(--text); padding: 3px; cursor: grab; touch-action: none; }
+.arrangement-track .arrangement-resize { width: 10px; flex: none; border: 0; border-left: 1px solid var(--line); padding: 0; border-radius: 0; cursor: ew-resize; touch-action: none; }
+.editor-help { font-size: 12px; color: var(--text-muted); line-height: 1.6; margin: 7px 0; }
+.piano-host { height: 460px; width: 100%; min-width: 0; position: relative; overflow: hidden; color: #eee; background: #222; user-select: none;
+  --gsuiCursor-default: default; --gsuiCursor-pointer: pointer; --gsuiCursor-ew-resize: ew-resize; --gsuiCursor-ns-resize: ns-resize; --gsuiCursor-grab: grab; --gsuiCursor-grabbing: grabbing; --gsuiCursor-crosshair: crosshair;
+}
+.piano-host gsui-pianoroll { height: 100%; width: 100%; }
+/* Synth-specific gain/pan/filter/LFO and portamento are not MIDI controls. */
+.piano-host .gsuiTimewindow-contentDown, .piano-host .gsuiTimewindow-panelContentDown,
+.piano-host gsui-prop-select, .piano-host gsui-dragline, .piano-host gsui-slidergroup { display: none !important; }
+.piano-host .gsuiTimewindow-mainContent { min-height: 100%; }
+.piano-host .gsuiTimewindow-currentTime, .piano-host .gsuiTimeline-cursor,
+.piano-host .gsuiTimeline-loop, .piano-host .gsuiTimewindow-minimapCurrentTime { display: none; }
+.piano-host button { min-width: 0; border: 0; border-radius: 0; padding: 0; background: transparent; }
+.piano-host gsui-icon { display: inline-block; font-size: 10px; }
+.piano-host gsui-icon[data-icon=magnet]::after { content: "↔"; }
+.piano-host .gsuiSlider-eventCatcher { cursor: ns-resize; }
+.piano-host gsui-step-select { visibility: hidden; pointer-events: none; }
+.transport { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel); }
+.transport-position { width: 100%; }
+.audio-settings summary { font-size: 12px; cursor: pointer; padding: 6px 0; color: var(--text-secondary); }
+.time-map-dialog { width: min(820px, 94vw); max-height: 90vh; overflow: auto; }
+.time-map-table { overflow-x: auto; }
+.time-map-table table { width: 100%; border-collapse: collapse; }
+.time-map-table th, .time-map-table td { padding: 5px; text-align: left; font-size: 12px; }
+.time-map-table input { width: 150px; padding: 6px; }
+.time-map-table select { width: 85px; padding: 6px; }
+.piano-host gsui-timewindow { --gsuiTimewindow-head-h: 52px; }
+.piano-host gsui-timeline { visibility: hidden; }
+.music-ruler-slot { position: absolute; top: 0; left: 0; height: 52px; pointer-events: none; }
+.music-ruler { display: block; color: #ddd; background: #292929; overflow: hidden; pointer-events: auto; }
+.music-ruler line { stroke: currentColor; stroke-opacity: .3; }
+.music-ruler text { fill: currentColor; font: 11px system-ui, sans-serif; }
+.music-ruler-beat line { stroke-opacity: .15; }
+.music-ruler-meter { color: #a9d8ff; }
+.music-ruler-tempo { color: #ffe1a0; }
+
+/* Keep music usable when native display scaling reduces the CSS viewport. */
+@media (max-width: 1100px) {
+  .workspace-page { flex-direction: column; overflow: auto; }
+  .project-stage { flex: none; min-height: 620px; overflow: visible; }
+  .project-canvas { flex: none; overflow: visible; }
+  .project-header { flex-wrap: wrap; }
+  .agent-dock { flex: none; width: 100%; min-height: 450px; border-left: 0; border-top: 1px solid var(--line); }
+}

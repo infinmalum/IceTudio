@@ -2,7 +2,7 @@ package storage
 
 import (
 	"context"
-	"icepick/internal/skills"
+	"icetudio/internal/skills"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -17,7 +17,7 @@ func TestSkillDraftAtomicPublicationPersistenceAndSingleAdoption(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { s.Close() }()
-	p, err := s.CreateTemplateProfile(ctx, "daily", "")
+	p, err := s.CreateRuntimeConfig(ctx, "日常", assistantData())
 	if err != nil {
 		t.Fatal(err)
 	}

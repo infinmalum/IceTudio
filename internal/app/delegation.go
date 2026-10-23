@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"icepick/internal/agent"
-	"icepick/internal/mcptools"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/mcptools"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 // The delegation tool dispatches a bounded task to a configured worker slot.
-// It uses a frozen Profile projection and the root context's authorization.
+// It uses a frozen 执行配置 projection and the root context's authorization.
 
 // maxDelegationMaterials bounds the explicitly passed material text.
 const maxDelegationMaterials = 64 * 1024
@@ -37,9 +37,9 @@ type delegateArgs struct {
 }
 
 // delegationOffered reports whether a run may offer the delegation tool at
-// all: the Profile switch, configured worker slots and the depth budget must
+// all: the 执行配置 switch, configured worker slots and the depth budget must
 // all allow it. The gate re-checks every call against the live policy.
-func delegationOffered(ctx context.Context, svc *Service, profile storage.RunProfile, runID string) bool {
+func delegationOffered(ctx context.Context, svc *Service, profile storage.RunConfigSnapshot, runID string) bool {
 	if !profile.Delegation.Enabled || !profile.AllowsTool(delegateDefinition.Function.Name) {
 		return false
 	}
@@ -55,9 +55,9 @@ func delegationOffered(ctx context.Context, svc *Service, profile storage.RunPro
 
 // executeDelegation runs one delegated subtask synchronously inside the
 // parent's tool call. The child run is a first-class persisted run: it has
-// its own delegation session (hidden from the normal list), its own Profile
+// its own delegation session (hidden from the normal list), its own 执行配置
 // snapshot of the selected worker, its own recorder, gate and guarded sends.
-func (s *Service) executeDelegation(ctx context.Context, parentProfile storage.RunProfile, parentSessionID, parentRunID string, raw string) (string, error) {
+func (s *Service) executeDelegation(ctx context.Context, parentProfile storage.RunConfigSnapshot, parentSessionID, parentRunID string, raw string) (string, error) {
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
@@ -88,7 +88,7 @@ func (s *Service) executeDelegation(ctx context.Context, parentProfile storage.R
 		return "", err
 	}
 	if !selected {
-		return "", errors.New("Profile 未配置 worker 槽位")
+		return "", errors.New("执行配置未配置 worker 槽位")
 	}
 	return s.executeWorker(ctx, parentProfile, parentSessionID, parentRunID, name, worker, userContent, planned)
 }
@@ -96,7 +96,7 @@ func (s *Service) executeDelegation(ctx context.Context, parentProfile storage.R
 // runDelegatedSubtask executes the child loop and maps its terminal state to
 // the parent-visible tool result. `parentCtx` is the delegating run's
 // context, `ctx` the child's own (parent-derived, budget-bounded) context.
-func (s *Service) runDelegatedSubtask(parentCtx context.Context, ctx context.Context, childRun storage.Run, childSession storage.Session, childProfile storage.RunProfile, parentProfile storage.RunProfile, parentSessionID string, userContent, materialScope string) (string, error) {
+func (s *Service) runDelegatedSubtask(parentCtx context.Context, ctx context.Context, childRun storage.Run, childSession storage.Session, childProfile storage.RunConfigSnapshot, parentProfile storage.RunConfigSnapshot, parentSessionID string, userContent, materialScope string) (string, error) {
 	finalize := func(status, detail string) {
 		_ = s.runs.Finish(childRun.ID, status, detail)
 		s.publish(Event{Type: "run.updated", SessionID: childRun.SessionID, RunID: childRun.ID, Detail: "委派子任务结束"})
@@ -272,12 +272,12 @@ func finalizeOnPanic(s *Service, runID string) {
 }
 
 // delegationSystemPrompt composes the child's system prompt: the target
-// profile's own prompt plus a fixed note that this is a delegated subtask
-// working only from explicitly passed materials. Memory and plan injection
-// never run for delegated sessions.
-func (s *Service) delegationSystemPrompt(parentProfile, childProfile storage.RunProfile) string {
+// 执行配置's own prompt plus a fixed note that this is a delegated subtask
+// working only from explicitly passed materials. Plan injection never runs
+// for delegated sessions.
+func (s *Service) delegationSystemPrompt(parentProfile, childProfile storage.RunConfigSnapshot) string {
 	prompt := s.systemPrompt(childProfile)
-	note := fmt.Sprintf("[委派说明] 本会话是上下文「%s」中主任务委派的子任务：只使用用户消息中给出的任务描述与材料完成工作，不要假设可以访问你既有的会话、记忆或计划。", parentProfile.ContextName)
+	note := fmt.Sprintf("[委派说明] 本会话是上下文「%s」中主任务委派的子任务：只使用用户消息中给出的任务描述与材料完成工作，不要假设可以访问你既有的会话或计划。", parentProfile.ContextName)
 	if prompt == "" {
 		return note
 	}

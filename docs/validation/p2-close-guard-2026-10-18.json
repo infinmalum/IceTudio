@@ -1,0 +1,184 @@
+{
+  "date": "2026-10-18",
+  "scope": "P2 scoped music close handshake and frontend protection logic; native OS/window acceptance is pending",
+  "workspace": "Existing uncommitted P0/P1/P2 development work preserved; no schema or CLI/IPC change",
+  "environment": {
+    "os": "Linux amd64",
+    "go": "go1.27.1-X:nodwarf5",
+    "wails": "v3.0.0-beta.12",
+    "frontendRuntime": "@wailsio/runtime 3.0.0-beta.26",
+    "browser": {
+      "cpu": "AMD Ryzen 7 7735H with Radeon Graphics",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "browser": "Chrome/154.0.8037.97"
+    }
+  },
+  "checks": [
+    {
+      "command": "go test . -run '^TestDesktop' -count=1 -v",
+      "result": "pass",
+      "tests": [
+        "TestDesktopCloseHandshake",
+        "TestDesktopConcurrentConfirmIsOneShot"
+      ],
+      "scope": "Go close gate with injected cancel/emit/quit callbacks; bootstrap, cancellation order, repeated request ID, stale/duplicate confirmation, cancellation and reentrant/32-concurrent confirmation"
+    },
+    {
+      "command": "go test -race . -run '^TestDesktop' -count=1",
+      "result": "pass",
+      "scope": "Go gate concurrency only; does not establish platform or C safety"
+    },
+    {
+      "command": "go test ./...",
+      "result": "pass",
+      "scope": "All current Go packages, optional browser run separately; no native window launched"
+    },
+    {
+      "command": "env ICETUDIO_MUSIC_BROWSER=1 go test ./internal/app -run '^TestMusicEditorBrowser$' -count=1 -v",
+      "result": "pass",
+      "source": ".cache/browser/music/run-218161988/results.json",
+      "scope": "Real React/editor -> authenticated test bridge -> actual Go project service/SQLite. Desktop close events/service and audio facade explicitly mocked. 51 checks total, including 12 additional close-related checks. Timings are diagnostics, not guarantees.",
+      "report": {
+        "checks": [
+          "Close initialization failure keeps the editor inert until explicit retry",
+          "Existing application dialog remains editable instead of queuing a close prompt",
+          "External committed edits refresh the UI",
+          "Transport UI play/stop/seek/loop and device error handling (mock audio)",
+          "Tempo/meter forms commit atomically, preserve untouched precision and note/control data",
+          "Undo restores both time maps together",
+          "Ruler follows 4/4 to 6/8 to 5/8 changes",
+          "Ruler labels accept hover inspection while pointer input stays read-only",
+          "Invalid time-map input leaves the project untouched",
+          "Closing a dirty map requires explicit discard and cancellation preserves inputs",
+          "Replacement form edits the initial tempo and meter without losing later points",
+          "Time-map draft freezes its revision and does not overwrite a background edit",
+          "Ruler absolute tick origin aligns with note positions",
+          "Ruler remains aligned after horizontal scroll",
+          "Ruler remains aligned after zoom",
+          "Ctrl-wheel zoom keeps the ruler and host zoom control synchronized",
+          "Nonzero clip start uses absolute project meter positions",
+          "A clip at the maximum map tick still has a ruler extending beyond that tick",
+          "Numeric Enter commits preserve the focus revision and reject concurrent edits",
+          "Real mouse move commits to SQLite",
+          "Shared undo/redo refreshes the editor",
+          "Real resize commits duration",
+          "MIDI velocity preserves controllers",
+          "Selection, copy, atomic deletion and undo",
+          "Gesture freezes revision and rejects conflicts",
+          "Escape cancels without committing",
+          "Empty-row click adds a note",
+          "Arrow key submits one atomic selected-note batch",
+          "Composition/input events do not edit notes",
+          "Zoom does not change the project revision",
+          "Boundary resize atomically extends the clip",
+          "Ruler page offset follows absolute tick for 1000 notes",
+          "Ruler page offset follows absolute tick for 10000 notes",
+          "1k/10k spread-out notes mount at most 64 notes per page",
+          "Lost commit reply is resolved without replay",
+          "Unknown project outcome blocks native exit without replay",
+          "Unknown outcome retains a queryable operation ID",
+          "Delayed project reads and drag unmount cannot retarget edits",
+          "Remounted editor centers on its first note",
+          "React remount restores a single editor",
+          "Large time maps mount only 24 form rows per map page",
+          "Paginated edits and point deletion preserve hidden rows and exact values",
+          "Active note gesture blocks exit before committing its preview",
+          "Native close blurs numeric input and waits for its original commit",
+          "Repeated close requests show one explicit discard dialog and disable editor input",
+          "Cancelled native exit retains time-map draft and frozen revision",
+          "Discard confirmation cannot cover a later draft version",
+          "In-flight project save blocks exit; completion never silently resumes it",
+          "Quit transport failure leaves the draft and permits retry",
+          "Explicit discard permits exit without submitting draft or enabling new edits",
+          "Clean editor exits without a discard prompt after checks initialize"
+        ],
+        "errors": [],
+        "timings": [
+          {
+            "count": 1000,
+            "mounted": 64,
+            "serviceCommitAndRefreshMs": 122.07332900000074,
+            "projectionMs": 9.5,
+            "pageFlipMs": 107.91578100000152
+          },
+          {
+            "count": 10000,
+            "mounted": 64,
+            "serviceCommitAndRefreshMs": 183.37862499999937,
+            "projectionMs": 10.299999999813735,
+            "pageFlipMs": 105.33821299999909
+          }
+        ],
+        "environment": {
+          "cpu": "AMD Ryzen 7 7735H with Radeon Graphics",
+          "viewport": [
+            1440,
+            1000
+          ],
+          "browser": "Chrome/154.0.8037.97"
+        }
+      }
+    },
+    {
+      "command": "node frontend/e2e/product.mjs",
+      "result": "pass",
+      "scope": "Existing mock-backend conversation/settings/permissions/project flows after DialogProvider integration"
+    },
+    {
+      "command": "npm run build --prefix frontend",
+      "result": "pass",
+      "scope": "TypeScript and production frontend; final frontend also rebuilt by Wails"
+    },
+    {
+      "command": "wails3 task build",
+      "result": "pass",
+      "artifact": "bin/icetudio",
+      "scope": "Linux desktop compile/link; four services, 88 methods, 93 models. Build does not prove real native close usability."
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass",
+      "scope": "Tracked diff; touched untracked source/docs checked separately for trailing whitespace"
+    }
+  ],
+  "protectedScope": [
+    "Unapplied tempo/meter draft: explicit discard or retain; version recheck prevents old confirmation covering changed input",
+    "useProjects lock/pending result: block current close and use existing original-operation query, never replay",
+    "Active piano-roll gesture: complete or cancel before exit",
+    "Numeric fields retain original onBlur submission semantics before checking locks",
+    "Existing shared application dialog: cancel close without discarding/queuing over current input",
+    "Ready failure: keep editor inert and offer retry; after confirmed close keep ordinary and time-map inputs frozen"
+  ],
+  "notImplemented": [
+    "Persistent recovery for unapplied time-map drafts after crash, forced termination or WebView reload",
+    "General exit protection for unapplied velocity/playback controls, settings/assistant forms and conversation input",
+    "Timeout-based forced exit from an unresponsive WebView"
+  ],
+  "notVerified": [
+    "Real Wails WindowClosing and platform/system Quit interaction, including actual bridge delivery and native WebView dialog/inert behavior",
+    "Other platforms, shutdown/kill/OS power-loss paths and unresponsive WebView behavior",
+    "New physical audio, actual model editing, device failure, performance/release acceptance"
+  ],
+  "implementationEvidence": [
+    "Inspected installed Wails beta.12 WindowClosing hooks, ShouldQuit and Linux Quit code before wiring",
+    "Inspected EventManager.Emit single-argument data and installed frontend runtime dispatch to match string request IDs",
+    "No browser beforeunload prompt; application-owned confirmation via existing DialogProvider"
+  ],
+  "documentationReview": {
+    "fullDocuments": [
+      "IMPLEMENTATION_PLAN.md",
+      "README.md",
+      "docs/architecture.md",
+      "docs/p2-time-map.md",
+      "docs/p2-close-guard.md"
+    ],
+    "checked": "Scope, normative/current versus historical status, numeric onBlur exception, protected/unprotected inputs, retained execution capability, native acceptance versus mocks and local links; no repository-wide completeness claim"
+  },
+  "warnings": [
+    "Existing npm minimum-release-age config warning during successful frontend/desktop builds",
+    "Wails GTK X11 deprecation warnings appeared during successful Go race compilation; upstream platform code was not changed"
+  ]
+}

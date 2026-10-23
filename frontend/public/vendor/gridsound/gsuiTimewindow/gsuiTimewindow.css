@@ -1,0 +1,202 @@
+gsui-timewindow {
+	--gsuiTimewindow-head-h: 26px;
+	position: relative;
+	z-index: 0;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	background-color: var( --gsui-items-bg );
+
+	&[ disabled ] {
+		pointer-events: none;
+		filter: grayscale( 1 ) brightness( .4 );
+	}
+}
+
+/* .......................................................................... */
+.gsuiTimewindow-scrollArea {
+	overflow: auto;
+	position: relative;
+	flex: 1;
+	display: flex;
+	align-items: start;
+	overscroll-behavior: none;
+	scroll-behavior: smooth;
+}
+
+/* .......................................................................... */
+.gsuiTimewindow-minimap {
+	box-sizing: border-box;
+	display: flex;
+	height: 16px;
+	background-color: var( --gsui-timewin-bg );
+}
+.gsuiTimewindow-minimapPanel {
+	box-sizing: border-box;
+	border-right: 1px solid var( --gsui-win-brd );
+	background-color: var( --gsui-items-bg );
+}
+.gsuiTimewindow-minimapTrack {
+	position: relative;
+	flex: 1;
+	border-top: 1px solid #0008;
+	background-color: #0006;
+}
+.gsuiTimewindow-minimapThumb,
+.gsuiTimewindow-minimapLoop,
+.gsuiTimewindow-minimapCurrentTime {
+	box-sizing: border-box;
+	position: absolute;
+	inset: 0 auto;
+}
+.gsuiTimewindow-minimapThumb {
+	cursor: var( --gsuiCursor-pointer );
+	background-color: #fff3;
+}
+.gsuiTimewindow-minimapThumb-crop {
+	position: absolute;
+	width: min( 8px, 25% );
+	height: 100%;
+	cursor: var( --gsuiCursor-ew-resize );
+
+	&[ data-action="cropB" ] {
+		right: 0;
+	}
+	&:hover {
+		background-color: #fff2;
+	}
+}
+.gsuiTimewindow-minimapLoop {
+	height: 30%;
+	background-color: #99f7;
+}
+.gsuiTimewindow-minimapCurrentTime {
+	width: 2px;
+	margin-left: -1px;
+	background-color: var( --gsui-col-currentTimeCursor );
+}
+gsui-timewindow[ currenttime="0" ] .gsuiTimewindow-minimapCurrentTime,
+gsui-timewindow:not( [ loop ] ) .gsuiTimewindow-minimapLoop {
+	display: none;
+}
+
+/* .......................................................................... */
+.gsuiTimewindow-panel,
+.gsuiTimewindow-main {
+	display: flex;
+	min-height: 100%;
+	flex-direction: column;
+}
+.gsuiTimewindow-main {
+	z-index: 0;
+	background-color: var( --gsui-timewin-bg );
+}
+.gsuiTimewindow-panel {
+	box-sizing: border-box;
+	position: sticky;
+	z-index: 1;
+	left: 0;
+	border-right: 1px solid var( --gsui-win-brd );
+	background-color: var( --gsui-items-bg );
+}
+.gsuiTimewindow-panelUp,
+.gsuiTimewindow-time {
+	box-sizing: border-box;
+	position: sticky;
+	z-index: 2;
+	top: 0;
+	height: var( --gsuiTimewindow-head-h );
+	border-bottom: 2px solid #272727;
+}
+.gsuiTimewindow-panelUp {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 2px;
+	padding-top: 1px;
+	padding-right: 4px;
+	background-color: var( --gsui-head3-bg );
+}
+.gsuiTimewindow-panelContent,
+.gsuiTimewindow-mainBody {
+	flex: 1;
+}
+.gsuiTimewindow-mainBody {
+	width: 1000000px;
+}
+.gsuiTimewindow-mainContent {
+	position: relative;
+	z-index: 0;
+}
+.gsuiTimewindow-panelContentDown,
+.gsuiTimewindow-contentDown {
+	position: sticky;
+	bottom: 0;
+	height: 96px;
+	overflow: hidden;
+	background-color: var( --gsui-timewin-bg );
+	box-shadow: 0 -1px var( --gsui-win-brd );
+}
+.gsuiTimewindow-panelContentDown {
+	background-color: inherit;
+}
+
+/* .......................................................................... */
+.gsuiTimewindow-panelExtend {
+	position: absolute;
+}
+.gsuiTimewindow-panelExtendX {
+	z-index: 1;
+	inset: -2px 0 auto;
+	height: 6px;
+	cursor: var( --gsuiCursor-row-resize );
+}
+.gsuiTimewindow-panelExtendY {
+	inset: var( --gsuiTimewindow-head-h ) -2px 0 auto;
+	width: 6px;
+	cursor: var( --gsuiCursor-col-resize );
+}
+
+/* .......................................................................... */
+.gsuiTimewindow-currentTime,
+.gsuiTimewindow-loop {
+	position: absolute;
+	z-index: 1;
+	inset: 0 auto;
+	pointer-events: none;
+}
+.gsuiTimewindow-currentTime {
+	width: 2px;
+	margin-left: -1px;
+	background-color: var( --gsui-col-currentTimeCursor );
+
+	gsui-timewindow[ currenttime="0" ] & {
+		display: none;
+	}
+}
+.gsuiTimewindow-loop {
+	opacity: 0;
+	transition: .2s opacity;
+	background-color: #0003;
+
+	.gsuiTimewindow-looping & {
+		opacity: 1;
+	}
+}
+.gsuiTimewindow-loopA { left: 0 }
+.gsuiTimewindow-loopB { right: 0 }
+
+/* .......................................................................... */
+gsui-timewindow gsui-step-select {
+	margin-right: 4px;
+	min-width: 60px;
+	height: 18px;
+}
+
+.gsuiTimewindow-panelUp gsui-slider {
+	width: 6px;
+	height: 80%;
+	min-width: 6px;
+	--gsuiSlider-lineColor: var( --gsui-timewin-bg );
+}

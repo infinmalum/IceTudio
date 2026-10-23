@@ -56,16 +56,6 @@ export function ContextPolicyPanel(props: Props) {
             />
             允许一般资源范围不限（敏感访问与外发仍单独检查）
           </label>
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={contextDraft.policy.memory}
-              onChange={(event) =>
-                updatePolicy({ memory: event.target.checked })
-              }
-            />
-            允许长期记忆（Profile 也须开启）
-          </label>
           {!contextDraft.policy.permissions.unrestricted && (
             <>
               <label>

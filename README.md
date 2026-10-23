@@ -1,143 +1,90 @@
-# ICEPick
+# IceTudio
 
-ICEPick 是一个本地优先的 AI 助手应用。连接本机 Ollama / LM Studio，或填写 OpenAI、Anthropic、Gemini 的模型与密钥后，即可聊天、上传资料、读取网页和处理获准的文件。桌面 App 面向普通用户，默认不要求理解 Agent 配置。
+IceTudio 的目标是 **AI native 音乐创作软件**：MIDI 编辑是原生能力，Agent 是与用户操作同一音乐工程的原生编辑者。用户可以在钢琴卷帘和编曲视图中手工创作，也可以让 Agent 修改选定音轨或片段；两者共享编辑事务、试听和撤销。
 
-从[桌面使用指南](docs/desktop.md)开始。聊天、助手管理、设置和任务详情各有独立入口；需要高度自定义时，可以编辑助手的工具、Skills、组件及工作流程。同一二进制也提供面向开发者的 CLI。
+**当前处于转型执行阶段：P0 减法已完成（模板/Profile 库/分享/独立长期记忆已删，RuntimeConfig 就位，名称与构建产物统一为 IceTudio）；P1 工程模型与统一编辑事务已实现（[阶段设计](docs/p1-project-model.md)）：工程独立于对话保存，GUI 工程条、CLI `icetudio projects` 与 Agent 工具（`project__query`/`project__edit`）经同一命令服务提交整组事务——修订冲突拒绝、操作 ID 幂等、撤销/重做、中断后可查询真实结果，MIDI 导入导出严格校验。P2 已接入钢琴卷帘、多轨片段编排画布与 Linux 原生播放，支持鼠标/键盘音符编辑、片段移动/末端拉伸、共享撤销、定位/循环、播放中更新，以及全部速度/拍号点与变拍小节尺。真实 PCM/PulseAudio 回调已测；原生 WebView 交互、物理音频延迟和听感仍待验收。** P2 及完整音乐产品尚未交付。
 
-当前已实现直接执行、动态协作、审查与有限返工、配置改进草案，以及固定流程的依赖、输入等待和显式续跑。条件分支、固定流程返工与限定自动采用仍待完成。模板已通过模拟场景验证，真实模型与安装验收独立跟踪。架构与开发范围见[设计文档](docs/architecture.md)和[实施计划](IMPLEMENTATION_PLAN.md)。
+## 产品范围
 
-## 当前功能
+- 工程与编辑工作区优先；不连接模型也应能编辑、试听和保存 MIDI。
+- 保留模型接入、Agent、MCP、Skills 和联网搜索，扩展能力继续有清晰的启用与授权边界。
+- 保留每个对话的历史、摘要和任务上下文，移除独立跨对话长期记忆。
+- 保留反馈驱动 Skill 改进：记录有价值反馈和明确改进要求，提炼可检查、可修订、可回退的方法。
+- 删除通用场景模板、Profile 管理/分享/生成产品及独立长期记忆。将内部角色/流程配置从 Profile 迁入 RuntimeConfig，普通用户无需配置工作流。
+- 保留 main/planner/worker/reviewer/improver、多 Agent 委派、direct/dynamic/fixed 调度、审查/返工、复盘、任务图、预算和恢复。一个创作助手入口不等于删掉内部多 Agent 机制。
 
-文件覆盖需预期内容，精确编辑要求唯一匹配；本地命令返回退出码、输出、超时及截断标记。工作区及可执行文件由本机权限控制，命令执行仍需审批，未提供完整沙箱。MCP 工具先通过 `local__tool_search` 搜索加载，下一轮调用，保留 schema 指纹及实际调用记录。
+实施顺序为减法、工程事务、编辑试听、Agent 共同编辑、反馈改进与发布验收。首个可用闭环是：导入 MIDI → 手工编辑 → Agent 改写指定伴奏 → 差异试听 → 撤销或继续手改 → 保存重开 → 导出。
 
-- 直接选择 Profile 开始对话，无需创建 Agent；新对话默认隔离上下文，可显式沿用已有对话的记忆与权限。Profile 切换按对话保存，保留历史和授权，在途 Run 使用旧快照。
-- main/worker 组件支持独立提示词、模型和工具子集；worker 来源可选当前或其他 Profile 的配置，运行固定修订、模型与所选 SKILL.md 内容；支持 direct、dynamic 与 fixed 静态阶段流程。出厂模板可创建、编辑和按配置组恢复，删除本地 Profile 不删除程序模板、历史或授权。
-- Profile schemaVersion=1、事务修订记录和归档删除；v6 分享包含流程、planner、预算及独立 worker 配置，只读取当前格式，不携带本机授权和出厂绑定。
-- 按 LocalContext 隔离会话、消息和任务记录；支持多轮对话、工具调用、流式输出与取消任务。
-- 统一接入 MCP 服务和 Agent Skills，由 Profile 选择启用范围，与对话本机授权取交集执行。
-- 工具执行统一经权限网关：effect/sensitivity 分类、全人工/半自动/全自动三模式审批（绑定调用与参数哈希）、工作区硬边界、MCP 指纹变化暂停自动执行、每轮模型发送前的数据外发授权检查（桌面端可管理外发授权与远端凭据）。
-- 上下文压缩：会话超过 Profile 上下文预算时自动把最旧的完整轮次归纳为摘要（保留当前任务与未闭合工具调用，原文不删），摘要继承数据范围并继续受外发检查约束；会话视图可查看摘要与覆盖区间。
-- 按本机上下文隔离的长期记忆：记忆按 `context_id` 隔离，Profile 偏好与本机上下文授权同时开启才生效；运行开始时注入（来源与范围标注，范围计入外发检查），模型可经 `local__memory_save`（需审批）写入；桌面记忆面板与 `icepick memory` 命令提供查看/编辑/添加/删除/导出。
-- 任务计划：模型经 `local__update_plan` 维护带稳定 ID、依赖、验收条件与材料出处的计划；宿主校验依赖和修订，防止并发覆盖及已开始任务被重写。桌面/CLI 显示计划，重启后恢复；清除保留修订历史。此处会话待办状态由模型记录；根任务的 dynamic 自动调度与独立审查使用另一套实际执行状态。
-- [固定阶段流程](docs/fixed-workflows.md)：Profile 定义静态阶段和依赖，宿主无需 planner 即可调度；支持只读并行汇合、写入串行、main 汇总与审查门槛。桌面可编辑阶段，分享和配置组恢复保留结构；首版失败停止，不支持条件分支、用户输入等待、自动返工或中断续跑。
-- 动态协作：Profile 选择 dynamic 后，planner 按关键事件生成/修订依赖计划，宿主审批、领取并调度，main 整理交付。只读任务并行，写入和未知副作用串行；waiting/blocked/failed/complete 状态明确。根预算覆盖所有组件与重试，模型用量未知时保留预留并标记；安全自动重试需显式开启。重启保留游标与尝试，进入阻塞，不盲目重放。
-- 本次任务执行计划：启用规划、委派和 worker 槽位后，main 可声明依赖任务，经审批按 ID 与条件指纹执行。宿主原子领取并关联子 Run、执行尝试和前置交付文本；状态由实际执行推进，未执行任务不能标记完成，中断和未知结果不会自动重跑。桌面与 `tasks status` 可查看完整计划和尝试；dynamic 已支持 planner 与受控只读并行；可配置独立 reviewer 审查。
-- 本机委派：Profile 配置 worker 槽位后，main 经 `local__delegate_task` 按槽位派发子任务；来源可为当前配置或其他 Profile 的 worker 投影。所有子任务使用当前对话的本机上下文与授权，冻结配置和资源上限，取消父任务会传播到子任务。
-- Profile 分享包 v6：可明确选择包含 worker 来源，展平为独立配置；一键导出 zip（配置清单、人格/提示词独立文件、MCP 依赖引用、标准 Skills 目录），不含授权、会话、记忆、密钥与绝对路径；导入先预览缺失依赖与建议，确认后创建新 Profile（不自动安装资源、不创建本机上下文、不授权）。桌面端与 `icepick profiles export/import` 均可使用。
-- CLI/IPC：桌面端或 `icepick serve` 构成每数据目录唯一宿主；`icepick` 命令行经本机 IPC 驱动与桌面相同的服务契约。
+## 当前选型证据
 
-当前内置 read_file/write_file/edit_file/exec、tool_search，以及 Skill/记忆/计划/委派和过程检索工具；外部 MCP 工具已可经权限网关和审批调用，统一按 external/unknown 处理。已提供通用文件写入/精确编辑和本机命令执行；OpenAI、Anthropic 和 Gemini 原生联网搜索已接入；Jev、A2A 尚未实现。新对话默认半自动审批、一般资源需显式授权，远端外发另行授权；长期记忆与委派需在 Profile 偏好与本机上下文授权（记忆授权 / 委派允许列表）中同时开启。新 worker 使用对话本机授权，配置来源不提供权限或记忆。会话 Plan 保留待办语义；direct 支持 main 同步委派，dynamic 使用 planner 和宿主调度。动态交付物带消息引用、SHA256 与真实工具证据；worker 可按本根任务交换过程与观察，继承数据外发范围。Profile 可选择 off/on_demand/required 独立审查；required 未通过不能完成，结论绑定目标、交付文本及工具证据指纹。必要检查需指定工具成功执行并返回 JSON `{"passed":true}`，无法确认时为 inconclusive。桌面可单次复核结果；CLI `tasks review <sessionID> <runID>` 发起复核、`tasks status` 查看结论；旧任务终态保留。reviewer 只读取证据；required 模式将缺陷交回 main，dynamic 模式由 planner 给原 worker 新建修正任务。最多返工两轮，共享原根预算、权限和取消信号；缺失检查由执行组件通过现有工具关口补做，返工后需要新检查证据。拒绝必要操作、效果未知或预算耗尽时停止；旧交付与审查记录保留。按需单次复核不自动返工；桌面“复盘此任务”和 CLI `tasks retrospect <sessionID> <runID>` 结合已结束任务的真实过程输出观察、建议与限制，支持无最终交付的失败任务；结论单独保存，不改变旧终态或 Profile/Skill，也不代表审查通过；worker 的 succeeded/unreviewed 仍不等同于审查通过。
+GridSound 的固定源码子集已接入，通过真实 React→Go 服务→SQLite 浏览器测试验证鼠标/键盘编辑、修订冲突与结果查询；时间分页减少分散音符的 DOM 数量，同页密集音符与原生 WebView 性能仍待验证。gomidi v2.3.24 的常规 PPQ 事件往返通过；SMPTE panic 与截断头接受问题仍存在，产品导入层先校验并明确支持范围。Linux 音频使用系统 FluidSynth（本机验证 2.6.1），自带公式生成的基础波形，可选有权使用的本地 SF2/SF3；基础波形不模拟 GM 乐器。定位/循环支持 CC64/66 双踏板及 bank/program 选择顺序的追溯；RPN/NRPN 等其他有序控制状态、包络/旧尾音的完整恢复仍未实现，范围见播放契约。
 
-开发阶段不承诺旧数据或旧接口兼容。当前数据库格式为 v20、分享包格式为 v6；直接创建当前结构，遇到其他版本明确拒绝，不迁移、不自动删除数据。需要试用新版时使用新的数据目录。此政策持续到项目开始有实际用户并由维护者明确通知。MCP 服务在任务首次发现所选服务工具时启动。
+- [实施计划](IMPLEMENTATION_PLAN.md)：删改清单、P0–P5 阶段与验收标准。
+- [P0 执行契约](docs/p0-refactor-contract.md)：明确每层 DELETE/MOVE/REPLACE/KEEP、共享模块例外、全表/IPC 清单和不可退化验收。
+- [P1 阶段设计](docs/p1-project-model.md)：工程格式与原子性、tick/PPQ 精度、配对与事件清单、资源上限、事务规则。
+- [P2 编辑界面设计](docs/p2-midi-editor.md)：钢琴卷帘、轨道/片段管理、冲突与结果查询、验证范围。
+- [P2 编排画布](docs/p2-arrangement.md)：多轨时间轴、片段移动/末端拉伸、重叠分行、分页与冲突边界。
+- [P2 原生播放](docs/p2-playback.md)：传输、时间映射、音色/设备设置、实时更新和验证边界。
+- [P2 时间图与小节尺](docs/p2-time-map.md)：全部速度/拍号变化点、整组应用、草稿冲突与变拍编号。
+- [P2 时间图草稿](docs/p2-time-map-drafts.md)：原始输入检查点、显式重开恢复、冻结修订、清除屏障和保留退出。
+- [P2 退出保护](docs/p2-close-guard.md)：关闭握手、时间图丢弃、工程保存/未知结果检查与未覆盖范围。
+- [P2 提交恢复](docs/p2-operation-recovery.md)：发送前持久记录原操作、重开查询、故障阻拦和已提交结果清理。
+- [架构](docs/architecture.md)：工程模型、统一编辑、授权、对话和 Skill 改进。
+- [选型实验](experiments/music-spike/README.md)：固定版本、复现脚本、通过项及失败样例。
+- [许可证核验](experiments/music-spike/LICENSE-REVIEW.md)：代码、依赖和素材的授权边界。
 
-## 运行
+## 运行当前代码
 
-需要 Go 1.25+、Node.js、npm、Wails 3 CLI，以及当前平台的 Wails 桌面依赖。在本目录执行：
+技术栈为 Go/Wails/React/SQLite。module、前端包、绑定和产物已统一为 `icetudio`。以下命令运行当前转型中的音乐工作区，已实现范围和验收缺口见上文。
+
+需要 Go 1.25+、Node.js/npm、Wails 3 CLI 和本机 Wails 桌面依赖。Linux+cgo 另需标准路径中的 FluidSynth 开发头文件/动态库（Debian `libfluidsynth-dev`，Arch `fluidsynth`），运行需要 `libfluidsynth.so.3` 及可用的系统音频服务；本机使用 PipeWire 的 PulseAudio 兼容服务。其他平台的音频门面明确返回不可用，整个平台尚未验收。`CGO_ENABLED=0` 仅能验证纯播放包的不可用路径，现有 SQLite 驱动也需要 cgo，不能据此运行完整编辑器。项目根目录执行：
 
 ```sh
 wails3 dev
 ```
 
-构建 Linux 桌面应用：
+Linux 桌面构建：
 
 ```sh
-wails3 build
+wails3 task build
 ```
 
-产物在 `bin/icepick`。目前只验证了 Linux 构建。依赖使用 Go/npm 的用户级持久缓存；若需自定义缓存，应放在本项目 `.cache/`，不要放在系统临时目录。
+现有产物为 `bin/icetudio`，目前只有 Linux 构建验证记录。现有程序默认将数据放在二进制旁的 `data/`；不支持的数据库格式明确拒绝，不自动迁移或删除文件。工程已持久化到 `data/icetudio.db`（工程状态、编辑历史与撤销）。在工程传输栏点击“播放”会按需初始化原生音频；“音频与音色”可重连驱动或选择本地音色。`data/audio.json` 仅保存音频配置，生成的内置音色在 `data/audio/`，不参与音乐撤销。 点击“编辑速度与拍号”可编辑全部变化点，点击“应用时间图”才会提交；关闭或 Escape 会询问是否丢弃已改草稿。进行中的手势/工程操作或未知保存结果会阻止本次退出。时间图输入会异步保留到 `data/time-map-draft.json`，界面区分草稿已保留与工程已保存；可“保留草稿并关闭”，重开后显式恢复到原工程/原修订。最新检查点未确认或失败时阻止退出，可重试；已确认时可“保留草稿并退出”，不自动应用到工程。正常表单关闭/Escape 的明确丢弃会清除活跃草稿内容，并留下无音乐内容的版本标记，拒绝迟到保存请求。检查期间冻结编辑；单值数字字段仍按既有失焦规则提交/拒绝。真实 Wails 关闭、原生强杀/断电未验收，最后未确认输入可能丢失；其他未应用输入保护/恢复仍待实现，见[草稿契约](docs/p2-time-map-drafts.md)及[退出保护](docs/p2-close-guard.md)。
 
-无需模型或密钥也可启动；界面会显示“模型未连接”。要运行任务，先在“模型服务”选择提供方并保存模型 ID：本机 Ollama/LM Studio 确保服务已连接；远端 OpenAI/Anthropic/Gemini 需在“远端凭据”面板保存 API 密钥（保存在数据目录内的 0600 文件，不会回显），并按需在当前对话的“数据外发授权”面板允许该端点。本机模型调用支持流式输出，界面会实时显示生成文本。
+GUI 音乐编辑、撤销和重做会先把待确认操作标记写入 `data/pending-project-edit.json`，成功后再发送音乐命令；提交确认后清除标记。重新打开时先读取记录，存在待确认操作就显示“查询保存结果”，只查询原操作，不自动重放；读取失败则禁用工程操作，并提供“重试恢复检查”。查询与清理针对原工程，切换工程不会更换目标。已提交但标记清理失败会明确保留“已保存”结论。损坏或未知版本记录保留文件并报错。该机制的服务/存储重开与浏览器 reload 已测，真实原生进程崩溃、断电仍未验收；时间图输入另由上述草稿契约覆盖，其他表单恢复尚待实现，详见[提交恢复契约](docs/p2-operation-recovery.md)。
 
-全部应用数据默认保存在二进制文件旁的 `data/`，与启动时的工作目录无关。配置文件为 `data/config.json`；未创建时默认使用 Ollama 的 `http://127.0.0.1:11434/v1`。本机模型地址必须指向本机 HTTP 服务。数据库 `icepick.db`、日志 `icepick.log`、凭据 `credentials.json` 与 IPC 套接字以及 `skills/` 均位于同一个 `data/` 下。桌面 App 和 CLI 共用此规则。AppImage 使用 `.AppImage` 文件旁的 `data/`；普通二进制通过符号链接启动时使用真实二进制旁的目录。应用所在目录必须可写，失败会明确报错，不回退到用户目录。
+编排画布可拖动片段本体移动、拖动真实右端调整长度；重叠片段分行显示，跨页持续片段显示裁切标记。下方“片段”下拉框可选择当前轨道的全部片段，“显示选中片段”定位到其起点页；起点/长度数字框仍提供精确调整。手势开始冻结修订，冲突拒绝覆盖；调整长度不能截掉已有事件，可用工程撤销恢复。当前不支持跨轨拖动和多片段整组手势，原生窗口体验待验收。
 
-## 命令行
+工程重命名自动保存，列表和工程标题随共享撤销/重做更新，重开保留名称。2026-10-18 已补正名称同步与依赖批量撤销的缺陷，并验证跨片段边界拉伸的整组撤销/重做；此前生成的错误历史不会自动重算，修正边界与验证见 [P1 §8](docs/p1-project-model.md#8-2026-10-18-名称持久化与依赖批量撤销修正范围)。
 
-每个数据目录同时只有一个宿主：桌面应用或无头宿主。CLI 命令连接正在运行的宿主：
+服务自动分配的音轨、片段、音符和控制事件 ID 现随实际操作写入历史；重做恢复原对象身份，后续编辑引用保持有效。四类对象的数据库重开、连续撤销/重做及浏览器/IPC 路径已测。此前漏记 ID 的旧历史不追溯修复，边界见 [P1 §9](docs/p1-project-model.md#9-服务分配-id-的重做稳定性修正)。
 
-```sh
-bin/icepick serve            # 启动无头宿主（Ctrl+C 退出）
-bin/icepick status           # 宿主与模型状态
-bin/icepick profiles list    # Profile 列表（create/copy/edit/restore/export/import/delete）
-bin/icepick profiles draft <conversationID> "创建一个初学者解释助手"
-bin/icepick skill-drafts generate <conversationID> "提炼复核方法" --evidence <runID>
-bin/icepick skill-drafts list
-bin/icepick profiles drafts list
-bin/icepick profiles drafts show <draftID>
-bin/icepick profiles drafts apply <draftID> --revision <草案修订>
-bin/icepick templates list   # 可用场景模板
-bin/icepick templates show development   # 输入、交付、准备条件及示例
-bin/icepick templates create daily   # 创建日常助手 Profile
-bin/icepick conversations create --profile <profileID>   # 新对话，自动隔离
-bin/icepick conversations start <conversationID> "任务内容" --wait
-bin/icepick conversations permissions <conversationID> --mode semi --workspace <项目路径>
-bin/icepick conversations select <conversationID> --profile <profileID>
-bin/icepick conversations show <conversationID>   # 查看对话历史
-bin/icepick tasks status <runID>   # 任务状态与委派子任务树
-bin/icepick approvals list   # 待审批与结果未知调用（含委派子会话）
-bin/icepick memory list <contextID>   # 长期记忆（add/edit/delete/export）
-bin/icepick logs 100         # 查看宿主日志
-bin/icepick help             # 完整命令列表
-```
+同一工程中，删除对象或撤销创建后，普通新建也不能再占用其 ID；要恢复原对象可使用共享撤销/重做。该检查覆盖导入形态的嵌套音符、控制及原始事件，已通过重开、失败回滚、并发与浏览器/IPC 验证。不同工程仍可使用相同显式对象 ID；此前已发生的错误身份复用不自动修复，历史规模的性能限制见 [P1 §10](docs/p1-project-model.md#10-工程生命周期内的对象-id-防复用)。
 
-配置草案的使用说明和限制见[Profile/Skill 草案指南](docs/profile-drafts.md)。任务证据必须明确选择，Skill 采用发布独立副本；分享派生配置前需人工检查内容，CLI 使用 `--reviewed` 保存经核对的分享包。
-
-四个模板的使用说明、案例与验收范围见[默认场景指南](docs/scenarios.md)。开发任务可使用内置读写编辑/exec，无需另装 MCP；CLI 用 `conversations permissions <conversationID> --command <可执行文件>` 设置命令权限，该选项替换当前命令列表。
-
-无交互执行遇到审批请求时只报告、绝不默认放行；可在桌面端或用 `approvals approve/deny` 处理。
-
-构建前运行核心测试：
+核心测试：
 
 ```sh
 go test ./internal/...
 ```
 
-执行 `wails3 build` 后运行包含桌面服务层的测试：
+时间图/小节尺计算测试（使用支持内置 TypeScript 类型剥离的 Node，本机验证版本 26.11.1）：
+
+```sh
+npm run test:music --prefix frontend
+```
+
+桌面构建后可运行：
 
 ```sh
 go test ./...
 ```
 
-## 目录
+音乐实验是独立 Go module，单独按[实验说明](experiments/music-spike/README.md)运行，其中保留了两个应暴露上游缺陷的失败用例。不要把原产品测试通过等同于音乐功能验收。依赖和可复用构建缓存放在用户级持久目录或项目 `.cache/`，不主动配置到系统临时目录；工具自动产生的一次性临时中间文件可用正常临时目录。
 
-- `main.go`：入口；无参数启动 Wails 桌面，带参数进入 CLI。
-- `statusservice.go`：模型配置、Profile/LocalContext、会话、任务与凭据 Wails 服务。
-- `internal/config/`：本地配置、提供方校验与凭据存储。
-- `internal/model/`：统一模型客户端（本地兼容 + OpenAI/Anthropic/Gemini 官方 SDK 适配、流式）与模型发现。
-- `internal/agent/`：共享的 Agent 多轮循环、流式回调、上下文压缩、取消和轮次上限。
-- `internal/app/`：界面无关的应用服务（运行编排、权限网关、外发检查、流缓冲、记忆与摘要服务）。
-- `internal/host/`：桌面与无头宿主共用的启动链路。
-- `internal/ipc/`：本机 IPC 服务器/客户端（JSON 行协议、令牌 + 同 UID 校验）。
-- `internal/cli/`：命令行客户端。
-- `internal/mcptools/`：使用官方 Go MCP SDK 连接工具服务；内置时间工具由本地 MCP 服务提供。
-- `internal/skills/`：发现并按需读取 Agent Skills。
-- `internal/storage/`：SQLite Profile/LocalContext、隔离会话、消息与任务状态。
-- `frontend/src/App.tsx`：界面组装；`components/` 保存各功能面板，`hooks/` 分别管理工作区、对话执行、Profile、本机上下文和模型设置，`shared/` 保存常量与下载工具。
-- `build/`：Wails 平台构建配置。
+## 历史资料
 
-## 文档
-
-- [设计文档](docs/architecture.md)：以 Profile 为入口的新目标架构与可自定义能力。
-- [实施计划](IMPLEMENTATION_PLAN.md)：新阶段与验收标准。
-- [历史实施记录](docs/history/implementation-v1.md)：现有 P0–P8 基线及未完成的真实验收。
-- [MCP 与 Skills](docs/mcp-and-skills.md)：当前接入方式。
+[转型前 README](docs/history/icepick-readme-2026-10-16.md)、[旧实施计划](docs/history/icepick-implementation-2026-10-16.md)、[旧架构](docs/history/icepick-architecture-2026-10-16.md)保留原实现事实。`docs/desktop.md` 等旧指南已标注为转型前参考，不作为新产品规范或继续开发清单。
 
 ## 许可证
 
-本项目采用 GNU Affero General Public License v3.0（`AGPL-3.0-only`），完整条款见 [LICENSE](LICENSE)。第三方依赖与保留版权声明的构建脚本遵循各自许可证。
-
-
-## 对话联网搜索
-
-在对话输入框旁开启“联网搜索”，模型可按需搜索；开关属于对话，发送时冻结到任务，不改变在途任务。CLI 使用 `icepick conversations search <对话ID> on`、`off` 或 `records` 查看记录。
-
-原生搜索接入 [OpenAI Responses](https://developers.openai.com/api/docs/guides/tools-web-search)、[Anthropic Messages](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool) 和 [Gemini Interactions](https://ai.google.dev/gemini-api/docs/google-search)，支持流式返回、引用和普通函数工具共存。Anthropic 使用 web_search_20260318 且明确 allowed_callers=direct，不启用云端代码过滤。Gemini 3/4 文本模型使用新版官方 SDK 的 Interactions API，以 store=false 及完整协议步骤在宿主保存会话；搜索关闭后继续使用该协议保持签名和函数结果。未知模型、Gemini 2.x 和专用图像/音频模型不猜测混合搜索能力，可选择已配置 MCP。账户、模型和自定义端点的实际支持在请求时验证；请求错误不会静默换服务或重试。搜索查询及网页结果需要 unknown 外发范围，其他会话材料继续遵循实际范围；开启开关不新增外发授权。即便服务商通过本机网关接入，原生搜索仍需向该端点授权查询材料范围。组件工具白名单限制原生搜索时使用 `local__web_search` 这一能力名称，它不会作为普通函数工具暴露给模型。planner、reviewer 和摘要器继续使用已有证据，只读 worker 不获得外部搜索能力。
-
-其他模型接口可使用已配置的搜索 MCP：在对应 `mcpServers` 项添加 `"webSearchTools": ["真实搜索工具名"]`，并在 Profile 选择该服务/工具。开启时提供登记的真实 schema，调用仍需权限和审批；关闭时不提供这些专用搜索工具。没有可用路径时显示原因，不自动安装搜索服务。普通命令和其他 MCP 的联网行为仍由原权限机制控制。
-
-搜索记录保存实际事件、来源链接及能取得的用量；网页材料属于未知来源。OpenAI 和 Anthropic 每请求最多预留 3 次搜索/网页读取，共享根工具预算，完整响应释放未用预留。Gemini 没有服务商内部搜索次数的硬上限参数，按每个宿主搜索请求预留并消耗 1 个预算单位，内部次数与独立费用未报告时明确显示未知；不会把查询条数当作实际调用/账单次数。中断保留未知结果与预留，不自动重试或重放。Google 搜索建议保存并在隔离、禁脚本的 iframe 中呈现；不把服务商 HTML 放进宿主页。真实服务及稳定场景验收仍待完成。
-
-当前数据库格式为 **v26**。Profile 定义工作方式，LocalContext 只拥有本机权限和私人状态，Conversation 明确选择 Profile，Run 固定执行配置。新建对话才创建 Context，宿主没有隐式默认 Context。消息、运行、计划和摘要的 Context 由 Session 推导，不重复保存归属列。任务查询、取消和工具审批只需资源 ID；CLI 使用 `tasks status <runID>`、`tasks cancel <runID>`、`approvals approve <callID>`，待审批列表可用 `approvals list --context <contextID>` 筛选。旧数据库格式明确拒绝，不迁移、不删除原文件。
-
-### 对话附件与网页材料
-
-输入框旁的“添加附件”支持图片、PDF、文本和 DOCX；Profile ZIP 包使用独立的“导入 Profile / 导出 Profile”。开启已有联网搜索后直接粘贴 URL，可按需读取指定页面；本地目录直接写入消息，由现有 read_file 列目录并读取授权文件。Skill 的 references/scripts/assets 随任务冻结并由 load_skill 按需读取，脚本执行复用本地 write_file/exec。格式、大小、权限及各服务商行为见[材料输入说明](docs/materials.md)。
+项目继续采用 [GNU AGPL v3.0](LICENSE)（`AGPL-3.0-only`）。第三方代码保留各自许可及版权。GridSound 的独立 assets 未核实整体授权，不随包采用；音色和其他素材逐项审查。[音频许可记录](licenses/README.md)列明动态 FluidSynth 的 LGPL 及内置生成数据的 CC0；它和许可证初审均不替代最终发行审计。

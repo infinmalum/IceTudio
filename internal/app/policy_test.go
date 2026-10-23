@@ -3,17 +3,17 @@ package app
 import (
 	"context"
 	"errors"
-	"icepick/internal/testfixture"
+	"icetudio/internal/testfixture"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"icepick/internal/agent"
-	"icepick/internal/config"
-	"icepick/internal/mcptools"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/config"
+	"icetudio/internal/mcptools"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 // extToolDef models an external MCP tool: the classifier treats any non-local
@@ -81,7 +81,7 @@ func waitForCallState(t *testing.T, svc *Service, sessionID, state string) stora
 // resource authorization) through the service surface.
 func setContextPolicy(t *testing.T, svc *Service, contextID string, mutate func(*storage.ContextPolicy)) {
 	t.Helper()
-	resolved, err := testfixture.Profile(svc.store, context.Background(), contextID)
+	resolved, err := testfixture.RunConfig(svc.store, context.Background(), contextID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +305,7 @@ func TestExfilCheckAndGrants(t *testing.T) {
 	}
 	remote := config.Model{BaseURL: "http://api.example.com:8080/v1"}
 	local := config.Model{BaseURL: "http://127.0.0.1:11434/v1"}
-	profile, err := testfixture.Profile(store, ctx, testfixture.ContextID)
+	profile, err := testfixture.RunConfig(store, ctx, testfixture.ContextID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,7 +392,7 @@ func TestSyncMCPEndpointsAndGateSuspension(t *testing.T) {
 		t.Fatalf("first sync: %+v %v", items, err)
 	}
 	setContextPolicy(t, svc, testfixture.ContextID, func(p *storage.ContextPolicy) { p.ApprovalMode = "automatic" })
-	snapshot, err := testfixture.Profile(svc.store, context.Background(), testfixture.ContextID)
+	snapshot, err := testfixture.RunConfig(svc.store, context.Background(), testfixture.ContextID)
 	if err != nil {
 		t.Fatal(err)
 	}

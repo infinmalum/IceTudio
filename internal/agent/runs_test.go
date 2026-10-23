@@ -2,7 +2,7 @@ package agent
 
 import (
 	"context"
-	"icepick/internal/testfixture"
+	"icetudio/internal/testfixture"
 	"path/filepath"
 	"testing"
 )

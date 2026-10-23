@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"icepick/internal/materials"
+	"icetudio/internal/materials"
 )
 
 type TaskContinuation struct {
@@ -51,8 +51,8 @@ func WaitingInput(g TaskGraph) *TaskItem {
 
 // ContinueFixedRun atomically binds an answer and reopens the existing root.
 // It never resets an attempt, an approval, a successful stage or a budget counter.
-func (s *Store) ContinueFixedRun(ctx context.Context, root, taskID, input string, files []materials.File) (RunProfile, time.Duration, error) {
-	var profile RunProfile
+func (s *Store) ContinueFixedRun(ctx context.Context, root, taskID, input string, files []materials.File) (RunConfigSnapshot, time.Duration, error) {
+	var profile RunConfigSnapshot
 	var remaining time.Duration
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
 		var session, status, parent, stopped, previousError string
@@ -152,7 +152,7 @@ func (s *Store) ContinueFixedRun(ctx context.Context, root, taskID, input string
 		if err := tx.QueryRowContext(ctx, `SELECT name FROM contexts WHERE id=?`, resources.RootContextID).Scan(&contextName); err != nil {
 			return err
 		}
-		profile = RunProfile{ContextID: resources.RootContextID, ContextName: contextName, ProfileID: resources.Root.ID, ProfileName: resources.Root.Name, ProfileRevision: resources.Root.Revision, ProfileData: resources.Root.Data, Policy: resources.RootPolicy, ResourcesFrozen: true, Resources: &resources, FrozenSkills: resources.Root.Skills, ConfigScopes: scopes}
+		profile = RunConfigSnapshot{ContextID: resources.RootContextID, ContextName: contextName, ConfigID: resources.Root.ID, ConfigName: resources.Root.Name, ConfigRevision: resources.Root.Revision, RuntimeConfigData: resources.Root.Data, Policy: resources.RootPolicy, ResourcesFrozen: true, Resources: &resources, FrozenSkills: resources.Root.Skills, ConfigScopes: scopes}
 		var messageID any
 		if taskID != "" {
 			id, err := newID()

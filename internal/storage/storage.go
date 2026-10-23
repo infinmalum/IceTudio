@@ -16,13 +16,13 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"icepick/internal/config"
-	"icepick/internal/materials"
+	"icetudio/internal/config"
+	"icetudio/internal/materials"
 )
 
 // currentVersion is the schema version this binary writes. Opening a database
 // with a different version is refused; development releases do not migrate data.
-const currentVersion = 26
+const currentVersion = 29
 
 type Store struct {
 	db   *sql.DB
@@ -35,6 +35,9 @@ type Session struct {
 	Title     string `json:"title"`
 	Kind      string `json:"kind"`
 	CreatedAt string `json:"createdAt"`
+	// ProjectID is the explicit conversation→project binding; empty means
+	// the conversation is not (yet) working on a project.
+	ProjectID string `json:"projectId"`
 }
 
 // MessageToolCall mirrors a model tool call request persisted on an assistant
@@ -66,8 +69,8 @@ type Run struct {
 	ID               string `json:"id"`
 	SessionID        string `json:"sessionId"`
 	ContextID        string `json:"contextId"`
-	ProfileID        string `json:"profileId"`
-	ProfileRevision  int    `json:"profileRevision"`
+	ConfigID         string `json:"profileId"`
+	ConfigRevision   int    `json:"profileRevision"`
 	// ParentRunID links a delegated subtask run to the run whose tool call
 	// started it; top-level runs leave it empty.
 	ParentRunID string `json:"parentRunId,omitempty"`
@@ -142,10 +145,10 @@ func (s *Store) CreateContextSession(ctx context.Context, contextID, profileID, 
 	}
 	item := Session{ID: id, ContextID: contextID, Title: title, Kind: SessionKindNormal, CreatedAt: now()}
 	err = s.withTx(ctx, func(tx *sql.Tx) error {
-		if err := activeProfile(ctx, tx, profileID); err != nil {
+		if err := activeRuntimeConfig(ctx, tx, profileID); err != nil {
 			return err
 		}
-		result, err := tx.ExecContext(ctx, `INSERT INTO sessions (id, context_id, profile_id, kind, title, created_at) SELECT ?, id, ?, 'normal', ?, ? FROM contexts WHERE id = ?`, item.ID, profileID, item.Title, item.CreatedAt, contextID)
+		result, err := tx.ExecContext(ctx, `INSERT INTO sessions (id, context_id, config_id, kind, title, created_at) SELECT ?, id, ?, 'normal', ?, ? FROM contexts WHERE id = ?`, item.ID, profileID, item.Title, item.CreatedAt, contextID)
 		if err != nil {
 			return err
 		}
@@ -173,7 +176,7 @@ func (s *Store) CreateDelegationSession(ctx context.Context, contextID, profileI
 	}
 	item := Session{ID: id, ContextID: contextID, Title: title, Kind: SessionKindDelegation, CreatedAt: now()}
 	err = s.withTx(ctx, func(tx *sql.Tx) error {
-		result, err := tx.ExecContext(ctx, `INSERT INTO sessions (id, context_id, profile_id, kind, title, created_at) SELECT ?, id, ?, 'delegation', ?, ? FROM contexts WHERE id = ?`, item.ID, profileID, item.Title, item.CreatedAt, contextID)
+		result, err := tx.ExecContext(ctx, `INSERT INTO sessions (id, context_id, config_id, kind, title, created_at) SELECT ?, id, ?, 'delegation', ?, ? FROM contexts WHERE id = ?`, item.ID, profileID, item.Title, item.CreatedAt, contextID)
 		if err != nil {
 			return err
 		}
@@ -193,7 +196,7 @@ func (s *Store) CreateDelegationSession(ctx context.Context, contextID, profileI
 // ListContextSessions returns the context's normal sessions. Delegation sessions
 // are temporary subtask contexts owned by runs, not conversation history.
 func (s *Store) ListContextSessions(ctx context.Context, contextID string) ([]Session, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, context_id, title, kind, created_at FROM sessions WHERE context_id = ? AND kind = 'normal' ORDER BY created_at DESC, id DESC`, contextID)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, context_id, title, kind, created_at, COALESCE(project_id,'') FROM sessions WHERE context_id = ? AND kind = 'normal' ORDER BY created_at DESC, id DESC`, contextID)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +204,7 @@ func (s *Store) ListContextSessions(ctx context.Context, contextID string) ([]Se
 	items := []Session{}
 	for rows.Next() {
 		var item Session
-		if err := rows.Scan(&item.ID, &item.ContextID, &item.Title, &item.Kind, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.ContextID, &item.Title, &item.Kind, &item.CreatedAt, &item.ProjectID); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -213,7 +216,7 @@ func (s *Store) ListContextSessions(ctx context.Context, contextID string) ([]Se
 // delegation sessions; the approval sweep needs those to surface subtask
 // approval requests.
 func (s *Store) ListContextSessionsAll(ctx context.Context, contextID string) ([]Session, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, context_id, title, kind, created_at FROM sessions WHERE (?='' OR context_id = ?) ORDER BY created_at DESC, id DESC`, contextID, contextID)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, context_id, title, kind, created_at, COALESCE(project_id,'') FROM sessions WHERE (?='' OR context_id = ?) ORDER BY created_at DESC, id DESC`, contextID, contextID)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +224,7 @@ func (s *Store) ListContextSessionsAll(ctx context.Context, contextID string) ([
 	items := []Session{}
 	for rows.Next() {
 		var item Session
-		if err := rows.Scan(&item.ID, &item.ContextID, &item.Title, &item.Kind, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.ContextID, &item.Title, &item.Kind, &item.CreatedAt, &item.ProjectID); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -231,7 +234,7 @@ func (s *Store) ListContextSessionsAll(ctx context.Context, contextID string) ([
 
 func (s *Store) GetSession(ctx context.Context, sessionID string) (Session, error) {
 	var item Session
-	err := s.db.QueryRowContext(ctx, `SELECT id, context_id, title, kind, created_at FROM sessions WHERE id = ?`, sessionID).Scan(&item.ID, &item.ContextID, &item.Title, &item.Kind, &item.CreatedAt)
+	err := s.db.QueryRowContext(ctx, `SELECT id, context_id, title, kind, created_at, COALESCE(project_id,'') FROM sessions WHERE id = ?`, sessionID).Scan(&item.ID, &item.ContextID, &item.Title, &item.Kind, &item.CreatedAt, &item.ProjectID)
 	return item, err
 }
 
@@ -449,19 +452,19 @@ type CreateRunOptions struct {
 // current Profile inside the same transaction: the run row records the
 // profile id, revision and a full content snapshot, so in-flight approvals
 // and historical runs read exactly what they started with, even after the
-// Profile is later edited or deleted. The returned RunProfile is the
+// Profile is later edited or deleted. The returned RunConfigSnapshot is the
 // snapshot the engine must execute with.
-func (s *Store) CreateRun(ctx context.Context, sessionID string) (Run, RunProfile, error) {
+func (s *Store) CreateRun(ctx context.Context, sessionID string) (Run, RunConfigSnapshot, error) {
 	return s.CreateRunWithOptions(ctx, sessionID, CreateRunOptions{})
 }
 
-func (s *Store) CreateRunWithOptions(ctx context.Context, sessionID string, opts CreateRunOptions) (Run, RunProfile, error) {
+func (s *Store) CreateRunWithOptions(ctx context.Context, sessionID string, opts CreateRunOptions) (Run, RunConfigSnapshot, error) {
 	id, err := newID()
 	if err != nil {
-		return Run{}, RunProfile{}, err
+		return Run{}, RunConfigSnapshot{}, err
 	}
 	item := Run{ID: id, SessionID: sessionID, ParentRunID: opts.ParentRunID, Depth: opts.Depth, Status: "running", CreatedAt: now(), UpdatedAt: now(), ComponentVersion: 1, WorkerName: opts.WorkerName}
-	var resolved RunProfile
+	var resolved RunConfigSnapshot
 	err = s.withTx(ctx, func(tx *sql.Tx) error {
 		var active int
 		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM runs WHERE session_id=? AND status='running'`, sessionID).Scan(&active); err != nil {
@@ -471,7 +474,7 @@ func (s *Store) CreateRunWithOptions(ctx context.Context, sessionID string, opts
 			return errors.New("该会话已有运行中的任务")
 		}
 		var contextID, contextName, profileID, rawPolicy, kind string
-		if err := tx.QueryRowContext(ctx, `SELECT a.id,a.name,s.profile_id,a.policy,s.kind FROM sessions s JOIN contexts a ON a.id=s.context_id WHERE s.id=?`, sessionID).Scan(&contextID, &contextName, &profileID, &rawPolicy, &kind); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT a.id,a.name,s.config_id,a.policy,s.kind FROM sessions s JOIN contexts a ON a.id=s.context_id WHERE s.id=?`, sessionID).Scan(&contextID, &contextName, &profileID, &rawPolicy, &kind); err != nil {
 			return err
 		}
 		var policy ContextPolicy
@@ -479,7 +482,7 @@ func (s *Store) CreateRunWithOptions(ctx context.Context, sessionID string, opts
 			return err
 		}
 		item.Component = "main"
-		var frozen FrozenProfile
+		var frozen RuntimeConfigRevision
 		var resources RunResources
 		var resourcesRaw string
 		if opts.Inspection != nil && (opts.ParentRunID != "" || opts.Component != "" || opts.Depth != 0) {
@@ -534,16 +537,16 @@ func (s *Store) CreateRunWithOptions(ctx context.Context, sessionID string, opts
 		}
 		if !frozenMode {
 			var err error
-			frozen, err = readFrozenProfile(ctx, tx, profileID)
+			frozen, err = readConfigRevision(ctx, tx, profileID)
 			if err != nil {
-				return errors.New("会话没有可用的 Profile")
+				return errors.New("会话没有可用的执行配置")
 			}
 			if opts.Component != "" && opts.Component != "main" && opts.Component != "improver" {
 				return errors.New("根任务组件无效")
 			}
 			if opts.Component == "improver" {
 				if !frozen.Data.Execution.ImproverEnabled {
-					return errors.New("当前 Profile 未启用配置草案组件")
+					return errors.New("当前执行配置未启用配置草案组件")
 				}
 				item.Component = "improver"
 			}
@@ -597,7 +600,7 @@ func (s *Store) CreateRunWithOptions(ctx context.Context, sessionID string, opts
 		}
 		item.ComponentVersion = componentVersion(item.Component)
 		persistedComponent := item.Component
-		_, err = tx.ExecContext(ctx, `INSERT INTO runs(id,session_id,profile_id,profile_revision,profile_snapshot,parent_run_id,depth,status,created_at,updated_at,component,component_version,worker_name,resources_snapshot) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, id, sessionID, frozen.ID, frozen.Revision, string(snapshot), parent, opts.Depth, item.Status, item.CreatedAt, item.UpdatedAt, persistedComponent, item.ComponentVersion, opts.WorkerName, resourcesRaw)
+		_, err = tx.ExecContext(ctx, `INSERT INTO runs(id,session_id,config_id,config_revision,config_snapshot,parent_run_id,depth,status,created_at,updated_at,component,component_version,worker_name,resources_snapshot) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, id, sessionID, frozen.ID, frozen.Revision, string(snapshot), parent, opts.Depth, item.Status, item.CreatedAt, item.UpdatedAt, persistedComponent, item.ComponentVersion, opts.WorkerName, resourcesRaw)
 		if err != nil {
 			return err
 		}
@@ -627,11 +630,11 @@ func (s *Store) CreateRunWithOptions(ctx context.Context, sessionID string, opts
 			}
 		}
 		if opts.WorkerName != "" {
-			if _, err := tx.ExecContext(ctx, `UPDATE sessions SET profile_id=? WHERE id=?`, frozen.ID, sessionID); err != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE sessions SET config_id=? WHERE id=?`, frozen.ID, sessionID); err != nil {
 				return err
 			}
 		}
-		item.ContextID, item.ProfileID, item.ProfileRevision = contextID, frozen.ID, frozen.Revision
+		item.ContextID, item.ConfigID, item.ConfigRevision = contextID, frozen.ID, frozen.Revision
 		configScopes := append(append([]string(nil), resources.Root.Scopes...), frozen.Scopes...)
 		for _, worker := range resources.Workers {
 			configScopes = append(configScopes, worker.Scopes...)
@@ -639,12 +642,12 @@ func (s *Store) CreateRunWithOptions(ctx context.Context, sessionID string, opts
 				configScopes = append(configScopes, skill.Scopes...)
 			}
 		}
-		resolved = RunProfile{ContextID: contextID, ContextName: contextName, ProfileID: frozen.ID, ProfileName: frozen.Name, ProfileRevision: frozen.Revision, ProfileData: frozen.Data, Policy: policy, ResourcesFrozen: frozenMode, FrozenSkills: frozen.Skills, ConfigScopes: configScopes}
+		resolved = RunConfigSnapshot{ContextID: contextID, ContextName: contextName, ConfigID: frozen.ID, ConfigName: frozen.Name, ConfigRevision: frozen.Revision, RuntimeConfigData: frozen.Data, Policy: policy, ResourcesFrozen: frozenMode, FrozenSkills: frozen.Skills, ConfigScopes: configScopes}
 		resolved.Resources = &resources
 		return nil
 	})
 	if err != nil {
-		return Run{}, RunProfile{}, err
+		return Run{}, RunConfigSnapshot{}, err
 	}
 	return item, resolved, nil
 }
@@ -652,18 +655,18 @@ func (s *Store) CreateRunWithOptions(ctx context.Context, sessionID string, opts
 // ProfileSnapshot returns the resolved profile content a finished or running
 // run recorded at start. The second result reports whether a snapshot exists
 // is present; all current runs capture it at creation.
-func (s *Store) ProfileSnapshot(ctx context.Context, runID string) (ProfileData, bool, error) {
+func (s *Store) ProfileSnapshot(ctx context.Context, runID string) (RuntimeConfigData, bool, error) {
 	var raw string
-	err := s.db.QueryRowContext(ctx, `SELECT profile_snapshot FROM runs WHERE id = ?`, runID).Scan(&raw)
+	err := s.db.QueryRowContext(ctx, `SELECT config_snapshot FROM runs WHERE id = ?`, runID).Scan(&raw)
 	if err != nil {
-		return ProfileData{}, false, err
+		return RuntimeConfigData{}, false, err
 	}
 	if raw == "" {
-		return ProfileData{}, false, nil
+		return RuntimeConfigData{}, false, nil
 	}
-	var data ProfileData
+	var data RuntimeConfigData
 	if err := json.Unmarshal([]byte(raw), &data); err != nil {
-		return ProfileData{}, false, fmt.Errorf("解析运行快照: %w", err)
+		return RuntimeConfigData{}, false, fmt.Errorf("解析运行快照: %w", err)
 	}
 	return data, true, nil
 }
@@ -747,12 +750,12 @@ func sweepRunArtifacts(ctx context.Context, tx *sql.Tx, runID string) error {
 	return nil
 }
 
-const runColumns = `id, session_id, (SELECT context_id FROM sessions WHERE id=runs.session_id), profile_id, profile_revision, parent_run_id, depth, CASE WHEN status='failed' AND (SELECT state FROM task_coordination WHERE root_run_id=runs.id) IN ('waiting','blocked') THEN (SELECT state FROM task_coordination WHERE root_run_id=runs.id) ELSE status END, error, created_at, updated_at, component, component_version, worker_name`
+const runColumns = `id, session_id, (SELECT context_id FROM sessions WHERE id=runs.session_id), config_id, config_revision, parent_run_id, depth, CASE WHEN status='failed' AND (SELECT state FROM task_coordination WHERE root_run_id=runs.id) IN ('waiting','blocked') THEN (SELECT state FROM task_coordination WHERE root_run_id=runs.id) ELSE status END, error, created_at, updated_at, component, component_version, worker_name`
 
 func scanRun(scanner interface{ Scan(...any) error }) (Run, error) {
 	var item Run
 	var parent sql.NullString
-	err := scanner.Scan(&item.ID, &item.SessionID, &item.ContextID, &item.ProfileID, &item.ProfileRevision, &parent, &item.Depth, &item.Status, &item.Error, &item.CreatedAt, &item.UpdatedAt, &item.Component, &item.ComponentVersion, &item.WorkerName)
+	err := scanner.Scan(&item.ID, &item.SessionID, &item.ContextID, &item.ConfigID, &item.ConfigRevision, &parent, &item.Depth, &item.Status, &item.Error, &item.CreatedAt, &item.UpdatedAt, &item.Component, &item.ComponentVersion, &item.WorkerName)
 	if err != nil {
 		return Run{}, err
 	}

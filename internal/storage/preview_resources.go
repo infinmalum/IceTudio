@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"icepick/internal/config"
+	"icetudio/internal/config"
 )
 
 // Preview the same resource assembly used at task creation, without creating a
@@ -12,11 +12,11 @@ import (
 func (s *Store) PreviewResources(ctx context.Context, session string, source config.Model, snapshot SkillSnapshotter, role string) (RunResources, error) {
 	var resources RunResources
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
-		var contextID, profileID, raw string
-		if err := tx.QueryRowContext(ctx, `SELECT context_id,profile_id FROM sessions WHERE id=? AND kind='normal'`, session).Scan(&contextID, &profileID); err != nil {
+		var contextID, configID, raw string
+		if err := tx.QueryRowContext(ctx, `SELECT context_id,config_id FROM sessions WHERE id=? AND kind='normal'`, session).Scan(&contextID, &configID); err != nil {
 			return err
 		}
-		root, err := readFrozenProfile(ctx, tx, profileID)
+		root, err := readConfigRevision(ctx, tx, configID)
 		if err != nil {
 			return err
 		}

@@ -5,12 +5,12 @@ version: '3'
 
 # This information is used to generate the build assets.
 info:
-  companyName: "ICEPick"
-  productName: "ICEPick"
-  productIdentifier: "dev.icepick.app"
-  description: "Local desktop agent"
-  copyright: "© 2026, ICEPick"
-  comments: "ICEPick desktop application"
+  companyName: "IceTudio"
+  productName: "IceTudio"
+  productIdentifier: "dev.icetudio.app"
+  description: "AI native music creation app"
+  copyright: "© 2026, IceTudio"
+  comments: "IceTudio desktop application"
   version: "0.1.0"
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)
   #                               # Should match the name of your .icon file without the extension

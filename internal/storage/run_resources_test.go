@@ -4,23 +4,19 @@ import (
 	"context"
 	"testing"
 
-	"icepick/internal/skills"
+	"icetudio/internal/skills"
 )
 
-func TestResourcesSurviveSourceArchiveAndRefreshNextRun(t *testing.T) {
+func TestFrozenWorkerSnapshotSurvivesSkillContentChange(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
-	root, err := s.CreateTemplateProfile(ctx, "daily", "root")
+	root, err := s.CreateRuntimeConfig(ctx, "root", assistantData())
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, err := s.CreateTemplateProfile(ctx, "writing", "source")
-	if err != nil {
-		t.Fatal(err)
-	}
-	root.Data.Execution.WorkerSources = []WorkerSource{{Name: "writer", ProfileID: source.ID}}
+	root.Data.Execution.WorkerSources = []WorkerSource{{Name: "writer", Configuration: &WorkerConfiguration{Name: "writer", EnabledMCPServers: []string{"local"}, ContextBudget: 8192}}}
 	root.Data.AllSkills = true
-	if _, err := s.UpdateProfile(ctx, root); err != nil {
+	if _, err := s.UpdateRuntimeConfig(ctx, root); err != nil {
 		t.Fatal(err)
 	}
 	c, err := s.CreateConversation(ctx, root.ID, "", "")
@@ -35,20 +31,13 @@ func TestResourcesSurviveSourceArchiveAndRefreshNextRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	refs, err := s.ProfileReferences(ctx, source.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := s.ArchiveProfileReplacing(ctx, source.ID, "", true, refs); err != nil {
-		t.Fatal(err)
-	}
 	body = "new content"
 	frozen, err := s.RunResources(ctx, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if frozen.Workers["writer"].ID != source.ID || frozen.Root.Skills[0].Content != "old content" {
-		t.Fatal("archive or Skill change mutated running snapshot")
+	if frozen.Workers["writer"].ID != root.ID || frozen.Root.Skills[0].Content != "old content" || frozen.Workers["writer"].Skills[0].Content != "old content" {
+		t.Fatal("Skill change mutated running snapshot")
 	}
 	if err := s.SetRunStatus(ctx, run.ID, "completed", ""); err != nil {
 		t.Fatal(err)
@@ -61,13 +50,13 @@ func TestResourcesSurviveSourceArchiveAndRefreshNextRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.Workers["writer"].ID != root.ID || updated.Root.Skills[0].Content != "new content" {
-		t.Fatal("next run did not capture replacement and new Skill content")
+	if updated.Root.Skills[0].Content != "new content" || updated.Workers["writer"].Skills[0].Content != "new content" {
+		t.Fatal("next run did not capture new Skill content")
 	}
 }
 
 func TestWorkerProjectionEmptyIntersectionDeniesTools(t *testing.T) {
-	root, source := defaultProfileData(), defaultProfileData()
+	root, source := DefaultRuntimeConfig(), DefaultRuntimeConfig()
 	root.AllowedTools = []string{"local__read_file"}
 	source.AllowedTools = []string{"local__list_directory"}
 	child, err := WorkerProjection(root, source)

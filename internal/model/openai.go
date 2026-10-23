@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"icepick/internal/config"
+	"icetudio/internal/config"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"

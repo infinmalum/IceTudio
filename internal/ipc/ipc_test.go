@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"icepick/internal/testfixture"
+	"icetudio/internal/testfixture"
 	"io"
 	"net"
 	"path/filepath"
@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/agent"
-	"icepick/internal/app"
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/skills"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/app"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/skills"
+	"icetudio/internal/storage"
 )
 
 // chatScript answers turns; turn 1 requests an external tool call so the
@@ -128,7 +128,7 @@ func TestHandshakeRequiresHostToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hello, _ := json.Marshal(Hello{Hello: "icepick", Token: "wrong-token", Version: ProtocolVersion})
+	hello, _ := json.Marshal(Hello{Hello: "icetudio", Token: "wrong-token", Version: ProtocolVersion})
 	if _, err := conn.Write(append(hello, '\n')); err != nil {
 		t.Fatal(err)
 	}
@@ -145,34 +145,43 @@ func TestHandshakeRequiresHostToken(t *testing.T) {
 	}
 }
 
-func TestProfilesRoundtrip(t *testing.T) {
+func TestRuntimeConfigsRoundtrip(t *testing.T) {
 	svc, _ := newTestHost(t, &chatScript{}, &blockingTools{})
 	dataDir := startServer(t, svc)
 	client := mustConnect(t, dataDir)
 
-	var profiles []storage.Profile
-	if err := client.Call("profiles.list", nil, &profiles); err != nil {
-		t.Fatalf("profiles.list: %v", err)
+	var configs []storage.RuntimeConfig
+	if err := client.Call("configs.list", nil, &configs); err != nil {
+		t.Fatalf("configs.list: %v", err)
 	}
-	if len(profiles) == 0 || profiles[0].ID != storage.DefaultProfileID {
-		t.Fatalf("profiles: %+v", profiles)
+	if len(configs) == 0 || configs[0].ID != storage.DefaultConfigID {
+		t.Fatalf("configs: %+v", configs)
 	}
-	var created storage.Profile
-	if err := client.Call("profiles.create", map[string]any{"name": "CLI 专用", "fromId": ""}, &created); err != nil {
-		t.Fatalf("profiles.create: %v", err)
+	var current storage.RuntimeConfig
+	if err := client.Call("configs.get", map[string]any{"id": storage.DefaultConfigID}, &current); err != nil {
+		t.Fatalf("configs.get: %v", err)
 	}
-	if created.ID == "" || created.Data.ContextBudget != 8192 {
-		t.Fatalf("created: %+v", created)
+	current.Data.Description = "CLI 更新"
+	var updated storage.RuntimeConfig
+	if err := client.Call("configs.update", map[string]any{"config": current}, &updated); err != nil {
+		t.Fatalf("configs.update: %v", err)
+	}
+	if updated.Revision != current.Revision+1 || updated.Data.Description != "CLI 更新" {
+		t.Fatalf("updated: %+v", updated)
+	}
+	if err := client.Call("configs.update", map[string]any{"config": current}, nil); err == nil {
+		t.Fatal("stale revision accepted")
+	}
+	var restored storage.RuntimeConfig
+	if err := client.Call("configs.restoreDefault", map[string]any{"revision": updated.Revision}, &restored); err != nil {
+		t.Fatalf("configs.restoreDefault: %v", err)
+	}
+	if restored.Data.Description == "CLI 更新" {
+		t.Fatal("default data not restored")
 	}
 	var conversation storage.Conversation
-	if err := client.Call("conversations.create", map[string]any{"profileId": created.ID}, &conversation); err != nil {
+	if err := client.Call("conversations.create", map[string]any{"configId": restored.ID}, &conversation); err != nil {
 		t.Fatal(err)
-	}
-	if err := client.Call("profiles.delete", map[string]any{"id": created.ID}, nil); err != nil {
-		t.Fatal(err)
-	}
-	if err := client.Call("conversations.get", map[string]any{"id": conversation.ID}, &conversation); err != nil || !conversation.ProfileArchived {
-		t.Fatalf("conversation must retain archived profile: %+v %v", conversation, err)
 	}
 }
 
@@ -199,7 +208,7 @@ func TestCrossClientApprovalAndCancel(t *testing.T) {
 	cliClient := mustConnect(t, dataDir)
 
 	var session storage.Conversation
-	if err := desktop.Call("conversations.create", map[string]any{"profileId": storage.DefaultProfileID, "reuseSession": reuseDefaultConversation(t, svc)}, &session); err != nil {
+	if err := desktop.Call("conversations.create", map[string]any{"configId": storage.DefaultConfigID, "reuseSession": reuseDefaultConversation(t, svc)}, &session); err != nil {
 		t.Fatalf("conversations.create: %v", err)
 	}
 	var run storage.Run
@@ -296,7 +305,7 @@ func TestEventsBroadcastToClients(t *testing.T) {
 	})
 
 	var session storage.Conversation
-	if err := client.Call("conversations.create", map[string]any{"profileId": storage.DefaultProfileID, "reuseSession": reuseDefaultConversation(t, svc)}, &session); err != nil {
+	if err := client.Call("conversations.create", map[string]any{"configId": storage.DefaultConfigID, "reuseSession": reuseDefaultConversation(t, svc)}, &session); err != nil {
 		t.Fatalf("conversations.create: %v", err)
 	}
 	if err := client.Call("conversations.start", map[string]any{"id": session.ID, "input": "你好"}, nil); err != nil {
@@ -340,43 +349,14 @@ func TestUnknownMethodRejected(t *testing.T) {
 }
 
 // The knowledge surface is reachable over IPC with the same ownership
-// checks the desktop UI goes through: memory CRUD stays inside one agent,
-// and summary/plan reads report their absence as errors.
-func TestMemoryAndPlanOverIPC(t *testing.T) {
+// checks the desktop UI goes through: summary/plan reads report their
+// absence as errors, and foreign sessions are refused.
+func TestSummaryAndPlanOverIPC(t *testing.T) {
 	svc, _ := newTestHost(t, &chatScript{}, &blockingTools{})
 	dataDir := startServer(t, svc)
 	client := mustConnect(t, dataDir)
 
-	other, err := svc.CreateConversation(storage.DefaultProfileID, "", "other")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var mine storage.Memory
-	if err := client.Call("memory.add", map[string]any{"contextId": testfixture.ContextID, "content": "用户偏好简短回答"}, &mine); err != nil {
-		t.Fatalf("memory.add: %v", err)
-	}
-	if mine.Source != storage.MemorySourceUser || mine.Scope != storage.ScopePersonal {
-		t.Fatalf("memory: %+v", mine)
-	}
-	var list []storage.Memory
-	if err := client.Call("memory.list", map[string]any{"contextId": other.ContextID}, &list); err != nil || len(list) != 0 {
-		t.Fatalf("cross-agent leak: %+v %v", list, err)
-	}
-	var updated storage.Memory
-	if err := client.Call("memory.update", map[string]any{"contextId": testfixture.ContextID, "id": mine.ID, "content": "偏好一句话回答"}, &updated); err != nil {
-		t.Fatalf("memory.update: %v", err)
-	}
-	if updated.Content != "偏好一句话回答" {
-		t.Fatalf("update: %+v", updated)
-	}
-	if err := client.Call("memory.delete", map[string]any{"contextId": other.ContextID, "id": mine.ID}, nil); err == nil {
-		t.Fatal("cross-agent delete allowed")
-	}
-	if err := client.Call("memory.delete", map[string]any{"contextId": testfixture.ContextID, "id": mine.ID}, nil); err != nil {
-		t.Fatalf("memory.delete: %v", err)
-	}
-
-	session, err := svc.CreateConversation(storage.DefaultProfileID, "", "test")
+	session, err := svc.CreateConversation(storage.DefaultConfigID, "", "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,42 +375,11 @@ func TestMemoryAndPlanOverIPC(t *testing.T) {
 	}
 }
 
-// Profile share packages travel over IPC as base64; the import creates a new
-// profile and never touches agents. runs.children exposes the delegation
-// task tree.
-func TestProfileShareAndChildRunsOverIPC(t *testing.T) {
+// runs.children exposes the delegation task tree over IPC.
+func TestChildRunsAndApprovalsOverIPC(t *testing.T) {
 	svc, _ := newTestHost(t, &chatScript{}, &blockingTools{})
 	dataDir := startServer(t, svc)
 	client := mustConnect(t, dataDir)
-
-	var exported app.ExportResult
-	if err := client.Call("profiles.export", map[string]any{"id": storage.DefaultProfileID}, &exported); err != nil {
-		t.Fatalf("profiles.export: %v", err)
-	}
-	var preview app.ImportPreview
-	if err := client.Call("profiles.importPreview", map[string]any{"data": exported.Data}, &preview); err != nil {
-		t.Fatalf("profiles.importPreview: %v", err)
-	}
-	if preview.Name == "" {
-		t.Fatalf("empty preview: %+v", preview)
-	}
-	var imported struct {
-		Profile storage.Profile   `json:"profile"`
-		Preview app.ImportPreview `json:"preview"`
-	}
-	if err := client.Call("profiles.import", map[string]any{"data": exported.Data}, &imported); err != nil {
-		t.Fatalf("profiles.import: %v", err)
-	}
-	if imported.Profile.ID == storage.DefaultProfileID || imported.Profile.Revision != 1 {
-		t.Fatalf("imported profile: %+v", imported.Profile)
-	}
-	var conversations []storage.Conversation
-	if err := client.Call("conversations.list", nil, &conversations); err != nil {
-		t.Fatal(err)
-	}
-	if len(conversations) != 0 {
-		t.Fatalf("import must not create conversations: %+v", conversations)
-	}
 
 	// runs.children on a run-less id is refused; the tree surface exists.
 	if err := client.Call("runs.children", map[string]any{"runId": "missing"}, nil); err == nil {
@@ -444,7 +393,7 @@ func TestProfileShareAndChildRunsOverIPC(t *testing.T) {
 
 func reuseDefaultConversation(t *testing.T, svc *app.Service) string {
 	t.Helper()
-	session, err := svc.CreateConversation(storage.DefaultProfileID, "", "test")
+	session, err := svc.CreateConversation(storage.DefaultConfigID, "", "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -458,7 +407,7 @@ func TestResourceIPC(t *testing.T) {
 	var contexts []string
 	var calls []storage.ToolCall
 	for _, title := range []string{"first", "second"} {
-		c, err := svc.CreateConversation(storage.DefaultProfileID, "", title)
+		c, err := svc.CreateConversation(storage.DefaultConfigID, "", title)
 		if err != nil {
 			t.Fatal(err)
 		}

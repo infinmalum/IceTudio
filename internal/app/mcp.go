@@ -8,9 +8,9 @@ import (
 	"log"
 	"time"
 
-	"icepick/internal/config"
-	"icepick/internal/mcptools"
-	"icepick/internal/storage"
+	"icetudio/internal/config"
+	"icetudio/internal/mcptools"
+	"icetudio/internal/storage"
 )
 
 // MCPEndpointSource is the hub surface the service needs to display MCP

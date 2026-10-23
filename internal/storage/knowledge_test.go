@@ -12,7 +12,7 @@ import (
 func buildToolHistory(t *testing.T, s *Store, contextID, credentialScope string) (string, []HistoryEntry) {
 	t.Helper()
 	ctx := context.Background()
-	session, err := s.CreateContextSession(ctx, contextID, DefaultProfileID, "history")
+	session, err := s.CreateContextSession(ctx, contextID, DefaultConfigID, "history")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,47 +137,10 @@ func TestSummaryCoverageBoundariesAndScope(t *testing.T) {
 	}
 }
 
-// Long-term memory is strictly per context: same Profile, no shared rows, and
-// edits stay inside the owning local.
-func TestMemoryContextIsolation(t *testing.T) {
-	s := openTestStore(t)
-	ctx := context.Background()
-	other := newTestContext(t, s, "other", DefaultProfileID)
-	var err error
-	if err != nil {
-		t.Fatal(err)
-	}
-	mine, err := s.AddContextMemory(ctx, testContextID, "记住这件事", MemorySourceModel, "session-1", ScopePersonal)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.AddContextMemory(ctx, testContextID, strings.Repeat("超", MaxMemoryContent+1), MemorySourceUser, "", ScopePersonal); err == nil {
-		t.Fatal("oversized memory accepted")
-	}
-	if _, err := s.AddContextMemory(ctx, testContextID, "x", MemorySourceModel, "", "not-a-scope"); err == nil {
-		t.Fatal("unknown scope accepted")
-	}
-	// The other context sees nothing and cannot touch the row.
-	theirs, err := s.ListContextMemories(ctx, other.ID, 0)
-	if err != nil || len(theirs) != 0 {
-		t.Fatalf("cross-local leak: %+v %v", theirs, err)
-	}
-	if _, err := s.UpdateContextMemory(ctx, other.ID, mine.ID, "劫持"); err == nil {
-		t.Fatal("cross-local edit allowed")
-	}
-	if err := s.DeleteContextMemory(ctx, other.ID, mine.ID); err == nil {
-		t.Fatal("cross-local delete allowed")
-	}
-	updated, err := s.UpdateContextMemory(ctx, testContextID, mine.ID, "改后的内容")
-	if err != nil || updated.Content != "改后的内容" || updated.Scope != ScopePersonal {
-		t.Fatalf("update: %+v %v", updated, err)
-	}
-}
-
 func TestSessionPlanRoundtrip(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
-	session, err := s.CreateContextSession(ctx, testContextID, DefaultProfileID, "plan")
+	session, err := s.CreateContextSession(ctx, testContextID, DefaultConfigID, "plan")
 	if err != nil {
 		t.Fatal(err)
 	}

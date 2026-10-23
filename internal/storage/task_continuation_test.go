@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/materials"
+	"icetudio/internal/materials"
 )
 
 func waitingFixed(t *testing.T) (*Store, Conversation, Run) {
@@ -18,7 +18,7 @@ func waitingFixed(t *testing.T) (*Store, Conversation, Run) {
 	ctx := context.Background()
 	d := fixedData()
 	d.Execution.Stages[0].InputPrompt = "请提供材料"
-	p, err := s.CreateProfile(ctx, "wait", d)
+	p, err := s.CreateRuntimeConfig(ctx, "wait", d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestFixedInputPromptValidation(t *testing.T) {
 	for _, prompt := range []string{"  ", strings.Repeat("x", 4001)} {
 		d := fixedData()
 		d.Execution.Stages[0].InputPrompt = prompt
-		if err := validateProfileData(d); err == nil {
+		if err := validateRuntimeConfigData(d); err == nil {
 			t.Fatal("invalid prompt accepted")
 		}
 	}

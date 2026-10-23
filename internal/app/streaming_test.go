@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"icepick/internal/agent"
-	"icepick/internal/config"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/agent"
+	"icetudio/internal/config"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
 // streamScriptModel implements StreamingChatModel: each turn emits scripted

@@ -3,11 +3,11 @@ package app
 import (
 	"context"
 	"errors"
-	"icepick/internal/model"
-	"icepick/internal/storage"
+	"icetudio/internal/model"
+	"icetudio/internal/storage"
 )
 
-func (s *Service) callDraftModel(ctx context.Context, run storage.Run, p storage.RunProfile, payload []byte, contract string) (string, error) {
+func (s *Service) callDraftModel(ctx context.Context, run storage.Run, p storage.RunConfigSnapshot, payload []byte, contract string) (string, error) {
 	if len(payload) > 512*1024 {
 		return "", errors.New("草案材料超过512KiB，未发送")
 	}
