@@ -83,14 +83,6 @@ export function useApp() {
     });
     return () => off();
   }, []);
-  async function createSession(configID?: string) {
-    setPage("workspace");
-    workspace.setQuery("");
-    const item = await workspace.createSession(
-      configID ?? workspace.activeConversation?.configId ?? undefined,
-    );
-    if (item) await configs.refreshConfigs().catch(configs.reportError);
-  }
   return {
     workspace,
     skillDrafts,
@@ -104,7 +96,6 @@ export function useApp() {
     setPage,
     settingsTab,
     setSettingsTab,
-    createSession,
     skillCatalog,
     mcpCatalog,
     catalogError,

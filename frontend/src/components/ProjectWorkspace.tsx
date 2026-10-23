@@ -6,15 +6,11 @@ import { MusicInputs } from "../hooks/useMusicInputs";
 
 type Projects = ReturnType<typeof useProjects>;
 
-// Project lifecycle and note editing share the authoritative command service.
+// Project lifecycle lives in the left sidebar; the center stage is editor-only.
 export function ProjectWorkspace({
   projects,
-  openModel,
-  openAssistants,
 }: {
   projects: Projects;
-  openModel: () => void;
-  openAssistants: () => void;
 }) {
   const p = projects;
   const dialog = useDialog();
@@ -43,13 +39,6 @@ export function ProjectWorkspace({
       <div className="project-canvas">
         <div className="project-strip">
           <div className="project-actions">
-            <button className="secondary" onClick={openModel}>连接模型</button>
-            <button onClick={p.create} disabled={p.busy}>
-              新建工程
-            </button>
-            <button className="secondary" onClick={p.importMIDI} disabled={p.busy}>
-              导入 MIDI
-            </button>
             <button
               className="secondary"
               onClick={p.exportMIDI}
@@ -78,62 +67,12 @@ export function ProjectWorkspace({
             >
               重做
             </button>
-            {active && p.conversationID ? (
-              p.boundProjectID === p.activeID ? (
-                <button
-                  className="secondary"
-                  onClick={() => p.bind(false)}
-                  disabled={p.busy}
-                >
-                  解绑对话
-                </button>
-              ) : (
-                <button
-                  className="secondary"
-                  onClick={() => p.bind(true)}
-                  disabled={p.busy}
-                >
-                  绑定当前对话
-                </button>
-              )
-            ) : null}
           </div>
           {p.error ? (
             <p className="project-error" role="alert">
               {p.error}
             </p>
           ) : null}
-          <ul className="project-list">
-            {p.projects.length === 0 ? (
-              <li className="project-list-empty">还没有工程</li>
-            ) : (
-              p.projects.map((item) => (
-                <li
-                  key={item.id}
-                  className={item.id === p.activeID ? "active" : ""}
-                >
-                  <button
-                    className="project-select"
-                    onClick={() => p.select(item.id)}
-                    title={item.id}
-                  >
-                    <span>{item.title}</span>
-                    <span className="project-meta">
-                      修订 {item.revision} · PPQ {item.ppq}
-                    </span>
-                  </button>
-                  <button
-                    className="project-remove"
-                    onClick={() => p.remove(item.id)}
-                    disabled={p.busy}
-                    title={`删除 ${item.title}`}
-                  >
-                    删除
-                  </button>
-                </li>
-              ))
-            )}
-          </ul>
         </div>
         <div className="project-save" role="status">{p.saveStatus || (active ? "工程自动保存" : "新建或导入 MIDI 开始编辑")}</div>
         {!p.recoveryReady && <div role="alert">{p.recoveryError || "正在检查工程恢复记录…"}<button className="secondary" onClick={() => void p.checkRecovery()}>重试恢复检查</button></div>}
@@ -168,8 +107,7 @@ export function ProjectWorkspace({
         </> : <div className="project-empty">
           <div className="project-symbol" aria-hidden>♫</div>
           <h2>{p.activeID ? "正在读取工程…" : "从一个片段开始创作"}</h2>
-          <p>新建工程后添加音轨，在钢琴卷帘中编辑音符；也可以导入 MIDI 继续编曲。编辑自动保存，支持撤销/重做。选择工程后可用原生播放与基础音色试听。</p>
-          <div className="project-actions"><button onClick={openModel}>连接模型</button><button className="secondary" onClick={openAssistants}>管理助手</button></div>
+          <p>从左侧新建工程后添加音轨，在钢琴卷帘中编辑音符；也可以导入 MIDI 继续编曲。编辑自动保存，支持撤销/重做。选择工程后可用原生播放与基础音色试听。</p>
         </div>}
 
       </div>

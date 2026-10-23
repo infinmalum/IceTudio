@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"icetudio/internal/storage"
 )
@@ -23,28 +22,6 @@ func (s *Service) GetRuntimeConfig(id string) (storage.RuntimeConfig, error) {
 		return storage.RuntimeConfig{}, err
 	}
 	return s.store.GetRuntimeConfig(context.Background(), id)
-}
-
-// CreateRuntimeConfig saves a new execution config: blank combination when
-// fromID is empty, otherwise an independent copy of the referenced config's
-// stored data. A copy never carries instance identity, history or
-// authorization, because an execution config holds none of those.
-func (s *Service) CreateRuntimeConfig(name, fromID string) (storage.RuntimeConfig, error) {
-	if err := s.checkReady(); err != nil {
-		return storage.RuntimeConfig{}, err
-	}
-	ctx := context.Background()
-	if strings.TrimSpace(fromID) == "" {
-		return s.store.CreateRuntimeConfig(ctx, name, storage.BlankRuntimeConfig())
-	}
-	source, err := s.store.GetRuntimeConfig(ctx, fromID)
-	if err != nil {
-		return storage.RuntimeConfig{}, err
-	}
-	if strings.TrimSpace(name) == "" {
-		name = source.Name + " 副本"
-	}
-	return s.store.CreateRuntimeConfig(ctx, name, source.Data)
 }
 
 // UpdateRuntimeConfig saves a new combination atomically. Before persisting,

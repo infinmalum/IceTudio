@@ -125,30 +125,6 @@ func (s *Store) ListConversations(ctx context.Context) ([]Conversation, error) {
 	return items, rows.Err()
 }
 
-func (s *Store) SelectConversationConfig(ctx context.Context, id, configID string) (Conversation, error) {
-	err := s.withTx(ctx, func(tx *sql.Tx) error {
-		if err := activeRuntimeConfig(ctx, tx, configID); err != nil {
-			return err
-		}
-		result, err := tx.ExecContext(ctx, `UPDATE sessions SET config_id=? WHERE id=? AND kind='normal'`, configID, id)
-		if err != nil {
-			return err
-		}
-		n, err := result.RowsAffected()
-		if err != nil {
-			return err
-		}
-		if n != 1 {
-			return errors.New("找不到普通对话")
-		}
-		return nil
-	})
-	if err != nil {
-		return Conversation{}, err
-	}
-	return s.GetConversation(ctx, id)
-}
-
 func (s *Store) SetConversationOptions(ctx context.Context, id string, options ConversationOptions) (Conversation, error) {
 	raw, err := json.Marshal(options)
 	if err != nil {

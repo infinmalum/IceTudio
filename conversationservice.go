@@ -16,9 +16,6 @@ func (s *StatusService) GetConversation(id string) (storage.Conversation, error)
 func (s *StatusService) CreateConversation(configID, reuseSession, title string) (storage.Conversation, error) {
 	return s.svc.CreateConversation(configID, reuseSession, title)
 }
-func (s *StatusService) SelectConversationConfig(id, configID string) (storage.Conversation, error) {
-	return s.svc.SelectConversationConfig(id, configID)
-}
 func (s *StatusService) GetLocalContext(id string) (storage.LocalContext, error) {
 	return s.svc.GetLocalContext(id)
 }

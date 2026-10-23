@@ -64,7 +64,12 @@ func TestConversationIsolationAndSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SelectConversationConfig(ctx, a.ID, q.ID); err != nil {
+	// Editing the referenced config must not touch the in-flight snapshot;
+	// the next run resolves the newly committed revision.
+	edited := p
+	edited.Data.SystemPrompt = "提示词 v2"
+	updated, err := s.UpdateRuntimeConfig(ctx, edited)
+	if err != nil {
 		t.Fatal(err)
 	}
 	old, found, err := s.ProfileSnapshot(ctx, run.ID)
@@ -78,16 +83,13 @@ func TestConversationIsolationAndSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.ConfigID != q.ID || resolved.ContextID != a.ContextID {
-		t.Fatal("selection changed identity or used old config")
+	if next.ConfigID != p.ID || next.ConfigRevision != updated.Revision || resolved.ContextID != a.ContextID {
+		t.Fatal("next run did not resolve the edited config in the same conversation")
 	}
-	// Shared-context conversations retain their individual config choice.
-	if _, err := s.SelectConversationConfig(ctx, reused.ID, DefaultConfigID); err != nil {
-		t.Fatal(err)
-	}
-	current, _ := s.GetConversation(ctx, a.ID)
-	if current.ConfigID != q.ID {
-		t.Fatal("selection changed sibling conversation")
+	// Shared-context conversations keep the config chosen at creation.
+	current, err := s.GetConversation(ctx, a.ID)
+	if err != nil || current.ConfigID != p.ID {
+		t.Fatalf("conversation config mutated: %+v %v", current, err)
 	}
 }
 

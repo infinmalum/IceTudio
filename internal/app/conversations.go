@@ -36,13 +36,6 @@ func (s *Service) CreateConversation(configID, reuseSession, title string) (stor
 	return s.store.CreateConversation(context.Background(), configID, reuseSession, title)
 }
 
-func (s *Service) SelectConversationConfig(id, configID string) (storage.Conversation, error) {
-	if err := s.checkReady(); err != nil {
-		return storage.Conversation{}, err
-	}
-	return s.store.SelectConversationConfig(context.Background(), id, configID)
-}
-
 func (s *Service) GetLocalContext(id string) (storage.LocalContext, error) {
 	if err := s.checkReady(); err != nil {
 		return storage.LocalContext{}, err

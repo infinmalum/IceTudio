@@ -260,9 +260,27 @@ small {
   height: 100dvh;
   overflow: hidden;
 }
+/* Draggable dividers between the shell columns; double-click restores the
+   default width. Hidden for the dock when the workspace stacks below 880px. */
+.pane-resizer {
+  flex: 0 0 7px;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  background: transparent;
+  transition: background-color 0.15s;
+}
+.pane-resizer:hover,
+.pane-resizer:active {
+  background: var(--accent-soft);
+}
+.pane-resizer:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 .sidebar {
-  width: 240px;
-  flex: 0 0 240px;
+  width: var(--pane-w, 240px);
+  flex: 0 0 var(--pane-w, 240px);
   background: var(--bg-sidebar);
   border-right: 1px solid var(--line);
   display: flex;
@@ -285,7 +303,7 @@ small {
   font-size: 32px;
   color: var(--accent);
 }
-.new-session {
+.new-project {
   text-align: left;
   padding: 12px 16px;
   border: 1px solid var(--line-strong);
@@ -381,6 +399,47 @@ small {
 .theme-toggle {
   margin-top: 5px;
 }
+.sidebar .project-list {
+  flex: 1 1 auto;
+  max-height: none;
+}
+.sidebar .project-select {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.sidebar .project-select .project-meta {
+  margin: 0;
+}
+/* Conversation management lives inside the right agent dock. */
+.dock-nav {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.dock-nav-actions {
+  display: flex;
+  gap: 8px;
+}
+.dock-nav .session-navigation {
+  flex: none;
+  max-height: 190px;
+}
+.project-bind {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.project-bind .project-meta {
+  margin: 0;
+}
 .content {
   flex: 1;
   min-width: 0;
@@ -405,13 +464,14 @@ small {
   border-bottom: 1px solid var(--line-soft);
   flex: none;
 }
-.assistant-selector select {
-  border: 0;
-  background: transparent;
+.assistant-name {
   font-size: 16px;
   font-weight: 650;
   color: var(--text-strong);
   max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 6px 4px;
 }
 .model-switch {
@@ -976,39 +1036,6 @@ small {
   flex: 1;
   white-space: pre-wrap;
 }
-.assistant-list {
-  display: flex;
-  flex-direction: column;
-}
-.assistant-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  padding: 13px 10px;
-  border-bottom: 1px solid var(--line);
-  border-radius: 8px;
-}
-.assistant-row.selected {
-  background: var(--accent-soft);
-}
-.assistant-row-main {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 220px;
-  flex: 1;
-}
-.assistant-row-main strong {
-  font-size: 15px;
-  color: var(--text-strong);
-}
-.assistant-row-actions {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
 .memory-meta {
   font-size: 12.5px;
   color: var(--text-muted);
@@ -1166,7 +1193,7 @@ small {
   .brand span {
     font-size: 25px;
   }
-  .new-session {
+  .new-project {
     font-size: 13px;
     padding: 10px;
   }
@@ -1179,7 +1206,7 @@ small {
   .chat-header {
     padding: 0 12px;
   }
-  .assistant-selector select {
+  .assistant-name {
     font-size: 14px;
     max-width: 170px;
   }
@@ -1417,8 +1444,8 @@ small {
   justify-content: center;
 }
 .agent-dock {
-  flex: 0 0 460px;
-  width: 460px;
+  flex: 0 0 var(--pane-w, 460px);
+  width: var(--pane-w, 460px);
   min-width: 0;
   border-left: 1px solid var(--line);
   display: flex;
@@ -1433,10 +1460,6 @@ small {
 .agent-dock .chat-header {
   height: 60px;
   padding: 0 16px;
-}
-.agent-dock .assistant-selector select {
-  max-width: 168px;
-  font-size: 14.5px;
 }
 .agent-dock .chat-body {
   max-width: none;
@@ -1454,8 +1477,14 @@ small {
 }
 @media (max-width: 1080px) {
   .agent-dock {
-    flex: 0 0 380px;
-    width: 380px;
+    flex: 0 0 var(--pane-w, 380px);
+    width: var(--pane-w, 380px);
+  }
+  .sidebar {
+    flex: 0 0 var(--pane-w, 200px);
+    width: var(--pane-w, 200px);
+    padding-left: 10px;
+    padding-right: 10px;
   }
   .project-stage {
     padding: 0 20px;
@@ -1528,11 +1557,13 @@ small {
 .music-ruler-meter { color: #a9d8ff; }
 .music-ruler-tempo { color: #ffe1a0; }
 
-/* Keep music usable when native display scaling reduces the CSS viewport. */
-@media (max-width: 1100px) {
+/* Stack only below 880px so the editor keeps the middle and the agent dock
+   stays a right column on scaled displays. */
+@media (max-width: 880px) {
   .workspace-page { flex-direction: column; overflow: auto; }
   .project-stage { flex: none; min-height: 620px; overflow: visible; }
   .project-canvas { flex: none; overflow: visible; }
   .project-header { flex-wrap: wrap; }
   .agent-dock { flex: none; width: 100%; min-height: 450px; border-left: 0; border-top: 1px solid var(--line); }
+  .pane-resizer.dock-resizer { display: none; }
 }

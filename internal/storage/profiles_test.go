@@ -114,11 +114,8 @@ func TestConfigRevisionAndContextIsolation(t *testing.T) {
 		t.Fatalf("first run snapshot: %+v ok=%v %v", snapshot, ok, err)
 	}
 
-	// Conversation profile selection preserves context policy and existing snapshots.
-	switched, err := s.SelectConversationConfig(ctx, customSession.ID, DefaultConfigID)
-	if err != nil || switched.ContextID != created.ID {
-		t.Fatalf("selection: %+v %v", switched, err)
-	}
+	// Context policy edits apply to the conversation's shared context while
+	// existing run snapshots stay readable.
 	updatedContext, err := s.UpdateContextPolicy(ctx, created.ID, ContextPolicy{ApprovalMode: "automatic", Permissions: PermissionScope{Unrestricted: true}})
 	if err != nil || updatedContext.Policy.ApprovalMode != "automatic" {
 		t.Fatalf("policy: %+v %v", updatedContext, err)

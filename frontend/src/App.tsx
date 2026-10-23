@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useState } from "react";
 import { useApp } from "./hooks/useApp";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectWorkspace } from "./components/ProjectWorkspace";
 import { ConversationPanel } from "./components/ConversationPanel";
-import { ProfileList } from "./components/ProfileList";
+import { loadPaneWidth, paneStyle, PaneResizer } from "./shared/panes";
 import { ProfileAdvanced } from "./components/ProfileAdvanced";
 import { ProfileEditor } from "./components/ProfileEditor";
 import { ModelSettings } from "./components/ModelSettings";
@@ -15,15 +15,30 @@ import { HostActivityPanel } from "./components/HostActivityPanel";
 import { SkillDrafts } from "./components/SkillDrafts";
 import { ErrorNotice } from "./shared/errors";
 import { StatusService } from "../bindings/icetudio";
+
+// Column widths survive restarts; null keeps the CSS defaults, including the
+// automatic narrower widths below 1080px.
+function usePaneWidth(key: string) {
+  const [width, setWidth] = useState(() => loadPaneWidth(key));
+  const set = (value: number | null) => {
+    try {
+      if (value == null) localStorage.removeItem(key);
+      else localStorage.setItem(key, `${value}px`);
+    } catch {
+      // Storage unavailable: keep the width for this session only.
+    }
+    setWidth(value == null ? null : `${value}px`);
+  };
+  return [width, set] as const;
+}
+
 function App() {
   const app = useApp();
-  const boot = useRef(false);
   const w = app.workspace;
-  useEffect(() => {
-    if (!w.loaded || boot.current || !app.runtime.status?.storageReady) return;
-    boot.current = true;
-    if (!w.sessions.length) void app.createSession();
-  }, [w.loaded, app.runtime.status?.storageReady]);
+  const [sidebarWidth, setSidebarWidth] = usePaneWidth(
+    "icetudio.sidebar-width",
+  );
+  const [dockWidth, setDockWidth] = usePaneWidth("icetudio.dock-width");
   const openModel = () => {
     app.setSettingsTab("model");
     app.setPage("settings");
@@ -72,10 +87,18 @@ function App() {
   return (
     <div className="shell">
       <Sidebar
-        workspace={w}
+        projects={app.projects}
         page={app.page}
         setPage={app.setPage}
-        createSession={app.createSession}
+        style={paneStyle(sidebarWidth)}
+      />
+      <PaneResizer
+        label="调整工程栏宽度"
+        targetSelector=".sidebar"
+        grow={1}
+        min={180}
+        max={420}
+        onWidth={setSidebarWidth}
       />
       <main className="content">
         {app.page === "workspace" ? (
@@ -88,18 +111,27 @@ function App() {
                     : app.error
                 }
               />
-              <ProjectWorkspace
-                projects={app.projects}
-                openModel={openModel}
-                openAssistants={() => app.setPage("assistants")}
-              />
+              <ProjectWorkspace projects={app.projects} />
             </section>
-            <aside className="agent-dock">
+            <PaneResizer
+              className="dock-resizer"
+              label="调整对话栏宽度"
+              targetSelector=".agent-dock"
+              grow={-1}
+              min={320}
+              max={640}
+              onWidth={setDockWidth}
+            />
+            <aside
+              className="agent-dock"
+              style={paneStyle(dockWidth)}
+            >
               <ConversationPanel
                 workspace={w}
                 conversation={app.conversation}
                 configState={app.configState}
                 runtime={app.runtime}
+                projects={app.projects}
                 openModel={openModel}
                 openAssistants={() => app.setPage("assistants")}
               />
@@ -110,7 +142,7 @@ function App() {
             <header className="page-header">
               <div>
                 <p className="eyebrow">IceTudio</p>
-                <h1>{app.page === "assistants" ? "你的助手" : "设置"}</h1>
+                <h1>{app.page === "assistants" ? "创作助手" : "设置"}</h1>
               </div>
               <button
                 className="secondary"
@@ -128,10 +160,6 @@ function App() {
             />
             {app.page === "assistants" ? (
               <>
-                <ProfileList
-                  configState={app.configState}
-                  startConversation={(id) => void app.createSession(id)}
-                />
                 <ProfileEditor
                   configState={app.configState}
                   skillCatalog={app.skillCatalog}
@@ -145,23 +173,6 @@ function App() {
                     app.setPage("settings");
                   }}
                 />
-                <button
-                  disabled={
-                    !app.configState.configEditID ||
-                    app.configState.dirty ||
-                    w.creating
-                  }
-                  onClick={() =>
-                    void app.createSession(
-                      app.configState.configEditID ?? undefined,
-                    )
-                  }
-                >
-                  使用这个助手开始新对话
-                </button>
-                <p className="hint">
-                  编辑助手不会切换当前对话。聊天顶部可以切换当前助手；这里会开启独立的新对话。
-                </p>
                 {app.configState.dirty && (
                   <p className="unsaved-note" role="status">
                     有未保存的助手修改，切换页面时会保留草稿。

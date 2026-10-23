@@ -35,6 +35,7 @@ export function useConversation(
     setSessions,
     openConversation,
     refreshConversations,
+    createSession,
   } = workspace;
   const dialog = useDialog();
   const ensureConsent = useSendConsent();
@@ -94,24 +95,26 @@ export function useConversation(
   const [prompt, setPrompt] = useState("");
   const [attachments, setAttachments] = useState<File[]>([]);
   // Drafts survive restarts: text lives in localStorage, attachments in
-  // IndexedDB, with the in-memory cache serving instant switches.
+  // IndexedDB, with the in-memory cache serving instant switches. The
+  // composer of the draft state (no selected conversation yet) persists
+  // under the "new" key the same way.
   const lastSavedFiles = useRef(new Map<string, File[]>());
   useEffect(() => {
-    const id = selected;
-    const cached = id ? draftCache.current.get(id) : null;
+    const key = selected ?? "new";
+    const cached = draftCache.current.get(key);
     let text = "";
     try {
-      text = id ? (localStorage.getItem("icetudio.draft." + id) ?? "") : "";
+      text = localStorage.getItem("icetudio.draft." + key) ?? "";
     } catch {}
     setPrompt(cached?.prompt ?? text);
     setAttachments(cached?.attachments ?? []);
-    if (id && !cached)
-      void loadDraftFiles(id).then((files) => {
-        if (!files.length || activeSessionID.current !== id) return;
-        const entry = draftCache.current.get(id);
+    if (!draftCache.current.has(key))
+      void loadDraftFiles(key).then((files) => {
+        if (!files.length || activeSessionID.current !== selected) return;
+        const entry = draftCache.current.get(key);
         if (entry?.attachments.length) return;
-        lastSavedFiles.current.set(id, files);
-        draftCache.current.set(id, {
+        lastSavedFiles.current.set(key, files);
+        draftCache.current.set(key, {
           prompt: entry?.prompt ?? text,
           attachments: files,
         });
@@ -119,14 +122,14 @@ export function useConversation(
       });
   }, [selected]);
   function updateDraft(text: string, files: File[]) {
-    if (!selected) return;
-    draftCache.current.set(selected, { prompt: text, attachments: files });
+    const key = selected ?? "new";
+    draftCache.current.set(key, { prompt: text, attachments: files });
     try {
-      localStorage.setItem("icetudio.draft." + selected, text);
+      localStorage.setItem("icetudio.draft." + key, text);
     } catch {}
-    if (lastSavedFiles.current.get(selected) !== files) {
-      lastSavedFiles.current.set(selected, files);
-      void saveDraftFiles(selected, files);
+    if (lastSavedFiles.current.get(key) !== files) {
+      lastSavedFiles.current.set(key, files);
+      void saveDraftFiles(key, files);
     }
   }
   function changePrompt(value: string) {
@@ -530,26 +533,6 @@ export function useConversation(
       setApprovalBusy(false);
     }
   }
-  const [configSwitchBusy, setConfigSwitchBusy] = useState(false);
-  async function selectConversationConfig(configID: string) {
-    if (!selected || configSwitchBusy) return;
-    const id = selected;
-    setConfigSwitchBusy(true);
-    try {
-      const updated = await StatusService.SelectConversationConfig(
-        id,
-        configID,
-      );
-      setSessions((items) =>
-        items.map((item) => (item.id === id ? updated : item)),
-      );
-      if (activeSessionID.current === id) setTaskError("");
-    } catch (reason) {
-      if (activeSessionID.current === id) setTaskError(String(reason));
-    } finally {
-      setConfigSwitchBusy(false);
-    }
-  }
   async function clearPlan() {
     if (!selected) return;
     try {
@@ -610,16 +593,33 @@ export function useConversation(
     await submitTask(true);
   }
   async function submitTask(continuation: boolean) {
-    if (
-      !selected ||
-      (!continuation && !prompt.trim() && !attachments.length) ||
-      sending
-    )
-      return;
-    const sessionID = selected;
+    if (sending) return;
+    if (continuation && !selected) return;
+    if (!continuation && !prompt.trim() && !attachments.length) return;
     setSending(true);
     setStreamText("");
+    let sessionID = selected;
     try {
+      if (!sessionID) {
+        // Sending from the composer-ready state creates the conversation;
+        // creation failures surface here like any other send failure.
+        const created = await createSession();
+        sessionID = created.id;
+        activeSessionID.current = sessionID;
+        activeContextID.current = created.contextId;
+        // The draft-mode draft is consumed by this send: carry it under the
+        // new conversation's key so a failed send keeps the text, and
+        // returning to the composer-ready state starts empty.
+        draftCache.current.set(sessionID, { prompt, attachments });
+        lastSavedFiles.current.set(sessionID, attachments);
+        void saveDraftFiles(sessionID, attachments);
+        draftCache.current.delete("new");
+        lastSavedFiles.current.delete("new");
+        void clearDraftFiles("new");
+        try {
+          localStorage.removeItem("icetudio.draft.new");
+        } catch {}
+      }
       if (
         !continuation &&
         activeConversation?.options?.webSearch &&
@@ -787,8 +787,6 @@ export function useConversation(
     approveCall,
     denyCall,
     resolveUnknown,
-    selectConversationConfig,
-    configSwitchBusy,
     clearPlan,
     openChildSession,
     sendTask,

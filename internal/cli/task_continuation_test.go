@@ -22,7 +22,7 @@ func (continuationChat) Chat(_ context.Context, _ config.Model, messages []model
 }
 func TestCLIContinueFixedTaskThroughIPC(t *testing.T) {
 	client, s := newCLIHost(t, continuationChat{}, time.Second)
-	p, err := s.CreateRuntimeConfig("固定续跑", storage.DefaultConfigID)
+	p, err := s.GetRuntimeConfig(storage.DefaultConfigID)
 	if err != nil {
 		t.Fatal(err)
 	}

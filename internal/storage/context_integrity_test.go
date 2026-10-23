@@ -63,7 +63,7 @@ func TestContextOwnershipIsDerivedAndImmutable(t *testing.T) {
 func TestConfigSelectionBelongsToConversation(t *testing.T) {
 	ctx := context.Background()
 	s := openTestStore(t)
-	a, err := s.CreateConversation(ctx, DefaultConfigID, "", "A")
+	seed, err := s.CreateConversation(ctx, DefaultConfigID, "", "seed")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,18 +71,17 @@ func TestConfigSelectionBelongsToConversation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := s.CreateConversation(ctx, p.ID, a.ID, "B")
+	// One shared context; each conversation keeps the config bound at creation.
+	a, err := s.CreateConversation(ctx, p.ID, seed.ID, "A")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := s.CreateConversation(ctx, DefaultConfigID, seed.ID, "B")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if a.ContextID != b.ContextID {
 		t.Fatal("explicit reuse lost context")
-	}
-	if _, err = s.SelectConversationConfig(ctx, a.ID, p.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = s.SelectConversationConfig(ctx, b.ID, DefaultConfigID); err != nil {
-		t.Fatal(err)
 	}
 	pa, err := s.ResolveRunConfig(ctx, a.ID)
 	if err != nil || pa.ConfigID != p.ID {

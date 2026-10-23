@@ -12,29 +12,17 @@ type Props = {
     Configs,
     | "configBusy"
     | "configDraft"
-    | "configEditID"
     | "configError"
-    | "configs"
-    | "createConfig"
     | "restoreDefault"
     | "saveConfig"
     | "setConfigDraft"
-    | "setConfigEditID"
   >;
 };
+// The product has exactly one creation assistant (the built-in default
+// RuntimeConfig); this page edits it. No config library, no create/copy.
 export function ProfileEditor(props: Props) {
-  const {
-    configBusy,
-    configDraft,
-    configEditID,
-    configError,
-    configs,
-    createConfig,
-    restoreDefault,
-    saveConfig,
-    setConfigDraft,
-    setConfigEditID,
-  } = props.configState;
+  const { configBusy, configDraft, configError, restoreDefault, saveConfig, setConfigDraft } =
+    props.configState;
   return (
     configDraft && (
       <section className="session-card" id="assistant-editor">
@@ -44,37 +32,8 @@ export function ProfileEditor(props: Props) {
             v{configDraft.revision}
           </span>
         </div>
-        <label className="model-form">
-          选择要编辑的助手
-          <select
-            value={configEditID ?? ""}
-            onChange={(event) => setConfigEditID(event.target.value)}
-          >
-            {configs.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="model-actions">
-          <button
-            type="button"
-            className="secondary"
-            disabled={configBusy}
-            onClick={() => void createConfig()}
-          >
-            ＋ 创建助手
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            disabled={configBusy}
-            onClick={() => void createConfig("", configDraft.id)}
-          >
-            复制当前
-          </button>
-          {configDraft.isDefault && (
+        {configDraft.isDefault && (
+          <div className="model-actions">
             <button
               type="button"
               className="secondary"
@@ -83,11 +42,8 @@ export function ProfileEditor(props: Props) {
             >
               恢复默认配置
             </button>
-          )}
-          {configDraft.isDefault && (
-            <span className="memory-meta">默认助手不能删除</span>
-          )}
-        </div>
+          </div>
+        )}
         <form className="model-form" onSubmit={saveConfig}>
           <label>
             助手名称

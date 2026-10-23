@@ -1,20 +1,25 @@
-import type { Workspace } from "../hooks/useWorkspace";
 import { useTheme } from "../shared/theme";
+import type { CSSProperties } from "react";
+import type { useProjects } from "../hooks/useProjects";
+
 type Page = "workspace" | "assistants" | "settings";
+
+// The left rail owns projects; conversations and agent settings live in the
+// right dock so the center stays editor-only.
 export function Sidebar({
-  workspace: w,
+  projects: p,
   page,
   setPage,
-  createSession,
+  style,
 }: {
-  workspace: Workspace;
+  projects: ReturnType<typeof useProjects>;
   page: Page;
   setPage: (p: Page) => void;
-  createSession: () => Promise<void>;
+  style?: CSSProperties;
 }) {
   const { theme, toggle } = useTheme();
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" style={style}>
       <a
         className="brand"
         href="#"
@@ -25,90 +30,49 @@ export function Sidebar({
       >
         <span>✳</span> IceTudio
       </a>
-      <button
-        className="new-session"
-        onClick={() => void createSession()}
-        disabled={w.creating}
-      >
-        {w.creating ? "正在创建…" : "＋ 新对话"}
+      <button className="new-project" onClick={p.create} disabled={p.busy}>
+        ＋ 新建工程
       </button>
-      <label className="conversation-search">
-        <span className="sr-only">搜索对话</span>
-        <input
-          placeholder="搜索对话"
-          value={w.query}
-          onChange={(e) => w.setQuery(e.target.value)}
-        />
-      </label>
-      <nav className="session-navigation" aria-label="对话列表">
-        {w.sessions
-          .filter(
-            (s) =>
-              s.kind === "normal" &&
-              s.title.toLowerCase().includes(w.query.trim().toLowerCase()),
-          )
-          .map((s) => (
-            <div
-              className={`session-row ${page === "workspace" && w.selected === s.id ? "selected" : ""}`}
-              key={s.id}
+      <button className="secondary" onClick={p.importMIDI} disabled={p.busy}>
+        导入 MIDI
+      </button>
+      {p.error ? (
+        <p className="project-error" role="alert">
+          {p.error}
+        </p>
+      ) : null}
+      <ul className="project-list" aria-label="工程列表">
+        {p.projects.length === 0 ? (
+          <li className="project-list-empty">还没有工程</li>
+        ) : (
+          p.projects.map((item) => (
+            <li
+              key={item.id}
+              className={item.id === p.activeID ? "active" : ""}
             >
               <button
-                className="session-link"
-                onClick={() => {
-                  w.openConversation(s);
-                  setPage("workspace");
-                }}
-                title={s.title}
+                className="project-select"
+                onClick={() => p.select(item.id)}
+                title={item.id}
               >
-                {s.title}
+                <span>{item.title}</span>
+                <span className="project-meta">
+                  修订 {item.revision} · PPQ {item.ppq}
+                </span>
               </button>
-              <details className="conversation-menu">
-                <summary aria-label={`管理对话 ${s.title}`}>⋯</summary>
-                <div>
-                  <button
-                    onClick={(e) => {
-                      e.currentTarget
-                        .closest("details")
-                        ?.removeAttribute("open");
-                      void w.renameConversation(s);
-                    }}
-                  >
-                    重命名
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.currentTarget
-                        .closest("details")
-                        ?.removeAttribute("open");
-                      void w.deleteConversation(s);
-                    }}
-                  >
-                    删除对话
-                  </button>
-                </div>
-              </details>
-            </div>
-          ))}
-        {w.query &&
-          !w.sessions.some(
-            (s) =>
-              s.kind === "normal" &&
-              s.title.toLowerCase().includes(w.query.trim().toLowerCase()),
-          ) && <p className="hint">没有找到匹配的对话</p>}
-      </nav>
+              <button
+                className="project-remove"
+                onClick={() => p.remove(item.id)}
+                disabled={p.busy}
+                title={`删除 ${item.title}`}
+              >
+                删除
+              </button>
+            </li>
+          ))
+        )}
+      </ul>
       <div className="sidebar-bottom">
-        <button
-          className={page === "workspace" ? "selected" : ""}
-          onClick={() => setPage("workspace")}
-        >
-          ♬ 工程
-        </button>
-        <button
-          className={page === "assistants" ? "selected" : ""}
-          onClick={() => setPage("assistants")}
-        >
-          ◇ 助手
-        </button>
         <button
           className={page === "settings" ? "selected" : ""}
           onClick={() => setPage("settings")}

@@ -11,7 +11,6 @@ export function useWorkspace() {
   const [selected, setSelected] = useState<string | null>(null);
   const [contextID, setContextID] = useState("");
   const creatingRef = useRef(false);
-  const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
   const [loaded, setLoaded] = useState(false);
   const activeConversation = sessions.find((s) => s.id === selected) ?? null;
@@ -22,23 +21,28 @@ export function useWorkspace() {
       localStorage.setItem("icetudio.lastConversation", item.id);
     } catch {}
   }
+  // Composer-ready state: nothing is created until a message is actually
+  // sent, so there are no empty placeholder conversations.
+  function newDraft() {
+    setContextID("");
+    setSelected(null);
+    try {
+      localStorage.removeItem("icetudio.lastConversation");
+    } catch {}
+  }
   async function refreshConversations() {
     const items = (await StatusService.ListConversations()) ?? [];
     setSessions(items);
     return items;
   }
-  async function createSession(configID?: string) {
-    if (creatingRef.current) return null;
+  // The service binds a new conversation to the built-in default config.
+  // Throws so the sending flow can show the failure next to the composer.
+  async function createSession() {
+    if (creatingRef.current) throw new Error("正在创建对话，请稍候");
     creatingRef.current = true;
-    setCreating(true);
     try {
-      let id = configID ?? "";
-      if (!id) {
-        const configs = (await StatusService.ListRuntimeConfigs()) ?? [];
-        id = (configs.find((p) => p.isDefault) ?? configs[0])?.id ?? "";
-      }
       const item = await StatusService.CreateConversation(
-        id,
+        "",
         reuseContext && selected ? selected : "",
         "",
       );
@@ -50,12 +54,8 @@ export function useWorkspace() {
       setReuseContext(false);
       setWorkspaceError("");
       return item;
-    } catch (e) {
-      setWorkspaceError(String(e));
-      return null;
     } finally {
       creatingRef.current = false;
-      setCreating(false);
     }
   }
   async function renameConversation(item: Conversation) {
@@ -141,9 +141,9 @@ export function useWorkspace() {
     setReuseContext,
     selected,
     contextID,
-    creating,
     activeConversation,
     openConversation,
+    newDraft,
     refreshConversations,
     createSession,
     query,

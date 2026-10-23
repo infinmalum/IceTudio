@@ -8,28 +8,8 @@ export function ProfileAdvanced({ configState }: { configState: Configs }) {
     <section className="session-card">
       <h2>助手的执行配置</h2>
       <p>
-        只影响下面选中的助手。与助手页面共用同一份草稿，保存后用于后续任务。
+        与助手页编辑同一个内置助手，共用同一份草稿，保存后用于后续任务。
       </p>
-      <label>
-        要配置的助手
-        <select
-          aria-label="开发者设置中的助手"
-          value={configState.configEditID ?? ""}
-          disabled={configState.configBusy}
-          onChange={(e) => void configState.setConfigEditID(e.target.value)}
-        >
-          {!configState.configEditID && (
-            <option value="" disabled>
-              请选择助手
-            </option>
-          )}
-          {configState.configs.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </label>
       {configDraft && (
         <form className="model-form" onSubmit={configState.saveConfig}>
           <label>

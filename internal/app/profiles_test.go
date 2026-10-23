@@ -48,51 +48,6 @@ func promptScript(t *testing.T, call model.ToolCall, wantPrompt string, firstTur
 	return chat
 }
 
-// Switching a conversation to another execution config keeps its history
-// while the next run starts executing with the newly selected combination.
-func TestRunConfigSwitching(t *testing.T) {
-	svc, store := newTestService(t, &scriptModel{}, &scriptTools{})
-	data := storage.BlankRuntimeConfig()
-	data.SystemPrompt = "专属提示词 A"
-	config, err := store.CreateRuntimeConfig(context.Background(), "A", data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	local, err := testfixture.Context(svc.store, context.Background(), "甲", config.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	session, err := svc.createContextSession(local.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	svc.chat = promptScript(t, extToolCall("c", "local__current_time", "{}"), "专属提示词 A", false)
-	run, err := svc.StartConversationTask(session.ID, "你好")
-	if err != nil {
-		t.Fatal(err)
-	}
-	waitForRun(t, svc, run.ID, "completed")
-	runRow, err := svc.GetRun(run.ID)
-	if err != nil || runRow.ConfigID != config.ID || runRow.ConfigRevision != 1 {
-		t.Fatalf("run config record: %+v %v", runRow, err)
-	}
-
-	if _, err := svc.SelectConversationConfig(session.ID, storage.DefaultConfigID); err != nil {
-		t.Fatal(err)
-	}
-	// Sessions and history stay with the context across the switch.
-	messages, err := svc.ListMessages(session.ID)
-	if err != nil || len(messages) == 0 {
-		t.Fatalf("history must survive the switch: %+v %v", messages, err)
-	}
-	svc.chat = promptScript(t, extToolCall("c2", "local__current_time", "{}"), "你是 IceTudio 创作助手", false)
-	run2, err := svc.StartConversationTask(session.ID, "再问")
-	if err != nil {
-		t.Fatal(err)
-	}
-	waitForRun(t, svc, run2.ID, "completed")
-}
-
 // Editing a shared execution config changes every referencing context's
 // subsequent runs.
 func TestSharedConfigEditAffectsSubsequentRuns(t *testing.T) {
@@ -189,42 +144,6 @@ func TestInFlightRunKeepsConfigSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitForRun(t, svc, run2.ID, "completed")
-}
-
-// An execution config copy is an independent combination: editing the copy
-// leaves the original untouched, and copy edits do not leak into other
-// contexts.
-func TestConfigCopyIndependent(t *testing.T) {
-	svc, _ := newTestService(t, &scriptModel{}, &scriptTools{})
-	copied, err := svc.CreateRuntimeConfig("", storage.DefaultConfigID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if copied.ID == storage.DefaultConfigID || copied.IsDefault || !strings.HasSuffix(copied.Name, "副本") {
-		t.Fatalf("copy identity: %+v", copied)
-	}
-	copied.Data.SystemPrompt = "副本提示词"
-	if _, err := svc.UpdateRuntimeConfig(copied); err != nil {
-		t.Fatal(err)
-	}
-	original := findConfig(t, svc, storage.DefaultConfigID)
-	if strings.Contains(original.Data.SystemPrompt, "副本提示词") {
-		t.Fatalf("copy edit leaked into the original: %+v", original)
-	}
-	local, err := testfixture.Context(svc.store, context.Background(), "甲", copied.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	session, err := svc.createContextSession(local.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	svc.chat = promptScript(t, extToolCall("c", "local__current_time", "{}"), "副本提示词", false)
-	run, err := svc.StartConversationTask(session.ID, "你好")
-	if err != nil {
-		t.Fatal(err)
-	}
-	waitForRun(t, svc, run.ID, "completed")
 }
 
 // Saving a combination whose capability references do not exist on this host

@@ -24,16 +24,17 @@ func TestRunGateUsesSnapshotButLivePolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	g := toolGate{svc: svc, contextID: snap.ContextID, snapshot: &snap}
-	blank, err := store.CreateRuntimeConfig(ctx, "blank", storage.BlankRuntimeConfig())
+	edited, err := store.GetRuntimeConfig(ctx, storage.DefaultConfigID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.SelectConversationConfig(session.ID, blank.ID); err != nil {
+	edited.Data = storage.BlankRuntimeConfig()
+	if _, err := store.UpdateRuntimeConfig(ctx, edited); err != nil {
 		t.Fatal(err)
 	}
 	req := agent.ToolRequest{Tool: "local__current_time", Arguments: "{}"}
 	if d := g.Gate(ctx, req); d.Deny != "" || d.Confirm != "" {
-		t.Fatalf("switch altered in-flight capabilities: %+v", d)
+		t.Fatalf("config change altered in-flight capabilities: %+v", d)
 	}
 	setContextPolicy(t, svc, snap.ContextID, func(p *storage.ContextPolicy) { p.ApprovalMode = "manual"; p.Permissions.Unrestricted = false })
 	if d := g.Gate(ctx, req); d.Confirm == "" {
@@ -127,7 +128,7 @@ func TestExfilContextIsolationAndPayload(t *testing.T) {
 	}
 }
 
-func TestLocalContextRestrictionsSurviveConfigSwitch(t *testing.T) {
+func TestLocalContextRestrictionsSurviveConfigChange(t *testing.T) {
 	svc, store := newTestService(t, &scriptModel{}, &scriptTools{})
 	session, _ := svc.CreateSession()
 	ctx := context.Background()
@@ -139,16 +140,17 @@ func TestLocalContextRestrictionsSurviveConfigSwitch(t *testing.T) {
 	if _, err := svc.GrantExfil(testfixture.ContextID, remote.BaseURL, []string{storage.ScopePersonal}); err != nil {
 		t.Fatal(err)
 	}
-	p, err := store.CreateRuntimeConfig(ctx, "new", storage.BlankRuntimeConfig())
+	current, err := store.GetRuntimeConfig(ctx, storage.DefaultConfigID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.SelectConversationConfig(session.ID, p.ID); err != nil {
+	current.Data = storage.BlankRuntimeConfig()
+	if _, err := store.UpdateRuntimeConfig(ctx, current); err != nil {
 		t.Fatal(err)
 	}
 	snap, _ := testfixture.RunConfig(store, ctx, testfixture.ContextID)
 	if err := svc.exfilCheck(ctx, session.ID, remote, snap); err == nil {
-		t.Fatal("switch discarded prior unknown input")
+		t.Fatal("config change discarded prior unknown input")
 	}
 	initial := storage.ExfilGrant{ContextID: testfixture.ContextID, Scopes: []string{storage.ScopePersonal}}
 	if _, err := svc.GrantExfil(testfixture.ContextID, remote.BaseURL, []string{storage.ScopePersonal, storage.ScopeUnknown}); err != nil {

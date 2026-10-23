@@ -26,12 +26,6 @@ func (s *StatusService) ListRuntimeConfigs() ([]storage.RuntimeConfig, error) {
 	return s.svc.ListRuntimeConfigs()
 }
 
-// CreateRuntimeConfig saves a new config: blank when fromID is empty,
-// otherwise an independent copy of the referenced config.
-func (s *StatusService) CreateRuntimeConfig(name, fromID string) (storage.RuntimeConfig, error) {
-	return s.svc.CreateRuntimeConfig(name, fromID)
-}
-
 // UpdateRuntimeConfig saves a new combination atomically and checks that the
 // selected skills and MCP servers actually exist on this host.
 func (s *StatusService) UpdateRuntimeConfig(c storage.RuntimeConfig) (storage.RuntimeConfig, error) {

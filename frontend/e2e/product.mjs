@@ -71,8 +71,8 @@ export const DesktopService={Ready:async()=>{},CancelClose:async()=>{},ConfirmCl
 export const PlaybackService={Status:async()=>({available:false,ready:false,playing:false,settings:{version:1,driver:'pulseaudio',soundFont:''},error:'',engine:'UI mock',sampleRate:48000}),Stop:async()=>{},StopProject:async()=>{},Play:async()=>{},Seek:async()=>{},Configure:async()=>{},PickSoundFont:async()=>''};
 export const StatusService={
 GetStatus:async()=>structuredClone(status()),ListCredentialStatus:async()=>[{provider:'openai',configured:state.savedKey}],SaveCredential:async(p,key)=>{if(key!=='mock-key')throw Error('unexpected key');state.savedKey=true},DeleteCredential:async()=>{state.savedKey=false},SaveModelConfig:async(m)=>{state.model=structuredClone(m);return structuredClone(status())},ListMCPEndpoints:async()=>[],
-ListRuntimeConfigs:async()=>{if(state.failProfiles)throw Error('助手列表加载失败');return structuredClone(state.configs)},GetRuntimeConfig:async(id)=>structuredClone(state.configs.find(p=>p.id===id)),UpdateRuntimeConfig:async(p)=>{const cur=state.configs.find(v=>v.id===p.id);if(!cur)throw Error('助手不存在');if(cur.revision!==p.revision)throw Error('执行配置已被其他操作修改，请刷新后重试');const saved={...structuredClone(p),revision:p.revision+1,updatedAt:'2026-10-17'};state.configs=state.configs.map(v=>v.id===p.id?saved:v);return structuredClone(saved)},CreateRuntimeConfig:async(name,from)=>{const p=config('p'+(++state.n),name||'新助手');if(from)p.data=structuredClone(state.configs.find(v=>v.id===from).data);state.configs.push(p);return structuredClone(p)},RestoreRuntimeConfigDefault:async(revision)=>{const cur=state.configs.find(p=>p.id==='default');if(!cur||cur.revision!==revision)throw Error('执行配置已被其他操作修改，请刷新后重试');const d=config('default','创作助手');d.revision=revision+2;state.configs=state.configs.map(v=>v.id==='default'?d:v);return structuredClone(d)},
-ListConversations:async()=>{if(state.failList)throw Error('列表刷新失败');return structuredClone(state.conversations)},GetConversation:async(id)=>structuredClone(state.conversations.find(c=>c.id===id)),CreateConversation:async(configId,reuse,title)=>{if(state.failCreate)throw Error('创建失败，请重试');if(state.delayCreate)await new Promise(r=>setTimeout(r,500));const id='c'+(++state.n),contextId=reuse?state.conversations.find(c=>c.id===reuse).contextId:'ctx'+state.n,c={id,configId,contextId,title:title||'新对话',kind:'normal',configName:state.configs.find(p=>p.id===configId).name,configArchived:false,createdAt:'2026-10-17',projectId:'',options:{webSearch:false}};state.contexts[contextId]??={id:contextId,name:c.title,policy:{approvalMode:'semi',permissions:{unrestricted:false,workspacePaths:[],commands:[],networkHosts:[]}}};state.conversations.unshift(c);state.messages[id]=[];return structuredClone(c)},RenameConversation:async(id,title)=>{state.conversations.find(c=>c.id===id).title=title},DeleteConversation:async(id)=>{state.conversations=state.conversations.filter(c=>c.id!==id);delete state.messages[id]},SelectConversationConfig:async(id,configId)=>{if(state.failSwitch)throw Error('助手切换失败，请重试');await new Promise(r=>setTimeout(r,100));const c=state.conversations.find(c=>c.id===id);c.configId=configId;c.configName=state.configs.find(p=>p.id===configId).name;return structuredClone(c)},
+ListRuntimeConfigs:async()=>{if(state.failProfiles)throw Error('助手列表加载失败');return structuredClone(state.configs)},GetRuntimeConfig:async(id)=>structuredClone(state.configs.find(p=>p.id===id)),UpdateRuntimeConfig:async(p)=>{const cur=state.configs.find(v=>v.id===p.id);if(!cur)throw Error('助手不存在');if(cur.revision!==p.revision)throw Error('执行配置已被其他操作修改，请刷新后重试');const saved={...structuredClone(p),revision:p.revision+1,updatedAt:'2026-10-17'};state.configs=state.configs.map(v=>v.id===p.id?saved:v);return structuredClone(saved)},RestoreRuntimeConfigDefault:async(revision)=>{const cur=state.configs.find(p=>p.id==='default');if(!cur||cur.revision!==revision)throw Error('执行配置已被其他操作修改，请刷新后重试');const d=config('default','创作助手');d.revision=revision+2;state.configs=state.configs.map(v=>v.id==='default'?d:v);return structuredClone(d)},
+ListConversations:async()=>{if(state.failList)throw Error('列表刷新失败');return structuredClone(state.conversations)},GetConversation:async(id)=>structuredClone(state.conversations.find(c=>c.id===id)),CreateConversation:async(configId,reuse,title)=>{if(state.failCreate)throw Error('创建失败，请重试');if(state.delayCreate)await new Promise(r=>setTimeout(r,500));configId=configId||'default';const id='c'+(++state.n),contextId=reuse?state.conversations.find(c=>c.id===reuse).contextId:'ctx'+state.n,c={id,configId,contextId,title:title||'新对话',kind:'normal',configName:state.configs.find(p=>p.id===configId).name,configArchived:false,createdAt:'2026-10-17',projectId:'',options:{webSearch:false}};state.contexts[contextId]??={id:contextId,name:c.title,policy:{approvalMode:'semi',permissions:{unrestricted:false,workspacePaths:[],commands:[],networkHosts:[]}}};state.conversations.unshift(c);state.messages[id]=[];return structuredClone(c)},RenameConversation:async(id,title)=>{state.conversations.find(c=>c.id===id).title=title},DeleteConversation:async(id)=>{state.conversations=state.conversations.filter(c=>c.id!==id);delete state.messages[id]},
 GetLocalContext:async(id)=>structuredClone(state.contexts[id]),UpdateContextPolicy:async(id,policy)=>{state.contexts[id].policy=structuredClone(policy);return structuredClone(state.contexts[id])},ListExfilGrants:async(id)=>structuredClone(state.grants[id]??[]),GrantExfil:async(id,destination,scopes)=>{state.grants[id]=[{destination,scopes}]},RevokeExfil:async(id)=>{state.grants[id]=[]},PreviewSend:async(id)=>{const c=state.conversations.find(c=>c.id===id);return state.previewRemote&&!state.grants[c.contextId]?.length?[{provider:'openai',destination:'https://custom.example',scopes:['personal','unknown'],missing:['personal','unknown']}]:[]},
 ConversationSearchAvailability:async()=>({available:false,reason:'模拟能力不可用'}),ListConversationSearch:async()=>[],SetConversationOptions:async(id,options)=>{const c=state.conversations.find(c=>c.id===id);c.options=structuredClone(options);return structuredClone(c)},
 ListMessages:async(id)=>structuredClone(state.messages[id]??[]),ListChatMessages:async(id)=>({messages:structuredClone(state.messages[id]??[]).map((m,i)=>({...m,seq:i+1,sessionId:id})),beforeSeq:1,hasMore:false}),ListRuns:async(id)=>structuredClone(Object.values(state.runs).filter(r=>r.sessionId===id).reverse()),ListToolCalls:async()=>[],PendingApprovals:async()=>structuredClone(state.pending),GetSessionSummary:async()=>{throw Error('none')},GetSessionPlan:async()=>{throw Error('none')},ListChildRuns:async()=>[],GetTaskGraph:async()=>({tasks:[],attempts:[],artifacts:[],coordination:{state:'complete',rounds:0},continuations:[]}),ListTaskReviews:async()=>[],ListTaskRetrospectives:async()=>[],PendingStreamText:async()=>'',
@@ -168,7 +168,15 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
       if (await evaluate(`Boolean(${expr})`)) return;
       await sleep(100);
     }
-    throw Error("not reached: " + expr);
+    throw Error(
+      "not reached: " +
+        expr +
+        (errors.length ? "\n  page errors: " + errors.join("\n  ") : "") +
+        "\n  state: " +
+        (await evaluate(
+          `JSON.stringify({n:window.__product?.conversations?.length,v:document.querySelector('[aria-label="发送消息"]')?.value,alert:document.querySelector('[role=alert]')?.innerText??"",dialog:document.querySelector('dialog[open]')?.innerText.slice(0,150)??"none",ls:Object.keys(localStorage).filter(k=>k.includes("draft"))})`,
+        ).catch((e) => "unavailable: " + e.message)),
+    );
   }
   async function click(text) {
     await until(
@@ -193,9 +201,17 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
       `(()=>{const t=document.querySelector(${JSON.stringify(selector)});if(!t)throw Error('missing input');Object.getOwnPropertyDescriptor(t instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(t,${JSON.stringify(value)});t.dispatchEvent(new Event('input',{bubbles:true}))})()`,
     );
   }
-  // 启动即工程工作区：未选工程时提示新建/导入，并标注试听未实现。
+  // 启动即工程工作区：没有对话时输入框就是入口，发送第一条消息才创建对话。
   await until(
-    `window.__product?.conversations.length===1 && document.querySelector('[aria-label="发送消息"]')`,
+    `window.__product?.conversations.length===0 && document.querySelector('[aria-label="发送消息"]') && document.body.innerText.includes('输入消息，直接开始新对话')`,
+  );
+  await new Promise((r) => setTimeout(r, 400));
+  writeFileSync(
+    resolve(dir, "draft-home.png"),
+    Buffer.from(
+      (await send("Page.captureScreenshot", { format: "png" })).data,
+      "base64",
+    ),
   );
   if (
     await evaluate(
@@ -209,8 +225,8 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
     ))
   )
     throw Error("workspace must explain project creation and audition entry");
-  // 工程条：新建 → 重命名（经统一编辑事务）→ 撤销 → 重做 → 导入导出 → 绑定对话 → 删除。
-  await clickIn(".project-strip", "新建工程");
+  // 工程在左栏（新建/导入/列表），中间只有编辑器命令条；绑定对话在右侧 agent 栏。
+  await clickIn(".sidebar", "＋ 新建工程");
   await fill("dialog[open] input[type=text]", "示例工程");
   await clickIn("dialog[open]", "创建");
   await until(
@@ -232,7 +248,7 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
   );
   if ((await evaluate(`window.__product.projects[0].title`)) !== "夜曲")
     throw Error("undo/redo lost the edit");
-  await clickIn(".project-strip", "导入 MIDI");
+  await clickIn(".sidebar", "导入 MIDI");
   await until(
     `window.__product.projects.length===2 && document.body.innerText.includes('导入的工程')`,
   );
@@ -240,20 +256,7 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
   await until(
     `window.__product.lastExport?.path.endsWith('.mid') && window.__product.lastExport.projectId===window.__product.projects[1].id`,
   );
-  await clickIn(".project-strip", "绑定当前对话");
-  await until(
-    `window.__product.conversations.some(c=>c.projectId===window.__product.projects[1].id)`,
-  );
-  await evaluate(`document.querySelectorAll('.project-remove')[1].click()`);
-  await until(
-    `document.querySelector('dialog[open]')?.innerText.includes('删除工程')`,
-  );
-  await clickIn("dialog[open]", "删除");
-  await until(
-    `window.__product.projects.length===1 && document.body.innerText.includes('夜曲')`,
-  );
-  if ((await evaluate(`window.__product.conversations.some(c=>c.projectId)`)))
-    throw Error("deleted project kept the conversation binding");
+  // 连接模型后，输入框直接开始：第一条消息创建对话。
   await click("连接模型");
   await until(`document.querySelector('.model-form')`);
   await evaluate(
@@ -267,14 +270,34 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
   if (!(await evaluate(`window.__product.savedKey`)))
     throw Error("Unified model setup did not save credentials");
   await click("开始聊天 →");
-  await fill('[aria-label="发送消息"]', "保留未发送的内容");
-  await click("＋ 新对话");
+  await fill('[aria-label="发送消息"]', "第一条消息");
+  await click("发送 ↑");
   await until(
-    `window.__product.conversations.length===2 && document.querySelector('[aria-label="发送消息"]').value===''`,
+    `window.__product.conversations.length===1 && window.__product.lastSend?.input==='第一条消息'`,
   );
-  await evaluate(
-    `Array.from(document.querySelectorAll('.session-link'))[1].click()`,
+  await clickIn(".agent-dock", "绑定当前工程");
+  await until(
+    `window.__product.conversations.some(c=>c.projectId===window.__product.projects[1].id)`,
   );
+  await evaluate(`document.querySelectorAll('.project-remove')[1].click()`);
+  await until(
+    `document.querySelector('dialog[open]')?.innerText.includes('删除工程')`,
+  );
+  await clickIn("dialog[open]", "删除");
+  await until(
+    `window.__product.projects.length===1 && document.body.innerText.includes('夜曲')`,
+  );
+  if ((await evaluate(`window.__product.conversations.some(c=>c.projectId)`)))
+    throw Error("deleted project kept the conversation binding");
+  // 未发送文字按对话保留；对话内用输入框工具条的「新对话」回到待输入状态，不创建对话。
+  await fill('[aria-label="发送消息"]', "保留未发送的内容");
+  await click("新对话");
+  await until(
+    `document.querySelector('[aria-label="发送消息"]').value===''`,
+  );
+  if ((await evaluate(`window.__product.conversations.length`)) !== 1)
+    throw Error("new-draft entry created a conversation");
+  await evaluate(`document.querySelector('.session-link').click()`);
   await until(
     `document.querySelector('[aria-label="发送消息"]').value==='保留未发送的内容'`,
   );
@@ -295,10 +318,11 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
     `document.querySelector('.draft-attachments').innerText.includes('dropped.txt')`,
   );
   // Enter submits; a composing Enter must not submit.
+  const sentBefore = await evaluate(`window.__product.lastSend?.input`);
   await evaluate(
     `document.querySelector('[aria-label="发送消息"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',isComposing:true,bubbles:true}))`,
   );
-  if (await evaluate(`!!window.__product.lastSend`))
+  if ((await evaluate(`window.__product.lastSend?.input`)) !== sentBefore)
     throw Error("IME submitted");
   await evaluate(
     `document.querySelector('[aria-label="发送消息"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))`,
@@ -387,11 +411,11 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
   await click("记录核对结论");
   await until(`window.__product.resolution?.status==='failed'`);
   // 助手编辑：未保存修改跨页面保留；保存走 UpdateRuntimeConfig（修订 +1）。
-  await click("◇ 助手");
+  await click("管理助手");
   await until(`document.querySelector('#assistant-editor')`);
   await fill("#assistant-editor input[required]", "未保存的助手名称");
   await click("返回工程");
-  await click("◇ 助手");
+  await click("管理助手");
   await until(
     `document.querySelector('#assistant-editor input[required]').value==='未保存的助手名称'`,
   );
@@ -403,7 +427,7 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
   await evaluate(
     `document.querySelector('.conversation-menu summary').click()`,
   );
-  await click("重命名");
+  await clickIn(".agent-dock", "重命名");
   await until(`document.querySelector('dialog[open] input[type=text]')`);
   await fill("dialog[open] input[type=text]", "资料整理");
   await click("保存");
@@ -413,25 +437,6 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
   await fill(".conversation-search input", "资料整理");
   await until(`document.querySelectorAll('.session-row').length===1`);
   await fill(".conversation-search input", "");
-  await evaluate(
-    `document.querySelector('.conversation-menu summary').click()`,
-  );
-  await click("删除对话");
-  await until(
-    `document.querySelector('dialog[open]')?.innerText.includes('无法恢复')`,
-  );
-  await click("取消");
-  if ((await evaluate(`window.__product.conversations.length`)) !== 2)
-    throw Error("Cancelled deletion removed conversation");
-  await evaluate(
-    `document.querySelector('.conversation-menu summary').click()`,
-  );
-  await click("删除对话");
-  await until(`document.querySelector('dialog[open]')`);
-  await evaluate(
-    `Array.from(document.querySelectorAll('dialog[open] button')).find(b=>b.textContent.trim()==='删除对话').click()`,
-  );
-  await until(`window.__product.conversations.length===1`);
   await send("Page.captureScreenshot", { format: "png" }).then((r) =>
     writeFileSync(resolve(dir, "workspace.png"), Buffer.from(r.data, "base64")),
   );
@@ -458,64 +463,84 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
     )
   )
     throw Error("Duplicate credential editor in developer settings");
+  await click("返回工程");
+  // 对话只在发送时创建：创建失败在输入框旁报错，文字保留可重试。
   await evaluate(`window.__product.failCreate=true`);
-  await click("＋ 新对话");
+  await click("新对话");
+  await fill('[aria-label="发送消息"]', "创建失败也要保留文字");
+  await click("发送 ↑");
   await until(
     `document.querySelector('.chat-page') && document.querySelector('[role=alert]')?.innerText.includes('创建失败')`,
   );
+  await until(
+    `document.querySelector('[aria-label="发送消息"]').value==='创建失败也要保留文字'`,
+  );
+  // 本段只验证创建失败与延迟；关闭远端预览，避免新对话触发无关的目的地授权弹窗。
   await evaluate(
-    `window.__product.failCreate=false;window.__product.delayCreate=true;window.__product.failList=true`,
+    `window.__product.failCreate=false;window.__product.delayCreate=true;window.__product.previewRemote=false`,
   );
-  await click("⚙ 设置");
-  await click("＋ 新对话");
+  await click("发送 ↑");
   await until(
-    `document.querySelector('.chat-page') && document.body.innerText.includes('正在创建')`,
+    `Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='发送中…'&&b.disabled)`,
   );
   await until(
-    `window.__product.conversations.length===2 && !document.querySelector('.new-session').disabled`,
+    `window.__product.conversations.length===2 && document.querySelector('[aria-label="发送消息"]').value===''`,
   );
+  await evaluate(`window.__product.delayCreate=false`);
+  // 删除当前对话需要确认，删除后回到剩余对话。
   await evaluate(
-    `window.__product.delayCreate=false;window.__product.failList=false`,
+    `document.querySelector('.conversation-menu summary').click()`,
   );
-  // 创建助手（经名称对话框），并把新助手用于一次全新对话。
-  await click("◇ 助手");
-  await click("＋ 创建助手");
-  await until(`document.querySelector('dialog[open] input[type=text]')`);
-  await fill("dialog[open] input[type=text]", "资料助手");
-  await click("创建");
+  await click("删除对话");
   await until(
-    `window.__product.configs.length===2 && document.querySelector('#assistant-editor select').value===window.__product.configs[1].id`,
+    `document.querySelector('dialog[open]')?.innerText.includes('无法恢复')`,
   );
-  await until(
-    `!Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='使用这个助手开始新对话')?.disabled`,
-  );
-  await click("使用这个助手开始新对话");
-  await until(
-    `document.querySelector('[aria-label="当前助手"]')?.value===window.__product.configs[1].id`,
-  );
-  const switchAssistant = async (value) =>
-    evaluate(
-      `(()=>{const s=document.querySelector('[aria-label="当前助手"]');s.value=${JSON.stringify(value)};s.dispatchEvent(new Event('change',{bubbles:true}))})()`,
-    );
-  await evaluate(`window.__product.failList=true`);
-  await switchAssistant("default");
-  await until(
-    `document.querySelector('[aria-label="当前助手"]').value==='default' && !document.querySelector('[aria-label="当前助手"]').disabled`,
-  );
+  await click("取消");
+  if ((await evaluate(`window.__product.conversations.length`)) !== 2)
+    throw Error("Cancelled deletion removed conversation");
   await evaluate(
-    `window.__product.failList=false;window.__product.failSwitch=true`,
+    `document.querySelector('.conversation-menu summary').click()`,
   );
-  await switchAssistant(await evaluate(`window.__product.configs[1].id`));
-  await until(
-    `document.querySelector('[role=alert]')?.innerText.includes('助手切换失败')`,
+  await click("删除对话");
+  await until(`document.querySelector('dialog[open]')`);
+  await evaluate(
+    `Array.from(document.querySelectorAll('dialog[open] button')).find(b=>b.textContent.trim()==='删除对话').click()`,
   );
+  await until(`window.__product.conversations.length===1`);
+  // 助手产品只有一个内置创作助手：没有配置库入口；恢复默认走 configs.restoreDefault。
+  await click("管理助手");
+  await until(`document.querySelector('#assistant-editor')`);
+  if (await evaluate(`!!document.querySelector('#assistant-editor select')`))
+    throw Error("assistant picker should be gone");
   if (
     await evaluate(
-      `document.querySelector('[aria-label="当前助手"]').value!=='default'`,
+      `Array.from(document.querySelectorAll('button')).some(b=>['＋ 创建助手','复制当前','使用这个助手开始新对话'].includes(b.textContent.trim()))`,
     )
   )
-    throw Error("Failed switch changed selected assistant");
-  await evaluate(`window.__product.failSwitch=false`);
+    throw Error("assistant library entries should be gone");
+  await evaluate(
+    `document.querySelector('.settings-page').scrollTop=0;document.querySelector('#assistant-editor').scrollIntoView({block:'start'})`,
+  );
+  await new Promise((r) => setTimeout(r, 400));
+  writeFileSync(
+    resolve(dir, "assistant-editor.png"),
+    Buffer.from(
+      (await send("Page.captureScreenshot", { format: "png" })).data,
+      "base64",
+    ),
+  );
+  await click("恢复默认配置");
+  await until(`document.querySelector('dialog[open]')`);
+  await click("恢复默认");
+  await until(
+    `window.__product.configs[0].name==='创作助手' && window.__product.configs[0].revision===4`,
+  );
+  await click("返回工程");
+  await until(
+    `document.querySelector('.chat-page') && document.querySelector('.assistant-name')?.textContent==='创作助手'`,
+  );
+  if (await evaluate(`!!document.querySelector('[aria-label="当前助手"]')`))
+    throw Error("per-chat assistant switcher should be gone");
   // 权限合并：这里只保存编辑过的字段，不覆盖聊天中新授权的文件夹。
   await click("⚙ 设置");
   await click("权限");
@@ -561,17 +586,8 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
     `!window.__product.savedKey && document.body.innerText.includes('尚未保存密钥')`,
   );
   await click("返回工程");
-  await switchAssistant("__manage__");
-  await until(`document.querySelector('#assistant-editor')`);
-  await click("返回工程");
-  if (
-    await evaluate(
-      `document.querySelector('[aria-label="当前助手"]').value!=='default'`,
-    )
-  )
-    throw Error("Managing assistants changed current assistant");
   console.log(
-    "PASS: honest workspace home, unified model connection, preserved drafts, assistant editing/creation/activation and switch success-failure, live permission merge without overwriting folder consent, credential lifecycle, failed/delayed new-chat navigation.",
+    "PASS: honest workspace home, send-creates-conversation with per-conversation drafts, unified model connection, single-assistant editing with restore-default, live permission merge without overwriting folder consent, credential lifecycle, and failed/delayed creation surfaced at the composer.",
   );
   // MCP 服务在普通设置安装；助手编辑页从目录勾选，而不是手填名称。
   await click("⚙ 设置");
@@ -585,7 +601,8 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
   await until(
     `window.__product.mcpConfig.length===1 && document.body.innerText.includes('已保存并连接')`,
   );
-  await click("◇ 助手");
+  await click("返回工程");
+  await click("管理助手");
   await evaluate(
     `Array.from(document.querySelectorAll('label.checkbox-label')).find(l=>l.textContent.includes('启用全部已接入的 MCP 服务')).querySelector('input').click()`,
   );
@@ -640,7 +657,9 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
       "base64",
     ),
   );
-  await click("◇ 助手");
+  await click("返回工程");
+  await until(`document.querySelector('.chat-page')`);
+  await click("管理助手");
   await click("☀ 浅色模式");
   await until(`document.documentElement.dataset.theme==='light'`);
   if (
@@ -670,7 +689,7 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
   console.log("PASS: theme toggle switches palettes in place.");
   if (errors.length) throw Error(errors.join("\n"));
   console.log(
-    "PASS: workspace-first home with audition entry status, project strip (create/rename transaction/undo/redo/import/export/bind/delete), docked assistant chat, file upload/preview, Markdown/table/code and HTML safety, IME/Enter, search recovery, explicit endpoint consent, folder permission, child approval aggregation, conversation rename/search/delete, drag/paste thumbnails, guided unknown outcome and cancellable denial, narrow layout and single chat scroll.",
+    "PASS: workspace-first home with audition entry status, project sidebar (create/import/select/delete) and editor-only center (rename transaction/undo/redo/export), right agent dock with conversation list/send-creates-conversation/composer new-chat entry/search/manage-assistants, model entry and project binding, file upload/preview, Markdown/table/code and HTML safety, IME/Enter, search recovery, explicit endpoint consent, folder permission, child approval aggregation, conversation rename/search/delete, drag/paste thumbnails, guided unknown outcome and cancellable denial, narrow layout and single chat scroll.",
   );
 } finally {
   try {

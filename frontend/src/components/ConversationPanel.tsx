@@ -3,14 +3,15 @@ import type { Workspace } from "../hooks/useWorkspace";
 import type { ConversationState } from "../hooks/useConversation";
 import type { Configs } from "../hooks/useConfigs";
 import type { RuntimeSettings } from "../hooks/useRuntimeSettings";
+import type { useProjects } from "../hooks/useProjects";
 import { TaskProgress } from "./TaskProgress";
 import { ToolApprovals } from "./ToolApprovals";
 import { Transcript } from "./Transcript";
 import { SearchRecords } from "./SearchRecords";
-import { ConversationProfile } from "./ConversationProfile";
 import { ErrorNotice, stateLabel } from "../shared/errors";
 import { useDialog } from "../shared/dialogs";
 import { StatusService } from "../../bindings/icetudio";
+type Projects = ReturnType<typeof useProjects>;
 function Thumb({ file }: { file: File }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
@@ -30,6 +31,7 @@ export function ConversationPanel({
   conversation: c,
   configState: p,
   runtime: r,
+  projects: pj,
   openModel,
   openAssistants,
 }: {
@@ -37,6 +39,7 @@ export function ConversationPanel({
   conversation: ConversationState;
   configState: Configs;
   runtime: RuntimeSettings;
+  projects: Projects;
   openModel: () => void;
   openAssistants: () => void;
 }) {
@@ -60,11 +63,8 @@ export function ConversationPanel({
   const disabled =
     c.sending ||
     c.loadingSession ||
-    c.configSwitchBusy ||
-    w.creating ||
     !!c.activeRun ||
     w.activeConversation?.kind === "delegation" ||
-    !w.selected ||
     !r.status?.storageReady ||
     (!r.status.runtimeReady && !continuation) ||
     (!continuation && w.activeConversation?.configArchived) ||
@@ -123,17 +123,108 @@ export function ConversationPanel({
   }
   return (
     <section className="chat-page">
+      <nav className="dock-nav" aria-label="对话列表">
+        <div className="dock-nav-actions">
+          <button className="secondary" onClick={openAssistants}>
+            管理助手
+          </button>
+        </div>
+        <label className="conversation-search">
+          <span className="sr-only">搜索对话</span>
+          <input
+            placeholder="搜索对话"
+            value={w.query}
+            onChange={(e) => w.setQuery(e.target.value)}
+          />
+        </label>
+        <div className="session-navigation">
+          {w.sessions
+            .filter(
+              (s) =>
+                s.kind === "normal" &&
+                s.title.toLowerCase().includes(w.query.trim().toLowerCase()),
+            )
+            .map((s) => (
+              <div
+                className={`session-row ${w.selected === s.id ? "selected" : ""}`}
+                key={s.id}
+              >
+                <button
+                  className="session-link"
+                  onClick={() => w.openConversation(s)}
+                  title={s.title}
+                >
+                  {s.title}
+                </button>
+                <details className="conversation-menu">
+                  <summary aria-label={`管理对话 ${s.title}`}>⋯</summary>
+                  <div>
+                    <button
+                      onClick={(e) => {
+                        e.currentTarget
+                          .closest("details")
+                          ?.removeAttribute("open");
+                        void w.renameConversation(s);
+                      }}
+                    >
+                      重命名
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.currentTarget
+                          .closest("details")
+                          ?.removeAttribute("open");
+                        void w.deleteConversation(s);
+                      }}
+                    >
+                      删除对话
+                    </button>
+                  </div>
+                </details>
+              </div>
+            ))}
+          {w.query &&
+            !w.sessions.some(
+              (s) =>
+                s.kind === "normal" &&
+                s.title.toLowerCase().includes(w.query.trim().toLowerCase()),
+            ) && <p className="hint">没有找到匹配的对话</p>}
+        </div>
+      </nav>
       <header className="chat-header">
-        <ConversationProfile
-          workspace={w}
-          conversation={c}
-          configState={p}
-          openAssistants={openAssistants}
-        />
+        <span className="assistant-name" title="当前助手">
+          {p.configs.find((item) => item.isDefault)?.name ?? "创作助手"}
+        </span>
         <button className="model-switch secondary" onClick={openModel}>
           {r.status?.model.name || "连接模型"} ▾
         </button>
       </header>
+      {pj.active && pj.conversationID ? (
+        <div className="project-bind">
+          <span className="project-meta">
+            {pj.boundProjectID === pj.activeID
+              ? `当前对话已绑定工程「${pj.active.title}」`
+              : "当前对话未绑定这个工程"}
+          </span>
+          {pj.boundProjectID === pj.activeID ? (
+            <button
+              className="secondary"
+              onClick={() => pj.bind(false)}
+              disabled={pj.busy}
+            >
+              解绑工程
+            </button>
+          ) : (
+            <button
+              className="secondary"
+              onClick={() => pj.bind(true)}
+              disabled={pj.busy}
+            >
+              绑定当前工程
+            </button>
+          )}
+        </div>
+      ) : null}
       <div className="chat-scroll">
         <div className="chat-body">
           <Transcript conversation={c} />
@@ -147,21 +238,9 @@ export function ConversationPanel({
         </div>
       </div>
       <div className="composer-wrap">
-        {w.creating && (
-          <p className="hint" role="status">
-            正在创建新对话…
-          </p>
-        )}
-        {c.configSwitchBusy && (
-          <p className="hint" role="status">
-            正在切换助手…
-          </p>
-        )}
         {c.loadingSession && <p className="hint">正在打开对话…</p>}
         {!w.selected && w.loaded && (
-          <p className="hint">
-            点击“新对话”开始；如果未能创建，可查看上方错误后重试。
-          </p>
+          <p className="hint">输入消息，直接开始新对话。</p>
         )}
         {r.status?.storageReady && !r.status?.runtimeReady && (
           <div className="setup-banner">
@@ -170,7 +249,7 @@ export function ConversationPanel({
           </div>
         )}
         {w.activeConversation?.configArchived && (
-          <p className="hint">这个助手已删除，请在顶部选择另一个助手继续。</p>
+          <p className="hint">这个对话的助手配置已不存在。</p>
         )}
         {continuation && (
           <div className="waiting-banner">
@@ -287,6 +366,17 @@ export function ConversationPanel({
               />
               联网
             </label>
+            {w.selected && (
+              <button
+                type="button"
+                className="secondary"
+                disabled={!!c.activeRun || c.sending}
+                onClick={w.newDraft}
+                title="回到待输入状态；发送第一条消息时才会创建新对话"
+              >
+                新对话
+              </button>
+            )}
             <span className="toolbar-spacer" />
             {c.activeRun ? (
               <button type="button" onClick={c.cancelTask}>
