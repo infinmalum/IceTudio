@@ -3,6 +3,11 @@
 //  occurs in the rendering path. FluidSynth is dynamically linked (LGPL).
 #include "native.h"
 #include <fluidsynth.h>
+// The scheduler depends on 2.6 semantics (portamento time modes); behavior is
+// verified against 2.6.1 — see docs/p2-playback.md.
+#if FLUIDSYNTH_VERSION_MAJOR < 2 || (FLUIDSYNTH_VERSION_MAJOR == 2 && FLUIDSYNTH_VERSION_MINOR < 6)
+#error "IceTUDIO requires FluidSynth >= 2.6 (portamento time modes)"
+#endif
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdlib.h>

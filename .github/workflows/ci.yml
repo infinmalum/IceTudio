@@ -24,18 +24,35 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: 安装 FluidSynth 开发库（cgo 播放引擎编译/链接）
-        run: sudo apt-get update && sudo apt-get install -y libfluidsynth-dev
-      - name: Go 测试
-        run: go test ./...
-      - name: Go vet
-        run: go vet ./...
+      - name: 安装 FluidSynth 2.6.1（源码编译）
+        # Ubuntu 仓库的 FluidSynth 缺 2.6 portamento time-mode API，而播放引擎
+        # 要求 >= 2.6（native.c 有编译期检查）。测试只用 offline 引擎，无需
+        # 音频驱动与 libsndfile，最小化编译即可。
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libglib2.0-dev
+          curl -fL https://github.com/FluidSynth/fluidsynth/archive/refs/tags/v2.6.1.tar.gz -o /tmp/fluidsynth.tar.gz
+          tar -xf /tmp/fluidsynth.tar.gz -C /tmp
+          cmake -S /tmp/fluidsynth-2.6.1 -B /tmp/fluidsynth-build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -Denable-alsa=OFF -Denable-pulseaudio=OFF -Denable-jack=OFF -Denable-pipewire=OFF \
+            -Denable-oss=OFF -Denable-sdl2=OFF -Denable-portaudio=OFF \
+            -Denable-libsndfile=OFF -Denable-dbus=OFF -Denable-readline=OFF \
+            -Denable-ladspa=OFF -Denable-openmp=OFF -Denable-libinstpatch=OFF
+          cmake --build /tmp/fluidsynth-build --parallel "$(nproc)"
+          sudo cmake --install /tmp/fluidsynth-build
+          sudo ldconfig
       - name: 前端依赖
         working-directory: frontend
         run: npm ci
       - name: 前端生产构建
+        # main.go 以 go:embed all:frontend/dist 打包产物，必须先于 Go 步骤生成。
         working-directory: frontend
         run: npm run build
+      - name: Go 测试
+        run: go test ./...
+      - name: Go vet
+        run: go vet ./...
       - name: 音乐单元测试（时间图 + GM 元数据）
         working-directory: frontend
         run: npm run test:music
