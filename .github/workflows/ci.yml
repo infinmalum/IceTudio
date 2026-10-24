@@ -24,13 +24,16 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: 安装 FluidSynth 2.6.1（源码编译）
+      - name: 安装系统依赖（GTK4/WebKitGTK 开发包 + 源码编译 FluidSynth 2.6.1）
+        # 根包经 wails/pkg/application 引 internal/operatingsystem（cgo
+        # pkg-config gtk4 webkitgtk-6.0），Go 测试与绑定生成都需要这两个开发包。
         # Ubuntu 仓库的 FluidSynth 缺 2.6 portamento time-mode API，而播放引擎
         # 要求 >= 2.6（native.c 有编译期检查）。测试只用 offline 引擎，无需
         # 音频驱动与 libsndfile，最小化编译即可。
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake libglib2.0-dev
+          sudo apt-get install -y build-essential cmake pkg-config libglib2.0-dev \
+            libgtk-4-dev libwebkitgtk-6.0-dev
           curl -fL https://github.com/FluidSynth/fluidsynth/archive/refs/tags/v2.6.1.tar.gz -o /tmp/fluidsynth.tar.gz
           tar -xf /tmp/fluidsynth.tar.gz -C /tmp
           cmake -S /tmp/fluidsynth-2.6.1 -B /tmp/fluidsynth-build -DCMAKE_BUILD_TYPE=Release \
