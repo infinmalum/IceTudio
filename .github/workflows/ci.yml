@@ -42,6 +42,12 @@ jobs:
           cmake --build /tmp/fluidsynth-build --parallel "$(nproc)"
           sudo cmake --install /tmp/fluidsynth-build
           sudo ldconfig
+      - name: 生成 Wails 绑定
+        # frontend/bindings 是生成物（gitignore），但前端源码直接 import 它；
+        # 本地由 wails3 工具链生成，CI 用同一命令、与 go.mod 相同的版本。
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.12
+          "$(go env GOPATH)/bin/wails3" generate bindings -ts -i -d frontend/bindings
       - name: 前端依赖
         working-directory: frontend
         run: npm ci
