@@ -7,7 +7,7 @@ const root=process.cwd(), dir=process.env.ICETUDIO_TEST_RUN;
 if (!dir || !process.env.ICETUDIO_TEST_URL || !process.env.ICETUDIO_TEST_TOKEN) throw Error('Run via the opt-in Go browser test');
 mkdirSync(dir,{recursive:true});const log=openSync(resolve(dir,'services.log'),'a');
 const vite=spawn('npm',['run','dev','--','--port','9393','--strictPort'],{cwd:resolve(root,'frontend'),stdio:['ignore',log,log],detached:true});
-const chrome=spawn('chromium',['--headless','--no-sandbox','--disable-gpu','--disable-background-networking','--no-first-run',`--user-data-dir=${resolve(dir,'chrome')}`,'--remote-debugging-port=9394','about:blank'],{stdio:['ignore',log,log],detached:true});
+const chrome=spawn(process.env.ICETUDIO_E2E_BROWSER||'chromium',['--headless','--no-sandbox','--disable-gpu','--disable-background-networking','--no-first-run',`--user-data-dir=${resolve(dir,'chrome')}`,'--remote-debugging-port=9394','about:blank'],{stdio:['ignore',log,log],detached:true});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));let ws;let debug;
 const report={checks:[],errors:[],timings:[],environment:{cpu:cpus()[0]?.model,viewport:[1440,1000]}};
 const bridge=`
@@ -17,10 +17,14 @@ window.musicCall=call;
 const closeState=window.musicClose={readyCalls:0,cancelled:[],confirmed:[]};
 export const DesktopService={Ready:async()=>{closeState.readyCalls++;if(window.musicReadyFails){window.musicReadyFails--;throw Error('test close initialization failed')}},CancelClose:async id=>{closeState.cancelled.push(id)},ConfirmClose:async id=>{if(window.musicCloseFailure)throw Error('test close reply failed');closeState.confirmed.push(id)}};
 // Audio controls are mocked here; PCM/driver behavior is tested in Go.
-const audio=window.musicTransport={available:true,ready:false,playing:false,projectId:'',revision:0,tick:0,endTick:960,loop:false,loopStart:0,loopEnd:960,sampleRate:48000,callbacks:0,missedBlocks:0,loops:0,skippedEvents:0,engine:'UI transport mock',settings:{version:1,driver:'pulseaudio',soundFont:''},error:''};
-export const PlaybackService={Status:async()=>structuredClone(audio),Play:async req=>{if(window.musicAudioFailure)throw Error('test device unavailable');const p=await call('GetProject',req.projectId);audio.ready=true;audio.playing=true;audio.projectId=req.projectId;audio.revision=p.revision;audio.tick=req.tick;audio.loop=req.loop;audio.loopStart=req.loopStart;audio.loopEnd=req.loopEnd;audio.endTick=Math.max(1920,...p.state.tracks.flatMap(t=>t.clips.map(c=>c.start+c.length)))},Stop:async()=>{audio.playing=false},StopProject:async id=>{if(audio.projectId===id)audio.playing=false},Seek:async req=>{(window.musicSeekRequests??=[]).push(req);audio.tick=req.tick;audio.loop=req.loop;audio.loopStart=req.loopStart;audio.loopEnd=req.loopEnd},Configure:async settings=>{audio.settings=settings;audio.ready=true;audio.playing=false},PickSoundFont:async()=>'/test/local.sf2'};
+const audio=window.musicTransport={available:true,ready:false,playing:false,projectId:'',revision:0,tick:0,endTick:960,loop:false,loopStart:0,loopEnd:960,sampleRate:48000,callbacks:0,missedBlocks:0,loops:0,skippedEvents:0,engine:'UI transport mock',settings:{version:2,driver:'pulseaudio',fonts:[],defaultFont:''},resolvedFont:'Basic Waves（内置基础波形）',resolvedKind:'basic',notice:'',error:''};
+export const PlaybackService={Status:async()=>structuredClone(audio),Play:async req=>{if(window.musicAudioFailure)throw Error('test device unavailable');const p=await call('GetProject',req.projectId);audio.ready=true;audio.playing=true;audio.projectId=req.projectId;audio.revision=p.revision;audio.tick=req.tick;audio.loop=req.loop;audio.loopStart=req.loopStart;audio.loopEnd=req.loopEnd;audio.endTick=Math.max(1920,...p.state.tracks.flatMap(t=>t.clips.map(c=>c.start+c.length)))},Stop:async()=>{audio.playing=false},StopProject:async id=>{if(audio.projectId===id)audio.playing=false},Seek:async req=>{(window.musicSeekRequests??=[]).push(req);audio.tick=req.tick;audio.loop=req.loop;audio.loopStart=req.loopStart;audio.loopEnd=req.loopEnd},Configure:async settings=>{audio.settings=settings;audio.ready=true;audio.playing=false},PickSoundFont:async()=>window.musicPickedFont??'',AddSoundFont:async path=>({id:'font_test',name:path.split('/').pop(),path,priority:0,addedAt:''}),RemoveSoundFont:async()=>{},SetDefaultSoundFont:async()=>{},MoveSoundFont:async()=>{},ResetAudioSettings:async()=>{},Audition:async()=>{},StopAudition:async()=>{},SoundFonts:async()=>({bundled:{id:'bundled',name:'MuseScore_General.sf3',path:'',source:'bundled',exists:false,size:0,error:'',active:false,isDefault:true,priority:-1},basic:{id:'basic',name:'Basic Waves（内置基础波形）',path:'',source:'basic',exists:true,size:0,error:'',active:true,isDefault:false,priority:1073741824},fonts:[],defaultFont:'',notice:''})};
 export const ProjectService=new Proxy({}, {get:(_,method)=>async(...args)=>{
  if(method==='GetTimeMapDraft'&&window.musicDraftReadFails){window.musicDraftReadFails--;throw new window.__musicRuntimeError('test draft read failed')}
+ const inputsRecord=()=>{const raw=localStorage.getItem('test.musicInputsRecord');return raw?JSON.parse(raw):null};
+ if(method==='GetMusicInputs'){if(window.musicInputsReadFails){window.musicInputsReadFails--;throw new window.__musicRuntimeError('test music inputs read failed')}return inputsRecord()}
+ if(method==='SaveMusicInputs'){if(window.musicInputsSaveFails)throw new window.__musicRuntimeError('test music inputs save failed');const r=inputsRecord();if(r&&r.token!==args[0])throw new window.__musicRuntimeError('music inputs token mismatch');const shape=JSON.parse(args[2]);const req=['key','label','title','target','raw'],opt=['trackID','clipID','noteIDs'];const bad=shape.entries.find(e=>{const ks=Object.keys(e);const target=Object.keys(e.target??{});return shape.version!==1||!Array.isArray(shape.entries)||ks.some(k=>![...req,...opt].includes(k))||req.some(k=>!(k in e))||target.length!==2||!target.includes('id')||!target.includes('revision')});if(bad)throw new window.__musicRuntimeError('music inputs entry shape rejected: '+JSON.stringify(Object.keys(bad)));localStorage.setItem('test.musicInputsRecord',JSON.stringify({version:1,token:args[1],payload:args[2]}));return null}
+ if(method==='ClearMusicInputs'){const r=inputsRecord();if(r&&r.token!==args[0])throw new window.__musicRuntimeError('music inputs clear token mismatch');localStorage.removeItem('test.musicInputsRecord');return null}
  if(method==='SaveTimeMapDraft'&&window.musicDraftSaveFails)throw new window.__musicRuntimeError('test draft save failed');
  if(method==='ClearTimeMapDraft'&&window.musicDraftClearFails)throw new window.__musicRuntimeError('test draft clear failed');
  if(method==='SaveTimeMapDraft'&&window.musicDraftHold)await new Promise(resolve=>{window.musicDraftRelease=resolve});
@@ -67,21 +71,23 @@ try{
  report.environment.browser=(await send('Browser.getVersion')).product;
  const closeInit=await send('Page.addScriptToEvaluateOnNewDocument',{source:'window.musicReadyFails=2;window.musicRecoveryReadFails=2'});
  await send('Page.navigate',{url:'http://127.0.0.1:9393/e2e/music.html'});
- await until('window.musicCall && document.querySelector(".project-strip")');
+ await until('window.musicCall && document.querySelector(".browser")');
  await until('document.querySelector(".close-guard-status[role=alert]")');
  await check('Close initialization failure keeps the editor inert until explicit retry',`document.querySelector('[data-close-guard]').hasAttribute('inert') && document.querySelector('[data-close-guard]').dataset.closeGuard==='starting'`);
  await click('重试退出保护');await until('document.querySelector("[data-close-guard=ready]")');
  await until('document.body.innerText.includes("test recovery read failed")');
- await check('Recovery read failure blocks edits until retry',`Array.from(document.querySelectorAll('.project-strip button')).find(b=>b.textContent.trim()==='新建工程').disabled`);
+ await check('Recovery read failure blocks edits until retry',`Array.from(document.querySelectorAll('.browser button')).find(b=>b.textContent.trim()==='＋ 新建工程')?.disabled`);
  await ev(`musicCloseRequest('recovery-not-ready')`);await until('document.querySelector("#dialog-title")?.textContent==="工程操作尚未确认"');
  await check('Recovery initialization failure blocks close approval (mock desktop)',`document.querySelector('.dialog-body').textContent.includes('恢复检查')&&!musicClose.confirmed.length`);
  await click('返回工程处理','dialog[open]');await until('musicClose.cancelled.includes("recovery-not-ready")');
  await click('重试恢复检查');await until('!document.body.innerText.includes("test recovery read failed")');
- await click('新建工程','.project-strip');await fill('dialog[open] input','浏览器真实事务');
+ await click('＋ 新建工程','.browser');await fill('dialog[open] input','浏览器真实事务');
  await ev(`musicCloseRequest('existing-dialog')`);await until('musicClose.cancelled.includes("existing-dialog")');
  await check('Existing application dialog remains editable instead of queuing a close prompt',`document.querySelector('dialog[open] input').value==='浏览器真实事务'&&document.querySelectorAll('#dialog-title').length===1&&!document.querySelector('[data-close-guard]').hasAttribute('inert')&&!musicClose.confirmed.length`);
  await click('创建','dialog[open]');
  await until('document.querySelector(".music-editor")');
+ // 新布局默认只显示编排；切换到拆分视图让钢琴卷帘与编排同屏（等价旧常驻布局）。
+ await click('拆分','.transport-bar');await until('document.querySelector(".editor-center[data-view=split]")');
  await click('添加音轨');await until('document.querySelector("gsui-pianoroll .gsui-row")');
  await ev(`(async()=>{window.getMusic=async()=>{const ps=await musicCall('ListProjects');return musicCall('GetProject',ps.find(p=>p.title==='浏览器真实事务').id)}; window.base=await getMusic()})()`);
  // Seed through the actual service, keeping control and raw events in the same clip.
@@ -113,8 +119,8 @@ try{
  await until(`document.querySelector('[data-clip] .arrangement-clip')?.title.includes('长度 1920')`);
  await drag(arrBody,64);await until('(await getMusic()).state.tracks[0].clips[0].start===480');
  await check('Arrangement mouse move changes only clip origin and preserves local events',`(()=>getMusic().then(p=>p.revision===arrBase.revision+1&&JSON.stringify({...p.state.tracks[0].clips[0],start:0})===JSON.stringify(arrBase.state.tracks[0].clips[0])))()`);
- await click('撤销','.project-strip');await until('(await getMusic()).state.tracks[0].clips[0].start===0');
- await click('重做','.project-strip');await until('(await getMusic()).state.tracks[0].clips[0].start===480');
+ await click('撤销','.transport-bar');await until('(await getMusic()).state.tracks[0].clips[0].start===0');
+ await click('重做','.transport-bar');await until('(await getMusic()).state.tracks[0].clips[0].start===480');
  await check('Arrangement edits share project undo and redo',`(await getMusic()).revision===arrBase.revision+3`);
  await drag(arrResize,64);await until('(await getMusic()).state.tracks[0].clips[0].length===2400');
  await check('Arrangement right edge resize changes length without rewriting notes or controls',`(()=>getMusic().then(p=>JSON.stringify(p.state.tracks[0].clips[0].notes)===JSON.stringify(arrBase.state.tracks[0].clips[0].notes)&&JSON.stringify(p.state.tracks[0].clips[0].controls)===JSON.stringify(arrBase.state.tracks[0].clips[0].controls)))()`);
@@ -170,8 +176,8 @@ try{
  await until('document.querySelectorAll(".arrangement-track").length===1&&document.querySelector("[data-id=n_seed]")');
  await ev(`(()=>{document.querySelector('[aria-label="静音 音轨 1"]').click()})()`);await until(`(await getMusic()).state.tracks[0].muted&&!document.querySelector('[aria-label="独奏 音轨 1"]').disabled`);
  await ev(`document.querySelector('[aria-label="独奏 音轨 1"]').click()`);await until(`(await getMusic()).state.tracks[0].solo&&!document.querySelector('[aria-label="独奏 音轨 1"]').disabled`);
- await click('撤销','.project-strip');await until('!(await getMusic()).state.tracks[0].solo');
- await click('撤销','.project-strip');await until('!(await getMusic()).state.tracks[0].muted');
+ await click('撤销','.transport-bar');await until('!(await getMusic()).state.tracks[0].solo');
+ await click('撤销','.transport-bar');await until('!(await getMusic()).state.tracks[0].muted');
  await check('Arrangement retains mute and solo edits in shared undo history',`!document.querySelector('[aria-label="静音 音轨 1"]').getAttribute('aria-pressed').includes('true')&&!document.querySelector('[aria-label="独奏 音轨 1"]').getAttribute('aria-pressed').includes('true')`);
  // Verify UI wiring separately from native PCM and driver tests.
  await click('播放','.transport');await until('window.musicTransport.playing');
@@ -197,9 +203,9 @@ try{
  await ev(`(()=>{const e=document.querySelector('[aria-label="拍号分母 3"]');e.value='8';e.dispatchEvent(new Event('change',{bubbles:true}))})()`);
  await click('应用时间图','.time-map-dialog');await until('!document.querySelector(".time-map-dialog")');
  await check('Tempo/meter forms commit atomically, preserve untouched precision and note/control data',`(()=>getMusic().then(p=>p.revision===mapBase.revision+1&&p.state.tempo.length===3&&p.state.tempo[0].usPerQuarter===500001&&p.state.tempo[1].usPerQuarter===666667&&p.state.meter[2].numerator===5&&JSON.stringify(p.state.tracks)===JSON.stringify(mapBase.state.tracks)))()`);
- await click('撤销','.project-strip');await until('(await getMusic()).state.meter.length===2');
+ await click('撤销','.transport-bar');await until('(await getMusic()).state.meter.length===2');
  await check('Undo restores both time maps together',`(await getMusic()).state.tempo[1].usPerQuarter===600000`);
- await click('重做','.project-strip');await until('(await getMusic()).state.meter.length===3');
+ await click('重做','.transport-bar');await until('(await getMusic()).state.meter.length===3');
  await check('Ruler follows 4/4 to 6/8 to 5/8 changes',`document.querySelector('.piano-host .music-ruler [data-kind=bar][data-tick="3360"]').textContent.includes('第 3 小节')`);
  await ev('window.beforeRuler=(await getMusic()).revision');
  const rulerHit=await rect('.piano-host .music-ruler [data-kind=meter] text');await mouse('mouseMoved',rulerHit.x,rulerHit.y);await mouse('mousePressed',rulerHit.x,rulerHit.y,{clickCount:1});await mouse('mouseReleased',rulerHit.x,rulerHit.y,{clickCount:1});
@@ -221,7 +227,7 @@ try{
  await ev(`(()=>{const e=document.querySelector('[aria-label="拍号分母 0"]');e.value='8';e.dispatchEvent(new Event('change',{bubbles:true}))})()`);
  await click('应用时间图','.time-map-dialog');await until('!document.querySelector(".time-map-dialog")');
  await check('Replacement form edits the initial tempo and meter without losing later points',`(await getMusic()).state.tempo[0].usPerQuarter===521739&&(await getMusic()).state.meter[0].numerator===7&&(await getMusic()).state.meter[0].denominator===8&&(await getMusic()).state.meter.length===3`);
- await click('撤销','.project-strip');await until('(await getMusic()).state.tempo[0].usPerQuarter===500001');
+ await click('撤销','.transport-bar');await until('(await getMusic()).state.tempo[0].usPerQuarter===500001');
  await click('编辑速度与拍号');await fill('[aria-label="速度 BPM 0"]','111');
  await ev(`(async()=>{const p=await getMusic();window.mapConflictBase=p.revision;await musicCall('SubmitProjectOps',p.id,'map-conflict','cli',p.revision,[{kind:'note.update',clipId:p.state.tracks[0].clips[0].id,noteDeltas:[{id:'n_seed',velocity:99}]}])})()`);
  await until('document.querySelector(".time-map-dialog").textContent.includes("工程已变为修订")');
@@ -254,15 +260,15 @@ try{
  await fill('[aria-label="片段起点（tick）"]','0');await keyboard('Enter','Enter');await until('document.querySelector(".piano-host .music-ruler").dataset.start==="0"');
  await fill('[aria-label="片段起点（tick）"]','120');
  await ev(`(async()=>{const p=await getMusic();window.numberConflict=p.revision;await musicCall('SubmitProjectOps',p.id,'numeric-conflict','cli',p.revision,[{kind:'note.update',clipId:p.state.tracks[0].clips[0].id,noteDeltas:[{id:'n_seed',velocity:98}]}])})()`);
- await until('document.querySelector(".project-meta").textContent.includes("修订 "+(numberConflict+1))');
+ await until('document.querySelector(".save-chip").textContent.includes("修订 "+(numberConflict+1))||(await getMusic()).revision>=numberConflict+1');
  await keyboard('Enter','Enter');await until('document.querySelector(".project-error")?.textContent.includes("修改未提交")');
  await check('Numeric Enter commits preserve the focus revision and reject concurrent edits',`(await getMusic()).revision===numberConflict+1&&(await getMusic()).state.tracks[0].clips[0].start===0`);
 
  await drag('[data-id=n_seed]',64);
  await until('(await getMusic()).state.tracks[0].clips[0].notes[0].start===960');
  report.checks.push('Real mouse move commits to SQLite');
- await click('撤销','.project-strip');await until('(await getMusic()).state.tracks[0].clips[0].notes[0].start===480');
- await click('重做','.project-strip');await until('(await getMusic()).state.tracks[0].clips[0].notes[0].start===960');
+ await click('撤销','.transport-bar');await until('(await getMusic()).state.tracks[0].clips[0].notes[0].start===480');
+ await click('重做','.transport-bar');await until('(await getMusic()).state.tracks[0].clips[0].notes[0].start===960');
  report.checks.push('Shared undo/redo refreshes the editor');
  await drag('[data-id=n_seed] [data-action=cropB]',64);
  await until('(await getMusic()).state.tracks[0].clips[0].notes[0].duration===960');
@@ -275,7 +281,7 @@ try{
  await check('MIDI velocity preserves controllers',`(await getMusic()).state.tracks[0].clips[0].controls[0].value===127`);
  await click('复制音符');await until('(await getMusic()).state.tracks[0].clips[0].notes.length===2');
  await click('全选本页');await click('删除音符');await until('(await getMusic()).state.tracks[0].clips[0].notes.length===0');
- await click('撤销','.project-strip');await until('document.querySelectorAll(".gsuiPianoroll-block").length===2');
+ await click('撤销','.transport-bar');await until('document.querySelectorAll(".gsuiPianoroll-block").length===2');
  report.checks.push('Selection, copy, atomic deletion and undo');
  // Stale revision must not be replaced by the event refresh during a gesture.
  await drag('[data-id=n_seed]',64,0,async()=>{
@@ -316,9 +322,9 @@ try{
  await until('(await getMusic()).state.tracks[0].clips[0].length===8160');
  await check('Boundary resize atomically extends the clip',`(await getMusic()).state.tracks[0].clips[0].notes.find(n=>n.id==='n_end').duration===960`);
  await ev('window.boundaryEdit=await getMusic()');
- await click('撤销','.project-strip');await until('(await getMusic()).state.tracks[0].clips[0].length===7680');
+ await click('撤销','.transport-bar');await until('(await getMusic()).state.tracks[0].clips[0].length===7680');
  await check('Undo removes the boundary extension after restoring the note in one transaction',`(await getMusic()).revision===boundaryEdit.revision+1&&(await getMusic()).state.tracks[0].clips[0].notes.find(n=>n.id==='n_end').duration===480`);
- await click('重做','.project-strip');await until('(await getMusic()).state.tracks[0].clips[0].length===8160');
+ await click('重做','.transport-bar');await until('(await getMusic()).state.tracks[0].clips[0].length===8160');
  await check('Redo restores the extended clip and note together',`(await getMusic()).revision===boundaryEdit.revision+2&&JSON.stringify((await getMusic()).state)===JSON.stringify(boundaryEdit.state)`);
  // Large source clip: page projection bounds mounted nodes for spread-out notes.
  for(const count of [1000,10000]){
@@ -353,10 +359,10 @@ try{
  await ev(`window.recoveryOther=await musicCall('CreateProject','恢复时查看的工程',480)`);
  await until(`Array.from(document.querySelectorAll('.project-select')).some(b=>b.textContent.includes('恢复时查看的工程'))`);
  await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.textContent.includes('恢复时查看的工程')).click()`);
- await until('document.querySelector(".project-header h1").textContent==="恢复时查看的工程"');
+ await until('document.querySelector(".transport-title")?.textContent==="恢复时查看的工程"');
  await click('查询保存结果');
  await until('!document.body.innerText.includes("查询保存结果")');
- await check('Recovery queries the original operation while preserving the newly selected project',`document.querySelector('.project-header h1').textContent==='恢复时查看的工程'&&document.querySelector('.project-save').textContent.includes('浏览器真实事务')&&(await musicCall('GetPendingProjectEdit'))===null&&(await getMusic()).revision===${persistedRevision}`);
+ await check('Recovery queries the original operation while preserving the newly selected project',`document.querySelector('.transport-title')?.textContent==='恢复时查看的工程'&&document.querySelector('.save-chip')?.textContent.includes('浏览器真实事务')&&(await musicCall('GetPendingProjectEdit'))===null&&(await getMusic()).revision===${persistedRevision}`);
  await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.textContent.includes('浏览器真实事务')).click()`);
  await until('document.querySelector("[data-id=n_perf_10000_0]")');
  await check('Unknown outcome retains a queryable operation ID',`(await getMusic()).state.tracks[0].clips[0].notes.filter(n=>n.velocity===82).length===64`);
@@ -371,23 +377,23 @@ try{
  // Rename through the production UI, then traverse the shared history and
  // reload. The service must persist its lightweight metadata with the state.
  const titledProject=await ev(`musicCall('CreateProject','名称持久化原名',480)`);
- await until(`Array.from(document.querySelectorAll('.project-select')).some(b=>b.title===${JSON.stringify(titledProject.id)})`);
- await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.title===${JSON.stringify(titledProject.id)}).click()`);
- await until('document.querySelector(".project-header h1").textContent==="名称持久化原名"');
- await click('重命名','.project-strip');
+ await until(`Array.from(document.querySelectorAll('.project-select')).some(b=>b.dataset.id===${JSON.stringify(titledProject.id)})`);
+ await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===${JSON.stringify(titledProject.id)}).click()`);
+ await until('document.querySelector(".transport-title")?.textContent==="名称持久化原名"');
+ await click('名称持久化原名','.transport-bar');
  await check('Rename dialog starts from the committed project name',`document.querySelector('dialog[open] input').value==='名称持久化原名'`);
  await fill('dialog[open] input','跨入口的新曲名 🎹');await ev('window.musicLoseReply=true');await click('应用','dialog[open]');
- await until('document.querySelector(".project-header h1").textContent==="跨入口的新曲名 🎹"&&!document.body.innerText.includes("查询保存结果")');
- await check('Lost rename reply resolves once and updates header list and authoritative state',`(async()=>{const p=await musicCall('GetProject',${JSON.stringify(titledProject.id)});return p.revision===1&&p.title==='跨入口的新曲名 🎹'&&p.state.title===p.title&&Array.from(document.querySelectorAll('.project-select')).find(b=>b.title===p.id).textContent.includes(p.title)})()`);
- await click('导出 MIDI','.project-strip');await until('window.musicExportName');
+ await until('document.querySelector(".transport-title")?.textContent==="跨入口的新曲名 🎹"&&!document.body.innerText.includes("查询保存结果")');
+ await check('Lost rename reply resolves once and updates header list and authoritative state',`(async()=>{const p=await musicCall('GetProject',${JSON.stringify(titledProject.id)});return p.revision===1&&p.title==='跨入口的新曲名 🎹'&&p.state.title===p.title&&Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===p.id).textContent.includes(p.title)})()`);
+ await click('导出 MIDI','.transport-bar');await until('window.musicExportName');
  await check('Export picker receives the current committed name (mock picker cancelled)',`musicExportName==='跨入口的新曲名 🎹.mid'`);
- await click('撤销','.project-strip');await until('document.querySelector(".project-header h1").textContent==="名称持久化原名"');
- await check('Rename undo restores both visible metadata and the state title',`(async()=>{const p=await musicCall('GetProject',${JSON.stringify(titledProject.id)});return p.revision===2&&p.state.title===p.title&&Array.from(document.querySelectorAll('.project-select')).find(b=>b.title===p.id).textContent.includes('名称持久化原名')})()`);
- await click('重做','.project-strip');await until('document.querySelector(".project-header h1").textContent==="跨入口的新曲名 🎹"');
- await check('Rename redo restores the committed name across projections',`(async()=>{const p=await musicCall('GetProject',${JSON.stringify(titledProject.id)});return p.revision===3&&p.title===p.state.title&&Array.from(document.querySelectorAll('.project-select')).find(b=>b.title===p.id).textContent.includes(p.title)})()`);
+ await click('撤销','.transport-bar');await until('document.querySelector(".transport-title")?.textContent==="名称持久化原名"');
+ await check('Rename undo restores both visible metadata and the state title',`(async()=>{const p=await musicCall('GetProject',${JSON.stringify(titledProject.id)});return p.revision===2&&p.state.title===p.title&&Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===p.id).textContent.includes('名称持久化原名')})()`);
+ await click('重做','.transport-bar');await until('document.querySelector(".transport-title")?.textContent==="跨入口的新曲名 🎹"');
+ await check('Rename redo restores the committed name across projections',`(async()=>{const p=await musicCall('GetProject',${JSON.stringify(titledProject.id)});return p.revision===3&&p.title===p.state.title&&Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===p.id).textContent.includes(p.title)})()`);
  await until('(await musicCall("GetPendingProjectEdit"))===null');const titlePageOrigin=await ev('performance.timeOrigin');await send('Page.reload');
- await until(`performance.timeOrigin!==${titlePageOrigin}&&window.musicCall&&document.querySelector('[data-close-guard=ready]')&&document.querySelector('.project-header h1')?.textContent==='跨入口的新曲名 🎹'`);
- await check('Reload keeps the renamed selected project without adding a revision',`(async()=>{const p=await musicCall('GetProject',${JSON.stringify(titledProject.id)});return p.revision===3&&p.title===p.state.title&&Array.from(document.querySelectorAll('.project-select')).find(b=>b.title===p.id).textContent.includes(p.title)})()`);
+ await until(`performance.timeOrigin!==${titlePageOrigin}&&window.musicCall&&document.querySelector('[data-close-guard=ready]')&&document.querySelector('.transport-title')?.textContent==='跨入口的新曲名 🎹'`);
+ await check('Reload keeps the renamed selected project without adding a revision',`(async()=>{const p=await musicCall('GetProject',${JSON.stringify(titledProject.id)});return p.revision===3&&p.title===p.state.title&&Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===p.id).textContent.includes(p.title)})()`);
  // Service-generated IDs must survive GUI undo/redo, including later edits
  // that refer to those IDs. Seed via the real command service, not UI IDs.
  const generatedStates=[(await ev(`musicCall('GetProject',${JSON.stringify(titledProject.id)})`)).state];
@@ -408,15 +414,15 @@ try{
  for(const undo of [true,false]){
    for(let i=0;i<4;i++){
      const before=await ev(`musicCall('GetProject',${JSON.stringify(titledProject.id)})`);
-     await click(undo?'撤销':'重做','.project-strip');
+     await click(undo?'撤销':'重做','.transport-bar');
      await until(`(await musicCall('GetProject',${JSON.stringify(titledProject.id)})).revision===${before.revision+1}&&!document.body.innerText.includes('查询保存结果')`);
      const index=undo?3-i:i+1;
      await check(`${undo?'Undo':'Redo'} generated-ID history step ${i+1} preserves objects and references`,`JSON.stringify((await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state)===${JSON.stringify(JSON.stringify(generatedStates[index]))}`);
    }
  }
  await until(`document.querySelector('[data-id="${generatedNote}"]')`);
- await click('撤销','.project-strip');await until(`(await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state.tracks[0].clips[0].notes[0].pitch===60`);
- await click('重做','.project-strip');await until(`(await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state.tracks[0].clips[0].notes[0].pitch===64`);
+ await click('撤销','.transport-bar');await until(`(await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state.tracks[0].clips[0].notes[0].pitch===60`);
+ await click('重做','.transport-bar');await until(`(await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state.tracks[0].clips[0].notes[0].pitch===64`);
  await check('Later note edit remains undoable after restoring its generated creation',`document.querySelector('[data-id="${generatedNote}"]')!==null&&JSON.stringify((await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state)===${JSON.stringify(JSON.stringify(generatedStates[4]))}`);
  // Delete through the production editor, then attempt reuse through its
  // shared service. Rejected new edits must not obstruct real history undo.
@@ -430,14 +436,14 @@ try{
  const reuseFailure=await ev(`(async()=>{try{await musicCall('SubmitProjectOps',${JSON.stringify(titledProject.id)},'browser-identity-reuse','undo',${afterIdentityDelete.revision},[{kind:'note.add',clipId:${JSON.stringify(generatedClip)},notes:[{id:${JSON.stringify(generatedNote)},start:0,duration:120,pitch:72,velocity:100,channel:0}]}]);return ''}catch(e){return String(e)}})()`);
  if(!reuseFailure.includes('已使用'))throw Error('Expected identity reuse rejection: '+reuseFailure);
  await check('Shared service rejects deleted-note reuse and spoofed restoration without a commit',`JSON.stringify(await musicCall('GetProject',${JSON.stringify(titledProject.id)}))===${JSON.stringify(JSON.stringify(afterIdentityDelete))}&&!(await musicCall('GetProjectTransaction',${JSON.stringify(titledProject.id)},'browser-identity-reuse'))[1]`);
- await click('撤销','.project-strip');await until(`document.querySelector('[data-id="${generatedNote}"]')`);
+ await click('撤销','.transport-bar');await until(`document.querySelector('[data-id="${generatedNote}"]')`);
  await check('GUI undo restores the original note identity after a rejected reuse',`JSON.stringify((await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state)===${JSON.stringify(JSON.stringify(beforeIdentityDelete.state))}`);
  const restoredIdentity=await ev(`musicCall('GetProject',${JSON.stringify(titledProject.id)})`);
  const payloadFailure=await ev(`(async()=>{try{await musicCall('SubmitProjectOps',${JSON.stringify(titledProject.id)},'browser-inverse-injection','gui',${restoredIdentity.revision},[{kind:'track.add',track:{id:'t_injected',channel:0,program:0},invClips:[{id:${JSON.stringify(generatedClip)},start:0,length:960,notes:[],controls:[],raw:[]}]}]);return ''}catch(e){return String(e)}})()`);
  if(!payloadFailure.includes('内部恢复载荷'))throw Error('Expected restoration payload rejection: '+payloadFailure);
  await check('Ordinary edits cannot inject internal restoration payloads',`JSON.stringify(await musicCall('GetProject',${JSON.stringify(titledProject.id)}))===${JSON.stringify(JSON.stringify(restoredIdentity))}&&!(await musicCall('GetProjectTransaction',${JSON.stringify(titledProject.id)},'browser-inverse-injection'))[1]`);
- await click('重做','.project-strip');await until(`(await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state.tracks[0].clips[0].notes.length===0`);
- await click('撤销','.project-strip');await until(`document.querySelector('[data-id="${generatedNote}"]')`);
+ await click('重做','.transport-bar');await until(`(await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state.tracks[0].clips[0].notes.length===0`);
+ await click('撤销','.transport-bar');await until(`document.querySelector('[data-id="${generatedNote}"]')`);
  await check('Rejected new edits leave the existing redo and nested state intact',`JSON.stringify((await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state)===${JSON.stringify(JSON.stringify(beforeIdentityDelete.state))}`);
  await ev(`window.getMusic=async()=>{const ps=await musicCall('ListProjects');return musicCall('GetProject',ps.find(p=>p.title==='浏览器真实事务').id)}`);
  await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.textContent.includes('浏览器真实事务')).click()`);
@@ -451,7 +457,7 @@ try{
  await until(`Array.from(document.querySelectorAll('.project-select')).some(b=>b.textContent.includes('另一个工程'))`);
  await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.textContent.includes('另一个工程')).click()`);
  await mouse('mouseReleased',switching.x+24,switching.y,{clickCount:1});await sleep(600);
- await check('Delayed project reads and drag unmount cannot retarget edits',`document.querySelector('.project-header h1').textContent==='另一个工程' && !document.querySelector('gsui-pianoroll') && (await musicCall('GetProject',first.id)).revision===first.revision+1`);
+ await check('Delayed project reads and drag unmount cannot retarget edits',`document.querySelector('.transport-title')?.textContent==='另一个工程' && !document.querySelector('gsui-pianoroll') && (await musicCall('GetProject',first.id)).revision===first.revision+1`);
  await ev(`(()=>{window.musicDelayID=null;Array.from(document.querySelectorAll('.project-select')).find(b=>b.textContent.includes('浏览器真实事务')).click()})()`);
  await until('document.querySelector("[data-id=n_perf_10000_0]")');
  await sleep(150);
@@ -478,11 +484,11 @@ try{
  await ev(`window.getMusic=async()=>{const ps=await musicCall('ListProjects');return musicCall('GetProject',ps.find(p=>p.title==='浏览器真实事务').id)}`);
  await check('Reload offers the saved draft without opening or applying it',`!document.querySelector('.time-map-dialog')&&(await getMusic()).revision===${draftBefore.revision}&&JSON.stringify(JSON.parse((await musicCall('GetTimeMapDraft')).payload).tempo)===${JSON.stringify(JSON.stringify(draftBefore.state.tempo))}`);
  const draftOther=await ev(`musicCall('CreateProject','草稿隔离工程',480)`);
- await until(`Array.from(document.querySelectorAll('.project-select')).some(b=>b.title===${JSON.stringify(draftOther.id)})`);
- await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.title===${JSON.stringify(draftOther.id)}).click()`);
- await until('document.querySelector(".project-header h1").textContent==="草稿隔离工程"');
+ await until(`Array.from(document.querySelectorAll('.project-select')).some(b=>b.dataset.id===${JSON.stringify(draftOther.id)})`);
+ await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===${JSON.stringify(draftOther.id)}).click()`);
+ await until('document.querySelector(".transport-title")?.textContent==="草稿隔离工程"');
  await check('A different selected project cannot replace the draft target',`JSON.parse((await musicCall('GetTimeMapDraft')).payload).projectID===${JSON.stringify(draftBefore.id)}&&Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='编辑速度与拍号').disabled`);
- await click('前往草稿工程','.map-draft-recovery');await until('document.querySelector(".project-header h1").textContent==="浏览器真实事务"');await click('恢复时间图草稿');
+ await click('前往草稿工程','.map-draft-recovery');await until('document.querySelector(".transport-title")?.textContent==="浏览器真实事务"');await click('恢复时间图草稿');
  await check('Explicit recovery restores blank values row keys and the frozen base',`document.querySelector('[aria-label="速度 BPM 0"]').value===''&&document.querySelector('[aria-label="速度位置 ${draftNewKey}"]').value==='0'&&document.querySelector('.time-map-dialog').textContent.includes('基准修订 ${draftBefore.revision}')`);
  await ev(`musicCall('SubmitProjectOps',${JSON.stringify(draftBefore.id)},'draft-concurrent','cli',${draftBefore.revision},[{kind:'project.rename',title:'浏览器真实事务'}])`);
  await until('document.querySelector(".time-map-dialog").textContent.includes("工程已变为修订")');
@@ -515,10 +521,10 @@ try{
  await check('Committed music remains saved when draft cleanup fails and cannot be resubmitted',`(await getMusic()).revision===${draftBefore.revision+2}&&document.querySelector('[aria-label="速度 BPM 0"]').disabled&&Array.from(document.querySelectorAll('.time-map-dialog button')).find(b=>b.textContent==='应用时间图').disabled`);
  await ev('window.musicDraftClearFails=false');await click('关闭时间图','.time-map-dialog');await until('!document.querySelector(".time-map-dialog")');
  await check('Retrying committed draft cleanup does not send a second edit',`(await getMusic()).revision===${draftBefore.revision+2}&&(await musicCall('GetTimeMapDraft')).payload===''`);
- await click('撤销','.project-strip');await until(`(await getMusic()).revision===${draftBefore.revision+3}`);
+ await click('撤销','.transport-bar');await until(`(await getMusic()).revision===${draftBefore.revision+3}`);
  const orphanDraft=await ev(`musicCall('CreateProject','孤立草稿工程',480)`);
- await until(`Array.from(document.querySelectorAll('.project-select')).some(b=>b.title===${JSON.stringify(orphanDraft.id)})`);
- await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.title===${JSON.stringify(orphanDraft.id)}).click()`);await until('document.querySelector(".project-header h1").textContent==="孤立草稿工程"');
+ await until(`Array.from(document.querySelectorAll('.project-select')).some(b=>b.dataset.id===${JSON.stringify(orphanDraft.id)})`);
+ await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===${JSON.stringify(orphanDraft.id)}).click()`);await until('document.querySelector(".transport-title")?.textContent==="孤立草稿工程"');
  await click('编辑速度与拍号');await ev('window.musicDraftHold=true');await fill('[aria-label="速度 BPM 0"]','88');await until('window.musicDraftRelease');await fill('[aria-label="速度 BPM 0"]','89');
  await ev(`musicCall('DeleteProject',${JSON.stringify(orphanDraft.id)})`);await until('!document.querySelector(".time-map-dialog")');
  await ev(`musicCloseRequest('unmounted-draft')`);await until('document.querySelector("#dialog-title")?.textContent==="工程操作尚未确认"');
@@ -528,17 +534,17 @@ try{
  await check('Deleting a project preserves its draft without recreating music',`JSON.parse((await musicCall('GetTimeMapDraft')).payload).projectID===${JSON.stringify(orphanDraft.id)}&&!(await musicCall('ListProjects')).some(p=>p.id===${JSON.stringify(orphanDraft.id)})`);
  await click('丢弃已保留草稿','.map-draft-recovery');await click('丢弃草稿','dialog[open]');await until('!document.querySelector(".map-draft-recovery")');
  await check('Orphan draft can be explicitly discarded without restoring the deleted project',`(await musicCall('GetTimeMapDraft')).payload===''&&!(await musicCall('ListProjects')).some(p=>p.id===${JSON.stringify(orphanDraft.id)})`);
- await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.title===${JSON.stringify(draftBefore.id)}).click()`);await until('document.querySelector("[data-id=n_perf_10000_0]")');
+ await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===${JSON.stringify(draftBefore.id)}).click()`);await until('document.querySelector("[data-id=n_perf_10000_0]")');
  // Large maps are edited in bounded pages without replacing hidden rows.
  await ev(`(async()=>{const p=await getMusic();await musicCall('SubmitProjectOps',p.id,'map-pages','cli',p.revision,[{kind:'tempo.set',tempo:Array.from({length:50},(_,i)=>({tick:i*960,usPerQuarter:500001+i}))}])})()`);
- await until('document.querySelector(".time-map-summary").textContent.includes("50 个速度点")');
+ await until('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.trim()==="编辑速度与拍号").title.includes("50 个速度点")');
  await click('编辑速度与拍号');
  await check('Large time maps mount only 24 form rows per map page',`document.querySelectorAll('.time-map-dialog [aria-label^="速度 BPM "]').length===24`);
  await click('下页速度','.time-map-dialog');await click('下页速度','.time-map-dialog');await fill('[aria-label="速度 BPM 49"]','80');
  await ev(`document.querySelector('[aria-label="删除速度点 48"]').click()`);await click('应用时间图','.time-map-dialog');
  await until('!document.querySelector(".time-map-dialog")');
  await check('Paginated edits and point deletion preserve hidden rows and exact values',`(()=>getMusic().then(p=>p.state.tempo.length===49&&p.state.tempo[0].usPerQuarter===500001&&p.state.tempo[24].usPerQuarter===500025&&!p.state.tempo.some(t=>t.tick===48*960)&&p.state.tempo[48].tick===49*960&&p.state.tempo[48].usPerQuarter===750000))()`);
- await click('撤销','.project-strip');await until('(await getMusic()).state.tempo.length===50');
+ await click('撤销','.transport-bar');await until('(await getMusic()).state.tempo.length===50');
 
  // Native close events/facade are simulated; editing still uses real Go/SQLite.
  const closeGesture=await rect('[data-id="n_perf_10000_0"]');await ev('window.gestureExitRevision=(await getMusic()).revision');
@@ -553,34 +559,34 @@ try{
  while(await ev(`document.querySelector('[aria-label="已保留音乐输入"]')!==null`)) { await click('丢弃输入','[aria-label="已保留音乐输入"]');await click('丢弃输入','dialog[open]'); }
  // Music field checkpoints retain raw strings, original revisions and selection.
  await ev('window.inputBase=await getMusic()');await fill('[aria-label="片段长度（tick）"]','');await keyboard('Enter','Enter');
- await check('Blank numeric music input is retained without a zero edit',`(await getMusic()).revision===inputBase.revision&&JSON.parse(localStorage.getItem('icetudio.music-inputs.v1')).entries[0].raw===''&&document.querySelector('[aria-label="片段长度（tick）"]').value===''`);
+ await check('Blank numeric music input is retained without a zero edit',`(await getMusic()).revision===inputBase.revision&&JSON.parse(JSON.parse(localStorage.getItem('test.musicInputsRecord')).payload).entries[0].raw===''&&document.querySelector('[aria-label="片段长度（tick）"]').value===''`);
  const inputOrigin=await ev('performance.timeOrigin');await send('Page.reload');await until(`performance.timeOrigin!==${inputOrigin}&&document.querySelector('[aria-label="已保留音乐输入"]')&&document.querySelector('[data-close-guard=ready]')`);
  await ev(`window.getMusic=()=>musicCall('GetProject',localStorage.getItem('icetudio.lastProject'))`);
  await check('Reload offers music input without automatically restoring or applying it',`document.querySelector('[aria-label="片段长度（tick）"]').disabled&&document.querySelector('[aria-label="片段长度（tick）"]').value!==''`);
  await click('恢复输入','[aria-label="已保留音乐输入"]');await until(`document.querySelector('[aria-label="片段长度（tick）"]').value===''`);
  await ev(`(async()=>{const p=await getMusic();await musicCall('SubmitProjectOps',p.id,'input-conflict','cli',p.revision,[{kind:'track.update',trackId:p.state.tracks[0].id,trackPatch:{name:'输入冻结检查'}}])})()`);await until('document.querySelector(".track-name").textContent==="输入冻结检查"');
  await fill('[aria-label="片段长度（tick）"]','1201200');await keyboard('Enter','Enter');await until('document.querySelector(".project-error")?.textContent.includes("刷新")');
- await check('Recovered numeric input keeps its base revision and refuses silent rebase',`JSON.parse(localStorage.getItem('icetudio.music-inputs.v1')).entries[0].target.revision===(await getMusic()).revision-1&&document.querySelector('[aria-label="片段长度（tick）"]').value==='1201200'`);
+ await check('Recovered numeric input keeps its base revision and refuses silent rebase',`JSON.parse(JSON.parse(localStorage.getItem('test.musicInputsRecord')).payload).entries[0].target.revision===(await getMusic()).revision-1&&document.querySelector('[aria-label="片段长度（tick）"]').value==='1201200'`);
  await click('丢弃输入','[aria-label="已保留音乐输入"]');await click('丢弃输入','dialog[open]');
  await click('全选本页');await fill('[aria-label="音符力度"]','');
- await check('Blank velocity is preserved and cannot submit an invalid MIDI value',`document.querySelector('[aria-label="音符力度"]').value===''&&Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='应用力度').disabled&&JSON.parse(localStorage.getItem('icetudio.music-inputs.v1')).entries[0].noteIDs.length===64`);
+ await check('Blank velocity is preserved and cannot submit an invalid MIDI value',`document.querySelector('[aria-label="音符力度"]').value===''&&Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='应用力度').disabled&&JSON.parse(JSON.parse(localStorage.getItem('test.musicInputsRecord')).payload).entries[0].noteIDs.length===64`);
  const velocityOrigin=await ev('performance.timeOrigin');await send('Page.reload');await until(`performance.timeOrigin!==${velocityOrigin}&&document.querySelector('[aria-label="已保留音乐输入"]')`);await ev(`window.getMusic=()=>musicCall('GetProject',localStorage.getItem('icetudio.lastProject'))`);await click('恢复输入','[aria-label="已保留音乐输入"]');await fill('[aria-label="音符力度"]','79');await click('应用力度');
  await until(`!document.querySelector('[aria-label="已保留音乐输入"]')`);
  await check('Explicit velocity recovery applies the original note IDs once with shared history',`(await getMusic()).state.tracks[0].clips[0].notes.slice(0,64).every(n=>n.velocity===79)`);
  await fill('[aria-label="循环起点"]','');
- await check('Playback draft preserves an empty raw tick without coercing it to zero',`JSON.parse(JSON.parse(localStorage.getItem('icetudio.music-inputs.v1')).entries[0].raw).start===''`);
+ await check('Playback draft preserves an empty raw tick without coercing it to zero',`JSON.parse(JSON.parse(JSON.parse(localStorage.getItem('test.musicInputsRecord')).payload).entries[0].raw).start===''`);
  await click('丢弃输入','[aria-label="已保留音乐输入"]');await click('丢弃输入','dialog[open]');
- await ev(`(()=>{window.originalInputSet=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='icetudio.music-inputs.v1')throw Error('test music input storage failure');return originalInputSet.call(this,k,v)}})()`);
+ await ev(`window.musicInputsSaveFails=true`);
  await fill('[aria-label="片段长度（tick）"]','');await ev(`musicCloseRequest('input-store-failure')`);await until('document.querySelector("#dialog-title")?.textContent==="工程操作尚未确认"');
  await check('Music input persistence failure retains memory and blocks native-close approval',`document.querySelector('.dialog-body').textContent.includes('音乐输入草稿尚未保存')&&!musicClose.confirmed.length`);
- await click('返回工程处理','dialog[open]');await ev('Storage.prototype.setItem=originalInputSet');await click('重试音乐输入保存/读取');await until('!document.body.textContent.includes("test music input storage failure")');
- await check('Music input retry saves the original blank string without editing music',`JSON.parse(localStorage.getItem('icetudio.music-inputs.v1')).entries[0].raw===''`);
+ await click('返回工程处理','dialog[open]');await ev('window.musicInputsSaveFails=false');await click('重试音乐输入保存/读取');await until(`localStorage.getItem('test.musicInputsRecord')&&!document.body.textContent.includes('test music inputs save failed')`);
+ await check('Music input retry saves the original blank string without editing music',`JSON.parse(JSON.parse(localStorage.getItem('test.musicInputsRecord')).payload).entries[0].raw===''`);
  await click('丢弃输入','[aria-label="已保留音乐输入"]');await click('丢弃输入','dialog[open]');
  // Same-page dense notes: real service, clipped DOM, all-page selection/edits.
  const returnInputProject=await ev(`localStorage.getItem('icetudio.lastProject')`);
  const denseProject=await ev(`musicCall('CreateProject','密集音符性能',480)`);
- await until(`Array.from(document.querySelectorAll('.project-select')).some(b=>b.title===${JSON.stringify(denseProject.id)})`);
- await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.title===${JSON.stringify(denseProject.id)}).click()`);await until('document.querySelector(".project-header h1").textContent==="密集音符性能"&&document.querySelector(".music-editor")');await click('添加音轨');await until('document.querySelector("gsui-pianoroll")');
+ await until(`Array.from(document.querySelectorAll('.project-select')).some(b=>b.dataset.id===${JSON.stringify(denseProject.id)})`);
+ await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===${JSON.stringify(denseProject.id)}).click()`);await until('document.querySelector(".transport-title")?.textContent==="密集音符性能"&&document.querySelector(".music-editor")');await click('添加音轨');await until('document.querySelector("gsui-pianoroll")');
  for(const count of [1000,10000]) {
   await ev(`(()=>{window.denseFrames=[];window.denseCapture=true;let last=performance.now();const frame=t=>{if(!denseCapture)return;denseFrames.push(t-last);last=t;requestAnimationFrame(frame)};requestAnimationFrame(frame)})()`);
   const began=performance.now();
@@ -596,7 +602,7 @@ try{
   report.timings.push({shape:'same-page-dense',count,...projected,commitAndInteractionMs:performance.now()-began,scrollMs,selectMs,editToVisibleMs:performance.now()-editBegan,frameGaps:frames});
   if(projected.projectionMs> (count===1000?200:500))throw Error('dense projection budget exceeded '+JSON.stringify(projected));
  }
- await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.title===${JSON.stringify(returnInputProject)}).click()`);await until('document.querySelector(".project-header h1").textContent==="浏览器真实事务"&&document.querySelector("[data-id=n_perf_10000_0]")');
+ await ev(`Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===${JSON.stringify(returnInputProject)}).click()`);await until('document.querySelector(".transport-title")?.textContent==="浏览器真实事务"&&document.querySelector("[data-id=n_perf_10000_0]")');
  await ev('window.musicHoldSave=true');await fill('[aria-label="片段起点（tick）"]','240');
  await ev(`musicCloseRequest('number-blur')`);await until('document.querySelector("#dialog-title")?.textContent==="工程操作尚未确认"&&window.musicReleaseSave');
  await check('Native close blurs numeric input and waits for its original commit',`(await getMusic()).state.tracks[0].clips[0].start===240&&!musicClose.confirmed.length`);

@@ -26,4 +26,10 @@ void ice_render(ice_engine *e, int n, float *left, float *right);
 const char *ice_version(void);
 // Read-only internal diagnostics: 0=CC, 1=sounding preset bank, 2=preset program.
 int ice_channel_value(ice_engine *e, int channel, int kind, int cc);
+// Instant audition bypassing the timeline: bank/program + note-on now, note-off
+// after `frames` render samples. Channel must be outside the current plan's
+// channels; the audition group renders even while playback is stopped.
+void ice_audition(ice_engine *e, int channel, int program, int bank,
+                  const int *keys, int nkeys, int velocity, int64_t frames);
+void ice_audition_stop(ice_engine *e);
 #endif

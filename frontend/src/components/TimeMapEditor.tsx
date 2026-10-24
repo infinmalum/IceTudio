@@ -19,10 +19,8 @@ export function TimeMapEditor({ project, projects }: { project: Project; project
   const firstTempo = tempo[0], firstMeter = meter[0];
   if (!firstTempo || !firstMeter) return <p role="alert">工程时间图缺少起始点，请刷新工程；未自动改写音乐数据。</p>;
   return <section className="time-map-summary" aria-label="工程时间图">
-    <div className="editor-toolbar">
-      <span>起始 {Number((60000000 / firstTempo.usPerQuarter).toFixed(3))} BPM · {firstMeter.numerator}/{firstMeter.denominator}</span>
-      <span>{tempo.length} 个速度点 · {meter.length} 个拍号点</span>
-      <button className="secondary" disabled={projects.busy || !projects.timeMapDrafts.ready || projects.timeMapDrafts.writing || !!projects.timeMapDrafts.error || !!saved} title={saved ? "先恢复或丢弃已保留的时间图草稿" : "编辑工程时间图"} onClick={open}>编辑速度与拍号</button>
+    <div className="editor-toolbar time-map-bar">
+      <button className="secondary" disabled={projects.busy || !projects.timeMapDrafts.ready || projects.timeMapDrafts.writing || !!projects.timeMapDrafts.error || !!saved} title={saved ? "先恢复或丢弃已保留的时间图草稿" : `编辑工程时间图（当前 ${tempo.length} 个速度点 · ${meter.length} 个拍号点）`} onClick={open}>编辑速度与拍号</button>
       {saved?.projectID === project.id && <button className="secondary" disabled={projects.busy || !projects.timeMapDrafts.ready || projects.timeMapDrafts.writing || !!projects.timeMapDrafts.error} onClick={restore}>恢复时间图草稿</button>}
     </div>
     {base && <MapDialog key={base.serial} base={base} project={project} projects={projects} close={() => setBase(null)} reload={open}/>}

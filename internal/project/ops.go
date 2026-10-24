@@ -42,6 +42,7 @@ type Op struct {
 type TrackSpec struct {
 	ID      string `json:"id,omitempty"`
 	Name    string `json:"name,omitempty"`
+	Color   string `json:"color,omitempty"` // 调色板枚举（P1 §11）
 	Channel int    `json:"channel"`
 	Program int    `json:"program"`
 	Muted   bool   `json:"muted,omitempty"`
@@ -50,6 +51,7 @@ type TrackSpec struct {
 
 type TrackPatch struct {
 	Name    *string `json:"name,omitempty"`
+	Color   *string `json:"color,omitempty"`
 	Channel *int    `json:"channel,omitempty"`
 	Program *int    `json:"program,omitempty"`
 	Muted   *bool   `json:"muted,omitempty"`
@@ -60,12 +62,14 @@ type ClipSpec struct {
 	ID      string `json:"id,omitempty"`
 	TrackID string `json:"trackId,omitempty"`
 	Name    string `json:"name,omitempty"`
+	Color   string `json:"color,omitempty"` // 调色板枚举（P1 §11）
 	Start   int64  `json:"start"`
 	Length  int64  `json:"length"`
 }
 
 type ClipPatch struct {
 	Name   *string `json:"name,omitempty"`
+	Color  *string `json:"color,omitempty"`
 	Start  *int64  `json:"start,omitempty"`
 	Length *int64  `json:"length,omitempty"`
 }
@@ -389,9 +393,12 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 		if err := validateTrackValues(op.Kind, op.Track.Channel, op.Track.Program); err != nil {
 			return inv, nil, err
 		}
+		if !ValidColor(op.Track.Color) {
+			return inv, nil, opError(op.Kind, "颜色必须是调色板值或空：%q", op.Track.Color)
+		}
 		ids[id] = true
 		track := Track{
-			ID: id, Name: op.Track.Name, Channel: op.Track.Channel,
+			ID: id, Name: op.Track.Name, Color: op.Track.Color, Channel: op.Track.Channel,
 			Program: op.Track.Program, Muted: op.Track.Muted, Solo: op.Track.Solo,
 			Clips: op.InvClips,
 		}
@@ -410,8 +417,11 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 			return inv, nil, opError(op.Kind, "音轨不存在：%s", op.TrackID)
 		}
 		p := op.TrackPatch
-		if p == nil || (p.Name == nil && p.Channel == nil && p.Program == nil && p.Muted == nil && p.Solo == nil) {
+		if p == nil || (p.Name == nil && p.Color == nil && p.Channel == nil && p.Program == nil && p.Muted == nil && p.Solo == nil) {
 			return inv, nil, opError(op.Kind, "缺少要更新的字段")
+		}
+		if p.Color != nil && !ValidColor(*p.Color) {
+			return inv, nil, opError(op.Kind, "颜色必须是调色板值或空：%q", *p.Color)
 		}
 		if p.Channel != nil || p.Program != nil {
 			ch, pr := st.Tracks[i].Channel, st.Tracks[i].Program
@@ -431,6 +441,11 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 			old := t.Name
 			inv.TrackPatch.Name = &old
 			t.Name = *p.Name
+		}
+		if p.Color != nil {
+			old := t.Color
+			inv.TrackPatch.Color = &old
+			t.Color = *p.Color
 		}
 		if p.Channel != nil {
 			old := t.Channel
@@ -466,7 +481,7 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 		delete(ids, removed.ID)
 		st.Tracks = append(st.Tracks[:i], st.Tracks[i+1:]...)
 		inv = Op{Kind: "track.add", Track: &TrackSpec{
-			ID: removed.ID, Name: removed.Name, Channel: removed.Channel,
+			ID: removed.ID, Name: removed.Name, Color: removed.Color, Channel: removed.Channel,
 			Program: removed.Program, Muted: removed.Muted, Solo: removed.Solo,
 		}, InvClips: removed.Clips}
 		return inv, nil, nil
@@ -494,9 +509,12 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 		if op.Clip.Start < 0 {
 			return inv, nil, opError(op.Kind, "片段起点不能为负")
 		}
+		if !ValidColor(op.Clip.Color) {
+			return inv, nil, opError(op.Kind, "颜色必须是调色板值或空：%q", op.Clip.Color)
+		}
 		ids[id] = true
 		clip := Clip{
-			ID: id, Name: op.Clip.Name, Start: op.Clip.Start, Length: op.Clip.Length,
+			ID: id, Name: op.Clip.Name, Color: op.Clip.Color, Start: op.Clip.Start, Length: op.Clip.Length,
 			Notes: op.InvNotes, Controls: op.InvControls, Raw: op.InvRaw,
 		}
 		if clip.Notes == nil {
@@ -520,8 +538,11 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 			return inv, nil, opError(op.Kind, "片段不存在：%s", op.ClipID)
 		}
 		p := op.ClipPatch
-		if p == nil || (p.Name == nil && p.Start == nil && p.Length == nil) {
+		if p == nil || (p.Name == nil && p.Color == nil && p.Start == nil && p.Length == nil) {
 			return inv, nil, opError(op.Kind, "缺少要更新的字段")
+		}
+		if p.Color != nil && !ValidColor(*p.Color) {
+			return inv, nil, opError(op.Kind, "颜色必须是调色板值或空：%q", *p.Color)
 		}
 		c := &st.Tracks[ti].Clips[ci]
 		newLen := c.Length
@@ -547,6 +568,11 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 			inv.ClipPatch.Name = &old
 			c.Name = *p.Name
 		}
+		if p.Color != nil {
+			old := c.Color
+			inv.ClipPatch.Color = &old
+			c.Color = *p.Color
+		}
 		if p.Start != nil {
 			old := c.Start
 			inv.ClipPatch.Start = &old
@@ -569,7 +595,7 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 		dropClipIDs(ids, removed)
 		t.Clips = append(t.Clips[:ci], t.Clips[ci+1:]...)
 		inv = Op{Kind: "clip.add", Clip: &ClipSpec{
-			ID: removed.ID, TrackID: t.ID, Name: removed.Name,
+			ID: removed.ID, TrackID: t.ID, Name: removed.Name, Color: removed.Color,
 			Start: removed.Start, Length: removed.Length,
 		}, InvNotes: removed.Notes, InvControls: removed.Controls, InvRaw: removed.Raw}
 		return inv, nil, nil

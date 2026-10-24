@@ -130,7 +130,7 @@ pulse.properties = { server.address = [ %q ] pulse.min.req = 128/48000 pulse.def
 	}
 	start("pipewire-pulse", "-c", filepath.Join(dir, "pulse.conf"))
 	waitServer()
-	if err = m.Configure(Settings{Version: 1, Driver: "pulseaudio"}); err != nil {
+	if err = m.Configure(Settings{Version: 2, Driver: "pulseaudio"}); err != nil {
 		t.Fatal(err)
 	}
 	if m.Status().Playing {
@@ -140,7 +140,7 @@ pulse.properties = { server.address = [ %q ] pulse.min.req = 128/48000 pulse.def
 		t.Fatal(err)
 	}
 	recovered := wait(func(s Status) bool { return s.Callbacks > 5 && s.Playing })
-	if err = m.Configure(Settings{Version: 1, Driver: "alsa", SoundFont: filepath.Join(dir, "absent.sf2")}); err == nil {
+	if _, err = m.AddFont(filepath.Join(dir, "absent.sf2")); err == nil {
 		t.Fatal("unavailable font accepted")
 	}
 	if !m.Status().Playing || m.Status().Settings.Driver != "pulseaudio" {

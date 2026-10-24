@@ -1,0 +1,88 @@
+{
+  "checks": [
+    "Native viewport keeps a usable browser column and a start hero or restored project",
+    "Open project keeps a usable editor area at the native viewport",
+    "Native WebKit pointer input creates a committed MIDI note",
+    "Native multi-track/time-map editing shares undo and redo",
+    "Native transport reaches real FluidSynth/Pulse callbacks and stops",
+    "Native audition renders off-timeline without changing the project",
+    "Native export opens the real system save dialog and cancel unblocks it",
+    "Native binary exports and re-imports the MIDI round trip",
+    "Native import opens the real system open dialog and cancel skips import",
+    "Actual Wails window close is cancelled and preserves blank music input",
+    "Actual close/reopen preserves music and offers input without applying it",
+    "Explicit native input recovery restores the original blank value",
+    "SIGKILL/restart queries the original committed operation without replay"
+  ],
+  "metrics": [
+    {
+      "defaultViewport": [
+        733,
+        480
+      ]
+    },
+    {
+      "audio": {
+        "available": true,
+        "callbacks": 21,
+        "endTick": 7680,
+        "engine": "FluidSynth 2.6.1",
+        "error": "",
+        "loop": false,
+        "loopEnd": 7680,
+        "loopStart": 0,
+        "loops": 0,
+        "missedBlocks": 0,
+        "notice": "",
+        "playing": true,
+        "projectId": "4e6a324f06904b46524af8f28a51015b",
+        "ready": true,
+        "resolvedFont": "MuseScore_General.sf3",
+        "resolvedKind": "bundled",
+        "revision": 7,
+        "sampleRate": 48000,
+        "settings": {
+          "defaultFont": "",
+          "driver": "pulseaudio",
+          "fonts": null,
+          "version": 2
+        },
+        "skippedEvents": 0,
+        "tick": 31.74401428480643
+      }
+    },
+    {
+      "nativeSaveDialog": {
+        "cls": "org.freedesktop.impl.portal.desktop.kde",
+        "caption": "xdg-desktop-portal-kde"
+      }
+    },
+    {
+      "nativeOpenDialog": {
+        "cls": "org.freedesktop.impl.portal.desktop.kde",
+        "caption": "导入 MIDI 文件"
+      }
+    }
+  ],
+  "limits": [
+    "Test build adds Wails MCP automation; production build has no automation listener",
+    "DOM input is injected by Wails automation; no claim of manual listening or physical latency",
+    "GTK4 GtkFileDialog always routes through xdg-desktop-portal; on KDE the chooser is a Qt window evidenced via KWin scripting and cancelled with closeWindow. Typing a filename into the Wayland-native dialog is not automatable here; the MIDI round trip uses explicit service paths",
+    "SIGKILL is process failure, not system power loss",
+    "Cosmetic UI state in localStorage (lastProject, view, theme) may go stale across the native quit because the WebKit storage flush is not guaranteed; music data and input drafts are durable in Go and unaffected",
+    "Audio callbacks run on the user PipeWire server routed to a temporary null sink (icetudio_p2_sink, unloaded after the run); the 2026-10-18 fully isolated secondary server could not be reproduced on the current system and no user-facing device is stopped"
+  ],
+  "environment": {
+    "node": "v26.11.1",
+    "binarySHA256": "c910ab8b21126ca79f75e6e9156f574244a79a55761fb0d03c3e6433cf76fda4",
+    "webview": {
+      "devicePixelRatio": 1.5,
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+      "viewport": [
+        733,
+        480
+      ]
+    },
+    "releaseBinaryDirectDeps": "ldd bin/icetudio 无缺失（0 not found）；关键直接依赖：libwebkitgtk-6.0、libgtk-4、libjavascriptcoregtk-6.0、libfluidsynth.so.3、libpulse/libpulse-simple（经 FluidSynth）、libsqlite3、libpipewire；其余为 GTK/WebKit 传递依赖（完整 ldd 清单归档于运行环境）"
+  }
+}

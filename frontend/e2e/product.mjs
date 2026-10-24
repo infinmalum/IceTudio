@@ -16,7 +16,7 @@ const vite = spawn(
   },
 );
 const chrome = spawn(
-  "chromium",
+  process.env.ICETUDIO_E2E_BROWSER || "chromium",
   [
     "--headless",
     "--no-sandbox",
@@ -68,7 +68,7 @@ const config=(id,name)=>({id,name,isDefault:id==='default',revision:1,data:blank
 const state=window.__product={n:0,configs:[config('default','创作助手')],conversations:[],contexts:{},runs:{},messages:{},pending:[],grants:{},model:{provider:'ollama',baseUrl:'http://127.0.0.1:11434/v1',name:''},savedKey:false,approvals:[],skillDrafts:[],previewRemote:false,skills:[{name:'report-check',description:'检查报告结构',managed:false}],mcpConfig:[],projects:[],projectHistory:{},projectOps:{},projectResults:{},lastExport:null};
 const status=()=>({storageReady:true,runtimeReady:!!state.model.name,modelConnected:!!state.model.name,model:state.model,availableModels:['mock'],message:state.model.name?'已连接':'请连接模型'});
 export const DesktopService={Ready:async()=>{},CancelClose:async()=>{},ConfirmClose:async()=>{}};
-export const PlaybackService={Status:async()=>({available:false,ready:false,playing:false,settings:{version:1,driver:'pulseaudio',soundFont:''},error:'',engine:'UI mock',sampleRate:48000}),Stop:async()=>{},StopProject:async()=>{},Play:async()=>{},Seek:async()=>{},Configure:async()=>{},PickSoundFont:async()=>''};
+export const PlaybackService={Status:async()=>({available:false,ready:false,playing:false,settings:{version:2,driver:'pulseaudio',fonts:[],defaultFont:''},resolvedFont:'Basic Waves（内置基础波形）',resolvedKind:'basic',notice:'',error:'',engine:'UI mock',sampleRate:48000}),Stop:async()=>{},StopProject:async()=>{},Play:async()=>{},Seek:async()=>{},Configure:async()=>{},PickSoundFont:async()=>'',AddSoundFont:async()=>({id:'font_test',name:'local.sf2',path:'/test/local.sf2',priority:0,addedAt:''}),RemoveSoundFont:async()=>{},SetDefaultSoundFont:async()=>{},MoveSoundFont:async()=>{},ResetAudioSettings:async()=>{},Audition:async()=>{},StopAudition:async()=>{},SoundFonts:async()=>({bundled:{id:'bundled',name:'MuseScore_General.sf3',path:'',source:'bundled',exists:false,size:0,error:'',active:false,isDefault:true,priority:-1},basic:{id:'basic',name:'Basic Waves（内置基础波形）',path:'',source:'basic',exists:true,size:0,error:'',active:true,isDefault:false,priority:1073741824},fonts:[],defaultFont:'',notice:''})};
 export const StatusService={
 GetStatus:async()=>structuredClone(status()),ListCredentialStatus:async()=>[{provider:'openai',configured:state.savedKey}],SaveCredential:async(p,key)=>{if(key!=='mock-key')throw Error('unexpected key');state.savedKey=true},DeleteCredential:async()=>{state.savedKey=false},SaveModelConfig:async(m)=>{state.model=structuredClone(m);return structuredClone(status())},ListMCPEndpoints:async()=>[],
 ListRuntimeConfigs:async()=>{if(state.failProfiles)throw Error('助手列表加载失败');return structuredClone(state.configs)},GetRuntimeConfig:async(id)=>structuredClone(state.configs.find(p=>p.id===id)),UpdateRuntimeConfig:async(p)=>{const cur=state.configs.find(v=>v.id===p.id);if(!cur)throw Error('助手不存在');if(cur.revision!==p.revision)throw Error('执行配置已被其他操作修改，请刷新后重试');const saved={...structuredClone(p),revision:p.revision+1,updatedAt:'2026-10-17'};state.configs=state.configs.map(v=>v.id===p.id?saved:v);return structuredClone(saved)},RestoreRuntimeConfigDefault:async(revision)=>{const cur=state.configs.find(p=>p.id==='default');if(!cur||cur.revision!==revision)throw Error('执行配置已被其他操作修改，请刷新后重试');const d=config('default','创作助手');d.revision=revision+2;state.configs=state.configs.map(v=>v.id==='default'?d:v);return structuredClone(d)},
@@ -90,7 +90,7 @@ const projectSummary=(p)=>({id:p.id,title:p.title,ppq:p.ppq,revision:p.revision,
 const newProject=(title)=>{const p={id:'pr'+(++state.n),title:title||'未命名工程',ppq:480,revision:0,state:{title:title||'未命名工程',ppq:480,tempo:[{tick:0,usPerQuarter:500000}],meter:[{tick:0,numerator:4,denominator:4}],tracks:[]},createdAt:'2026-10-17',updatedAt:'2026-10-17'};state.projects.push(p);state.projectHistory[p.id]=[];return p};
 const staleRevision=(p,base)=>base!==p.revision?Promise.reject(Error('工程已被其他操作修改（当前修订 '+p.revision+'，请求基于 '+base+'）')):null;
 // 工程条模拟：与真实语义一致的重放幂等、过时修订拒绝、线性撤销/重做。
-export const ProjectService={GetTimeMapDraft:async()=>null,SaveTimeMapDraft:async()=>{},ClearTimeMapDraft:async()=>{},GetPendingProjectEdit:async()=>null,BeginProjectEdit:async()=>{},ClearPendingProjectEdit:async()=>{},
+export const ProjectService={GetTimeMapDraft:async()=>null,SaveTimeMapDraft:async()=>{},ClearTimeMapDraft:async()=>{},GetPendingProjectEdit:async()=>null,BeginProjectEdit:async()=>{},ClearPendingProjectEdit:async()=>{},GetMusicInputs:async()=>null,SaveMusicInputs:async()=>{},ClearMusicInputs:async()=>{},
 ListProjects:async()=>state.projects.map(projectSummary),
 GetProject:async(id)=>{const p=findProject(id);if(!p)throw Error('工程不存在');return structuredClone(p)},
 CreateProject:async(title)=>structuredClone(newProject(title)),
@@ -221,38 +221,38 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
     throw Error("runtime jargon on home");
   if (
     !(await evaluate(
-      `document.body.innerText.includes('选择工程后可用原生播放') && document.body.innerText.includes('新建工程')`,
+      `document.body.innerText.includes('开始创作') && document.body.innerText.includes('新建工程') && document.body.innerText.includes('导入 MIDI')`,
     ))
   )
     throw Error("workspace must explain project creation and audition entry");
   // 工程在左栏（新建/导入/列表），中间只有编辑器命令条；绑定对话在右侧 agent 栏。
-  await clickIn(".sidebar", "＋ 新建工程");
+  await clickIn(".browser", "＋ 新建工程");
   await fill("dialog[open] input[type=text]", "示例工程");
   await clickIn("dialog[open]", "创建");
   await until(
-    `document.body.innerText.includes('示例工程') && document.body.innerText.includes('修订 0')`,
+    `Array.from(document.querySelectorAll('.project-select')).some(b=>b.textContent.includes('示例工程'))`,
   );
-  await clickIn(".project-strip", "重命名");
+  await clickIn(".transport-bar", "示例工程");
   await fill("dialog[open] input[type=text]", "夜曲");
   await clickIn("dialog[open]", "应用");
   await until(
     `window.__product.projects[0].revision===1 && document.body.innerText.includes('夜曲')`,
   );
-  await clickIn(".project-strip", "撤销");
+  await clickIn(".transport-bar", "撤销");
   await until(
     `window.__product.projects[0].revision===2 && document.body.innerText.includes('示例工程')`,
   );
-  await clickIn(".project-strip", "重做");
+  await clickIn(".transport-bar", "重做");
   await until(
     `window.__product.projects[0].revision===3 && document.body.innerText.includes('夜曲')`,
   );
   if ((await evaluate(`window.__product.projects[0].title`)) !== "夜曲")
     throw Error("undo/redo lost the edit");
-  await clickIn(".sidebar", "导入 MIDI");
+  await clickIn(".browser", "导入 MIDI");
   await until(
     `window.__product.projects.length===2 && document.body.innerText.includes('导入的工程')`,
   );
-  await clickIn(".project-strip", "导出 MIDI");
+  await clickIn(".transport-bar", "导出 MIDI");
   await until(
     `window.__product.lastExport?.path.endsWith('.mid') && window.__product.lastExport.projectId===window.__product.projects[1].id`,
   );
@@ -627,6 +627,10 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
   console.log(
     "PASS: assistant editor picks installed MCP/Skills from the catalog, MCP managed in ordinary settings, developer settings and host logs.",
   );
+  if (!(await evaluate(`document.documentElement.dataset.theme==='dark'`)))
+    throw Error("dark must be the default DAW theme");
+  await click("☀ 浅色模式");
+  await until(`document.documentElement.dataset.theme==='light'`);
   await click("🌙 深色模式");
   await until(`document.documentElement.dataset.theme==='dark'`);
   if (

@@ -23,3 +23,7 @@ func (*native) install(*Score, int64, int64, int64, bool, bool) error {
 	return errors.New("当前构建不支持原生播放")
 }
 func (*native) render(n int) ([]float32, []float32) { return make([]float32, n), make([]float32, n) }
+func (*native) audition(int, int, int, []int, int, int64) error {
+	return errors.New("当前构建不支持原生播放")
+}
+func (*native) auditionStop() {}

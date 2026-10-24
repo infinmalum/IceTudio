@@ -22,6 +22,7 @@ type ProjectResult = project.Result
 type ProjectHistoryEntry = project.HistoryEntry
 type ProjectEditRecovery = app.ProjectEditRecovery
 type TimeMapDraftRecord = app.TimeMapDraftRecord
+type MusicInputsRecord = app.MusicInputsRecord
 
 func (s *ProjectService) GetTimeMapDraft() (*TimeMapDraftRecord, error) {
 	return s.svc.GetTimeMapDraft()
@@ -31,6 +32,18 @@ func (s *ProjectService) SaveTimeMapDraft(expectedToken, token, payload string) 
 }
 func (s *ProjectService) ClearTimeMapDraft(expectedToken, token string) error {
 	return s.svc.ClearTimeMapDraft(expectedToken, token)
+}
+
+// Unapplied music form input drafts are UI recovery state in the Go data dir;
+// browser localStorage is not durable across the native quit path.
+func (s *ProjectService) GetMusicInputs() (*MusicInputsRecord, error) {
+	return s.svc.GetMusicInputs()
+}
+func (s *ProjectService) SaveMusicInputs(expectedToken, token, payload string) error {
+	return s.svc.SaveMusicInputs(expectedToken, token, payload)
+}
+func (s *ProjectService) ClearMusicInputs(expectedToken, token string) error {
+	return s.svc.ClearMusicInputs(expectedToken, token)
 }
 
 func (s *ProjectService) GetPendingProjectEdit() (*ProjectEditRecovery, error) {

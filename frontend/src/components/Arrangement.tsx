@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import type { Project } from "../../bindings/icetudio";
 import type { Clip, Op, Track } from "../../bindings/icetudio/internal/project/models";
 import { PAGE_BEATS, type EditTarget } from "../music/edits";
+import { trackInstrumentLabel } from "../music/gm";
+import { auditionInstrument } from "../music/audition";
+import { InstrumentPicker } from "./InstrumentPicker";
+import { TRACK_COLORS, colorById, displayColor } from "../music/palette";
 import { useCloseBlocker, useCloseFrozen } from "../shared/closeGuard";
 import { MusicRuler } from "./MusicRuler";
 
@@ -11,15 +15,18 @@ type Gesture = {
 };
 type Preview = { trackID: string; clipID: string; start: number; length: number; error: string };
 
-export function Arrangement({ project, trackID, clipID, busy, select, edit, reportError, addTrack }: {
+export function Arrangement({ project, trackID, clipID, busy, select, edit, reportError, addTrack, snap, openClip }: {
   project: Project; trackID?: string; clipID?: string; busy: boolean;
   select: (trackID: string, clipID: string) => void;
   edit: (target: EditTarget, ops: Op[]) => Promise<boolean>;
   reportError: (error: unknown) => void; addTrack: () => void;
+  snap: number; openClip: () => void;
 }) {
   const tracks = project.state.tracks ?? [];
-  const [requestedPage, setPage] = useState(0), [zoom, setZoom] = useState(64), [snap, setSnap] = useState(1);
+  const [requestedPage, setPage] = useState(0), [zoom, setZoom] = useState(64);
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [colorTrack, setColorTrack] = useState("");
+  const [instTrack, setInstTrack] = useState("");
   const gesture = useRef<Gesture | null>(null);
   const frozen = useCloseFrozen();
   const latest = useRef({ edit, reportError, busy, frozen });
@@ -104,18 +111,16 @@ export function Arrangement({ project, trackID, clipID, busy, select, edit, repo
   return <section aria-label="片段编排">
     <div className="editor-toolbar">
       <button disabled={busy || frozen || tracks.length >= 64} title={tracks.length >= 64 ? "已达到 64 轨上限" : "创建音轨及 16 个四分拍长度的片段"} onClick={addTrack}>添加音轨</button>
-      <button className="secondary" disabled={disabled || page === 0} onClick={() => setPage(page - 1)}>编排上一页</button>
-      <span>编排 {page + 1}/{pageCount} 页 · 四分拍 {page * PAGE_BEATS + 1}–{(page + 1) * PAGE_BEATS}</span>
+      <button className="secondary" disabled={disabled || page === 0} onClick={() => setPage(page - 1)} title="上一页（片段跨页显示）">编排上一页</button>
+      <span className="transport-readout" title={`四分拍 ${page * PAGE_BEATS + 1}–${(page + 1) * PAGE_BEATS}；拖动片段移动，拖动右端拉伸，双击进钢琴卷帘`}>{page + 1}/{pageCount} 页</span>
       <button className="secondary" disabled={disabled || page >= pageCount - 1} onClick={() => setPage(page + 1)}>编排下一页</button>
       <button className="secondary" disabled={disabled || !selected} onClick={() => selected && setPage(Math.floor(selected.start / pageTicks))}>显示选中片段</button>
       <label>缩放 <input aria-label="编排缩放" type="range" min={16} max={200} value={zoom} disabled={disabled} onChange={e => setZoom(Number(e.target.value))}/></label>
-      <label>吸附 <select aria-label="编排吸附" value={snap} disabled={disabled} onChange={e => setSnap(Number(e.target.value))}>{[0.25, 0.5, 1, 2, 4].map(n => <option key={n} value={n}>{n} 四分拍</option>)}</select></label>
     </div>
-    <p className="editor-help">拖动片段移动；拖动真实右端拉伸。重叠片段分行显示，跨页片段显示裁切标记。按 Escape 取消；精确编辑使用下方表单。</p>
     <div className="arrangement" aria-label="轨道与片段" data-page-start={start}>
       <div className="arrangement-row arrangement-header"><span className="arrangement-label">{tracks.length} 条音轨</span>
         {project.state.meter?.length && project.state.tempo?.length ? <MusicRuler ppq={project.ppq} start={start} zoom={zoom} meter={project.state.meter} tempo={project.state.tempo}/> : null}</div>
-      {tracks.map(t => {
+      {tracks.map((t, ti) => {
         const clips = (t.clips ?? []).map(c => {
           const g = gesture.current;
           // Preserve the original displayed target through external updates.
@@ -132,10 +137,37 @@ export function Arrangement({ project, trackID, clipID, busy, select, edit, repo
             return { clip: c, lane };
           });
         return <div className={`arrangement-row arrangement-track ${t.id === trackID ? "selected" : ""}`} key={t.id}>
-          <div className="arrangement-label">
-            <button className="track-name secondary" aria-pressed={t.id === trackID} onClick={() => select(t.id, "")}>{t.name || "未命名音轨"}</button>
-            <button className="secondary" aria-label={`静音 ${t.name}`} aria-pressed={!!t.muted} disabled={busy || frozen} onClick={() => void edit(project, [{ kind: "track.update", trackId: t.id, trackPatch: { muted: !t.muted } }])}>M</button>
-            <button className="secondary" aria-label={`独奏 ${t.name}`} aria-pressed={!!t.solo} disabled={busy || frozen} onClick={() => void edit(project, [{ kind: "track.update", trackId: t.id, trackPatch: { solo: !t.solo } }])}>S</button>
+          <div className="arrangement-label" data-color={displayColor(t.color ?? "", ti).id}>
+            <div className="track-head">
+              <button className="track-color" aria-label={`轨道颜色：${displayColor(t.color ?? "", ti).zh}`} title={`轨道颜色：${displayColor(t.color ?? "", ti).zh}（点击更改）`}
+                style={{ background: displayColor(t.color ?? "", ti).css }}
+                disabled={busy || frozen} onClick={() => { setColorTrack(colorTrack === t.id ? "" : t.id); setInstTrack(""); }}/>
+              <button className="track-name secondary" aria-pressed={t.id === trackID} onClick={() => select(t.id, "")}>{t.name || "未命名音轨"}</button>
+              <button className="secondary" aria-label={`静音 ${t.name}`} aria-pressed={!!t.muted} disabled={busy || frozen} onClick={() => void edit(project, [{ kind: "track.update", trackId: t.id, trackPatch: { muted: !t.muted } }])}>M</button>
+              <button className="secondary" aria-label={`独奏 ${t.name}`} aria-pressed={!!t.solo} disabled={busy || frozen} onClick={() => void edit(project, [{ kind: "track.update", trackId: t.id, trackPatch: { solo: !t.solo } }])}>S</button>
+            </div>
+            <button className="track-instrument" title={`乐器 ${trackInstrumentLabel(t.program, t.channel)} · 通道 ${t.channel + 1}${t.channel === 9 ? "（GM 打击组）" : ""}；点击更换并试听`}
+              disabled={busy || frozen} onClick={() => { setInstTrack(instTrack === t.id ? "" : t.id); setColorTrack(""); }}>
+              {trackInstrumentLabel(t.program, t.channel)} · CH {t.channel + 1}{t.channel === 9 ? " 打击" : ""} ▾
+            </button>
+            {instTrack === t.id && <div className="track-inst-popover" role="dialog" aria-label="选择轨道乐器">
+              <InstrumentPicker program={t.program} channel={t.channel} disabled={busy || frozen}
+                onPick={program => {
+                  setInstTrack("");
+                  if (program !== t.program) void edit(project, [{ kind: "track.update", trackId: t.id, trackPatch: { program } }]);
+                  void auditionInstrument(program, t.channel, t.channel === 9 ? [36, 38] : [60]);
+                }}/>
+              <div className="editor-toolbar">
+                <button className="secondary" disabled={busy || frozen}
+                  onClick={() => void auditionInstrument(t.program, t.channel, t.channel === 9 ? [36, 38] : [60])}>试听当前音色</button>
+              </div>
+            </div>}
+            {colorTrack === t.id && <div className="track-color-picker" role="group" aria-label="选择轨道颜色">
+              {TRACK_COLORS.map(c => <button key={c.id} className="swatch" title={c.zh} aria-label={`颜色 ${c.zh}`} aria-pressed={t.color === c.id} style={{ background: c.css }}
+                disabled={busy || frozen} onClick={() => { setColorTrack(""); if (t.color !== c.id) void edit(project, [{ kind: "track.update", trackId: t.id, trackPatch: { color: c.id } }]); }}/>)}
+              <button className="secondary" title="清除显式颜色，恢复按轨道序的默认色" disabled={busy || frozen}
+                onClick={() => { setColorTrack(""); if (t.color) void edit(project, [{ kind: "track.update", trackId: t.id, trackPatch: { color: "" } }]); }}>清除</button>
+            </div>}
           </div>
           <div className="arrangement-lane" style={{ width: PAGE_BEATS * zoom, height: Math.max(1, laneEnds.length) * 36, backgroundSize: `${zoom}px 100%` }}>
             {visible.map(({ clip: c, lane }) => {
@@ -144,11 +176,13 @@ export function Arrangement({ project, trackID, clipID, busy, select, edit, repo
               const resize = (g?.clip.id === c.id && g.mode === "resize") || v.start + v.length <= end && v.start + v.length > start && (right - left) / project.ppq * zoom >= 18;
               return <div key={c.id} className={`arrangement-block ${c.id === clipID && t.id === trackID ? "selected" : ""} ${preview?.clipID === c.id ? "dragging" : ""} ${preview?.clipID === c.id && preview.error ? "invalid" : ""}`}
                 data-clip={c.id} data-track={t.id} data-lane={lane} data-crop-left={v.start < start} data-crop-right={v.start + v.length > end}
+                data-color={(colorById(c.color ?? "") ?? colorById(t.color ?? "") ?? displayColor("", ti)).id}
                 style={{ left: (left - start) / project.ppq * zoom, width: Math.max(2, (right - left) / project.ppq * zoom), top: lane * 36 + 2 }}>
                 <button className="arrangement-clip" aria-pressed={c.id === clipID && t.id === trackID} disabled={busy || frozen}
                   title={`${c.name || "片段"} · 起点 ${v.start} tick · 长度 ${v.length} tick`}
                   onPointerDown={e => down(e, t, c, "move")} onLostPointerCapture={() => { if (gesture.current?.clip.id === c.id) cancel(); }}
-                  onClick={e => { if (e.detail === 0) select(t.id, c.id); }}>{v.start < start ? "◀ " : ""}{c.name || "片段"}{v.start + v.length > end ? " ▶" : ""}</button>
+                  onClick={e => { if (e.detail === 0) select(t.id, c.id); }}
+                  onDoubleClick={() => { select(t.id, c.id); openClip(); }}>{v.start < start ? "◀ " : ""}{c.name || "片段"}{v.start + v.length > end ? " ▶" : ""}</button>
                 {resize && <button className="arrangement-resize" aria-label={`拉伸 ${c.name || "片段"}`} title="拖动调整片段长度；不能截掉已有事件" disabled={busy || frozen}
                   onPointerDown={e => down(e, t, c, "resize")} onLostPointerCapture={() => { if (gesture.current?.clip.id === c.id) cancel(); }}/>}
               </div>;
@@ -156,7 +190,10 @@ export function Arrangement({ project, trackID, clipID, busy, select, edit, repo
           </div>
         </div>;
       })}
-      {!tracks.length && <p className="editor-help">点击“添加音轨”创建第一个片段，或导入 MIDI；手工编辑无需连接模型。</p>}
+      {!tracks.length && <div className="arrangement-empty">
+        <p>还没有音轨。添加一条音轨就开始写音符；或导入 MIDI 继续。</p>
+        <div className="hero-actions"><button disabled={busy || frozen || tracks.length >= 64} onClick={addTrack}>添加第一条音轨</button></div>
+      </div>}
     </div>
     {preview && <p className="editor-help" role="status">{preview.error || `预览：起点 ${preview.start} tick · 长度 ${preview.length} tick；松开提交，Escape 取消`}</p>}
   </section>;

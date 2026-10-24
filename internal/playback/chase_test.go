@@ -281,6 +281,36 @@ func TestNativeSostenutoAtSeekDestination(t *testing.T) {
 	}
 }
 
+// Portamento Control (CC84) is ordered before the chased notes that use it,
+// and once a note-on in the analysed stream consumed it, a later seek does not
+// resurrect the stale source: the glide phase in progress at the destination
+// is a declared boundary, not reconstructed state.
+func TestChasePortamentoControlOrderingAndConsumption(t *testing.T) {
+	events := []Event{
+		cc(0, 0, 65, 127), cc(0, 0, 5, 64),
+		on(100, 0, 60, 1), cc(1000, 0, 84, 60), on(1100, 0, 67, 2),
+		off(90000, 0, 67, 2), off(90000, 0, 60, 1),
+	}
+	before := (&Score{Events: events}).Chase(1050)
+	seenSource := false
+	for _, e := range before {
+		if e.Kind == CC && e.A == 84 {
+			seenSource = true
+		}
+		if e.Kind == NoteOn && !seenSource {
+			t.Fatalf("chased note-on before portamento source: %+v", before)
+		}
+	}
+	if !seenSource {
+		t.Fatalf("pending portamento source dropped: %+v", before)
+	}
+	for _, e := range (&Score{Events: events}).Chase(1200) {
+		if e.Kind == CC && e.A == 84 {
+			t.Fatalf("consumed portamento source leaked into later chase: %+v", e)
+		}
+	}
+}
+
 func TestManagerRefreshDropsRemovedSostenuto(t *testing.T) {
 	makeSnapshot := func(revision int64) Snapshot {
 		s := managerSnapshot()
@@ -324,4 +354,64 @@ func TestManagerRefreshDropsRemovedSostenuto(t *testing.T) {
 		t.Fatalf("removed CC66 survived revision replacement: first64=%g 64-256=%g 256-1024=%g last1024=%g CC66=%d", energy(data[:64]), energy(data[64:256]), energy(data[256:1024]), energy(data[1024:]), pedal)
 	}
 	t.Logf("revision swap PCM energy: first64=%g, remaining1984=%g, CC66=%d", energy(data[:64]), energy(data[64:]), pedal)
+}
+
+// A revision switch must not let the old revision's RPN bend range, bend,
+// portamento or legato state leak into the new snapshot: the swap clears them
+// and the chased note returns to its natural pitch while playback continues.
+func TestManagerRevisionSwitchClearsParametersAndModes(t *testing.T) {
+	snapshot := func(rev int64) Snapshot {
+		s := managerSnapshot()
+		s.Revision = rev
+		clip := &s.State.Tracks[0].Clips[0]
+		clip.Length = 3840
+		clip.Notes[0].Duration = 3840
+		if rev == 1 {
+			clip.Controls = []project.ControlEvent{
+				{Kind: project.KindCC, Tick: 0, Controller: 65, Value: 127},
+				{Kind: project.KindCC, Tick: 0, Controller: 68, Value: 1},
+				{Kind: project.KindCC, Tick: 0, Controller: 101, Value: 0},
+				{Kind: project.KindCC, Tick: 0, Controller: 100, Value: 0},
+				{Kind: project.KindCC, Tick: 0, Controller: 6, Value: 12},
+				{Kind: project.KindPitchBend, Tick: 120, Value: 16383},
+			}
+		}
+		return s
+	}
+	var mu sync.Mutex
+	revision := int64(1)
+	m := offlineManager(t, func(string) (Snapshot, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return snapshot(revision), nil
+	})
+	if err := m.Play(Request{ProjectID: "p_a", Revision: 1, Tick: 240}); err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, m, func(s Status) bool { return s.Playing })
+	m.mu.Lock()
+	sens, sw, legato := m.engine.channelValue(0, 3, 0), m.engine.channelValue(0, 0, 65), m.engine.channelValue(0, 0, 68)
+	data, _ := m.engine.render(6000)
+	m.mu.Unlock()
+	if sens != 12 || sw != 127 || legato != 1 {
+		t.Fatalf("revision 1 ordered state missing: bend range=%d portamento=%d legato=%d", sens, sw, legato)
+	}
+	if freq := crossingFrequency(data[500:]); freq < 830 || freq > 930 {
+		t.Fatalf("chased bend with RPN range not sounding: %.1f Hz", freq)
+	}
+	mu.Lock()
+	revision = 2
+	mu.Unlock()
+	m.Changed("p_a")
+	waitStatus(t, m, func(s Status) bool { return s.Revision == 2 && s.Playing })
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	sens, sw, legato, gen := m.engine.channelValue(0, 3, 0), m.engine.channelValue(0, 0, 65), m.engine.channelValue(0, 0, 68), m.engine.channelValue(0, 4, 51)
+	if sens != 2 || sw != 0 || legato != 0 || gen != 0 {
+		t.Fatalf("revision 2 inherited ordered state: bend range=%d portamento=%d legato=%d gen51=%d", sens, sw, legato, gen)
+	}
+	data, _ = m.engine.render(8000)
+	if freq := crossingFrequency(data[1000:]); freq < 425 || freq > 455 {
+		t.Fatalf("old bend survived revision switch: %.1f Hz", freq)
+	}
 }

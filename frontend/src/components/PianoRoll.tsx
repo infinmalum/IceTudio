@@ -3,17 +3,19 @@ import { createPortal } from "react-dom";
 import type { MeterPoint, Op, TempoPoint } from "../../bindings/icetudio/internal/project/models";
 import { loadGridSound, type GridElement, type GridNote } from "../music/gridsound";
 import { noteIntent, PAGE_BEATS, type ClipTarget, type EditTarget } from "../music/edits";
+import { auditionInstrument } from "../music/audition";
 import { MusicRuler } from "./MusicRuler";
 import { meterIndex, positionLabel, preciseWindow } from "../music/timeMap";
 import { useMusicField } from "../hooks/useMusicInputs";
 import { useCloseBlocker } from "../shared/closeGuard";
 
-export function PianoRoll({ title, target, meter, tempo, busy, edit, shift, reportError }: {
+export function PianoRoll({ title, target, meter, tempo, busy, edit, shift, reportError, snap }: {
   title: string; target: ClipTarget; busy: boolean;
   meter: MeterPoint[]; tempo: TempoPoint[];
   edit: (target: EditTarget, ops: Op[]) => Promise<boolean>;
   shift: (direction: "undo" | "redo") => void;
   reportError: (error: unknown) => void;
+  snap: number;
 }) {
   const mount = useRef<HTMLDivElement>(null);
   const latest = useRef({ target, busy, edit, shift, reportError });
@@ -26,7 +28,6 @@ export function PianoRoll({ title, target, meter, tempo, busy, edit, shift, repo
   const [rulerSlot, setRulerSlot] = useState<HTMLElement | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [zoom, setZoom] = useState(64);
-  const [snap, setSnap] = useState(1); // upstream step / 4 = quarter-note grid
   const velocityField = useMusicField({ label: "音符力度", title, target: { id: target.id, revision: target.revision }, trackID: target.track.id, clipID: target.clip.id, noteIDs: selected }, "100");
   const velocity = Number(velocityField.raw);
   const velocityIDs = velocityField.entry?.noteIDs ?? selected;
@@ -253,15 +254,26 @@ export function PianoRoll({ title, target, meter, tempo, busy, edit, shift, repo
 
   const absoluteStart = target.clip.start + offset;
   const mapIndex = useMemo(() => meterIndex(target.ppq, meter), [target.ppq, meter]);
+  // 点击左侧琴键直接试听当前轨道音色（P2 工作区契约 §7，同一试听 API）。
+  useEffect(() => {
+    const host = mount.current;
+    if (!host) return;
+    const down = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      const key = (e.target as Element | null)?.closest?.(".gsuiKeys-key[data-midi]");
+      const midi = Number(key?.getAttribute("data-midi"));
+      if (Number.isInteger(midi) && midi >= 0 && midi <= 127)
+        void auditionInstrument(target.track.program, target.track.channel, [midi]);
+    };
+    host.addEventListener("pointerdown", down);
+    return () => host.removeEventListener("pointerdown", down);
+  }, [target.track.program, target.track.channel]);
   return <section className="piano-editor" aria-label="片段音符编辑器">
     {rulerSlot && createPortal(<MusicRuler ppq={target.ppq} start={absoluteStart} zoom={zoom} meter={meter} tempo={tempo}/>, rulerSlot)}
     <div className="editor-toolbar">
       <button className="secondary" disabled={busy || !ready || page === 0} onClick={() => setPage(page - 1)}>上一页</button>
       <span>四分拍 {page * PAGE_BEATS + 1}–{(page + 1) * PAGE_BEATS} · 第 {page + 1}/{pageCount} 页</span>
       <button className="secondary" disabled={busy || !ready || page + 1 >= pageCount} onClick={() => setPage(page + 1)}>下一页</button>
-      <label>吸附<select aria-label="音符吸附" value={snap} disabled={busy || !ready} onChange={e => setSnap(Number(e.target.value))}>
-        <option value={4}>四分音符</option><option value={2}>八分音符</option><option value={1}>十六分音符</option><option value={0.5}>三十二分音符</option>
-      </select></label>
       <label>缩放<input aria-label="钢琴卷帘缩放" type="range" min={16} max={200} value={zoom} disabled={busy || !ready} onChange={e => setZoom(Number(e.target.value))}/></label>
     </div>
     <p className="editor-help ruler-position">本页起点：{preciseWindow(absoluteStart, target.ppq) ? positionLabel(mapIndex.position(absoluteStart)) : "位置超出精确小节显示范围，未自动调整片段"} · 工程 tick {absoluteStart}–{absoluteStart + PAGE_BEATS * target.ppq}。密集刻度按像素抽稀，变化点可分组合并；在时间图表单查看全部。</p>

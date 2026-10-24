@@ -97,3 +97,15 @@ func (n *native) render(frames int) ([]float32, []float32) {
 	}
 	return l, r
 }
+func (n *native) audition(channel, program, bank int, keys []int, velocity int, frames int64) error {
+	if len(keys) == 0 || len(keys) > 8 {
+		return errors.New("试听须为 1–8 个音")
+	}
+	ck := make([]C.int, len(keys))
+	for i, k := range keys {
+		ck[i] = C.int(k)
+	}
+	C.ice_audition(n.ptr, C.int(channel), C.int(program), C.int(bank), &ck[0], C.int(len(keys)), C.int(velocity), C.int64_t(frames))
+	return nil
+}
+func (n *native) auditionStop() { C.ice_audition_stop(n.ptr) }

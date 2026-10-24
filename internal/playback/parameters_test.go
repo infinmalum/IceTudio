@@ -1,9 +1,23 @@
 package playback
 
 import (
+	"math"
 	"reflect"
 	"testing"
 )
+
+func windowFrequency(data []float32, lo, hi int) float64 {
+	if lo < 1 {
+		lo = 1
+	}
+	count := 0
+	for i := lo; i < hi && i < len(data); i++ {
+		if data[i-1] <= 0 && data[i] > 0 {
+			count++
+		}
+	}
+	return float64(count) * SampleRate / float64(hi-lo)
+}
 
 func TestResolvedParametersMatchNativeContinuousSeekAndFutureData(t *testing.T) {
 	tests := []struct {
@@ -113,4 +127,92 @@ func crossingFrequency(data []float32) float64 {
 		}
 	}
 	return float64(count) * SampleRate / float64(len(data))
+}
+
+// Portamento chase must restore CC5/65/84 before the glide target sounds, so
+// seeking exactly onto the target onset reproduces the continuous glide.
+// FluidSynth 2.6.1 portamento time scales with CC5 (≈ value/127 s, verified
+// against the fixed local build); CC5=64 glides 60→67 over roughly 0.4 s.
+func TestNativePortamentoChaseRestoresGlideFromSource(t *testing.T) {
+	score := func() *Score {
+		s := fixture(t)
+		s.Events = resolveParameters([]Event{
+			cc(0, 0, 65, 127), cc(0, 0, 5, 64),
+			on(100, 0, 60, 1), cc(3000, 0, 84, 60), on(3200, 0, 67, 2),
+			off(200000, 0, 60, 1), off(200000, 0, 67, 2),
+		})
+		s.EndFrame = 210000
+		return s
+	}
+	ref := testNative(t, false)
+	if err := ref.install(score(), 0, 0, 0, false, true); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := ref.render(48000)
+	refEarly, refLate := windowFrequency(data, 5200, 10200), windowFrequency(data, 40000, 45000)
+	if refEarly > 345 || refLate < 378 || refLate > 405 {
+		t.Fatalf("reference glide missing: early=%.1f late=%.1f", refEarly, refLate)
+	}
+	n := testNative(t, false)
+	if err := n.install(score(), 64, 0, 0, false, true); err != nil { // tick 64 = frame 3200
+		t.Fatal(err)
+	}
+	data, _ = n.render(48000)
+	early, late := windowFrequency(data, 5200, 10200), windowFrequency(data, 40000, 45000)
+	if math.Abs(early-refEarly) > 30 || math.Abs(late-refLate) > 12 {
+		t.Fatalf("seek glide diverged from continuous play: early=%.1f (ref %.1f) late=%.1f (ref %.1f)", early, refEarly, late, refLate)
+	}
+	n.stop()
+	if n.channelValue(0, 0, 65) != 0 || n.channelValue(0, 0, 5) != 0 {
+		t.Fatal("portamento state survived stop")
+	}
+}
+
+// Mono mode and legato footprint survive loop-boundary chases; a later install
+// must restore polyphony (basic channel reset), and stop must clear CC68/65.
+func TestNativeMonoLegatoLoopAndPolyRestore(t *testing.T) {
+	n := testNative(t, false)
+	s := fixture(t)
+	s.Events = resolveParameters([]Event{
+		cc(0, 0, 126, 0), cc(0, 0, 68, 1),
+		on(1000, 0, 60, 1), on(2000, 0, 67, 2),
+		off(150000, 0, 67, 2), off(150000, 0, 60, 1),
+	})
+	s.EndFrame = 160000
+	if err := n.install(s, 60, 60, 120, true, true); err != nil { // loop frames 3000–6000, after both note-ons
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		data, _ := n.render(24000)
+		if n.status().Loops < 1 {
+			t.Fatal("loop not advancing")
+		}
+		if freq := crossingFrequency(data[1000:]); freq < 375 || freq > 410 {
+			t.Fatalf("mono mode lost after loop chase: %.1f Hz", freq)
+		}
+	}
+	if n.channelValue(0, 0, 68) != 1 {
+		t.Fatal("legato footprint not active during playback")
+	}
+	n.stop()
+	if n.channelValue(0, 0, 68) != 0 || n.channelValue(0, 0, 65) != 0 {
+		t.Fatal("legato/portamento survived stop")
+	}
+	poly := fixture(t)
+	poly.Events = []Event{on(0, 0, 60, 1), on(0, 0, 67, 2), off(60000, 0, 60, 1), off(60000, 0, 67, 2)}
+	poly.EndFrame = 70000
+	if err := n.install(poly, 0, 0, 0, false, true); err != nil {
+		t.Fatal(err)
+	}
+	two, _ := n.render(24000)
+	single := fixture(t)
+	single.Events = []Event{on(0, 0, 60, 1), off(60000, 0, 60, 1)}
+	single.EndFrame = 70000
+	if err := n.install(single, 0, 0, 0, false, true); err != nil {
+		t.Fatal(err)
+	}
+	one, _ := n.render(24000)
+	if e1, e2 := energy(one[2000:]), energy(two[2000:]); e2 < 1.5*e1 {
+		t.Fatalf("polyphony not restored after mono: one=%g two=%g", e1, e2)
+	}
 }

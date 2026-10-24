@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-24",
+  "scope": "P2 收尾清单第 1 项：RPN/NRPN 与 mono/legato/portamento 有序追溯的验证与边界声明；不是 P2 整体验收",
+  "environment": {
+    "os": "Linux x86_64 (CachyOS 7.2.9-2)",
+    "go": "go1.27.1-X:nodwarf5",
+    "fluidsynth": "2.6.1（系统动态库，本机实测）",
+    "cgo": true
+  },
+  "implementation": {
+    "existing": [
+      "resolveParameters（2026-10-23 随 6a36ceb 提交）把 RPN/NRPN 选择器协议解析为自包含 Parameter 事件，选择器状态只存在于编译器",
+      "Chase 按寄存器去重恢复 Parameter；CC124-127 通道模式按 124/126 折叠保留；CC84 源音高被后续 note-on 消费后不再重现",
+      "native dispatch 用 cc101/100/6/38 与 cc99/98 序列重放 Parameter，含调音组 bank 追溯；CC124-127 经 basic_channel 修改单通道模式",
+      "native clear 复位 portamento time mode、pitch wheel sens、RPN 选择器、调音、basic channel、CC5/64/65/68、bank、弯音后 all-sounds-off"
+    ],
+    "changed_this_batch": [
+      "无产品代码改动；本批补齐验证并声明边界"
+    ],
+    "probes": "一次性探针（未保留）实测本机 FluidSynth 2.6.1 portamento 时长随 CC5 线性放大约 value/127 秒：CC5=8 首窗已达 378Hz、CC5=64 在约 0.4s 内 276→388Hz 扫频、CC5=127 于 0.6s 仍在 260Hz 附近"
+  },
+  "checks": [
+    {
+      "command": "go test ./internal/playback/ -count=1",
+      "result": "pass",
+      "added": [
+        "TestNativePortamentoChaseRestoresGlideFromSource：真实 PCM 上，定位到滑音目标 onset 的 seek 与连续播放的滑音轨迹一致（早期窗差 ≤30Hz、末期窗差 ≤12Hz，末期均达 388-392Hz）；停止后 CC65/CC5 归零",
+        "TestChasePortamentoControlOrderingAndConsumption：CC84 在 chase 输出中先于使用它的 note-on；被消费后不再泄漏进更晚的定位",
+        "TestNativeMonoLegatoLoopAndPolyRestore：mono+CC68 连续 ≥2 次回卷后仍为单音 392±15Hz；播放中 CC68=1、停止后 CC68/CC65 归零；mono 安装后的新安装恢复复音（双音能量 ≥1.5× 单音）",
+        "TestManagerRevisionSwitchClearsParametersAndModes：修订 1 的 RPN 弯音范围 12/CC65/CC68 与 +12 半音弯音（实测 ~880Hz）经播放中修订切换全部清除——弯音范围回 2、CC65/CC68/gen51 归零、持续音符回到自然音高 440±15Hz，播放不中断",
+        "既有覆盖（2026-10-23 起）：RPN/NRPN 连续参考 vs 定位/循环等价、停止泄漏检查、10 万次数据录入压缩为 2 条、GS NRPN→CC、CC121 保留/清除表、mono 定位音符次序与跨轨隔离"
+      ]
+    },
+    {
+      "command": "go test -race ./internal/playback/ -count=1",
+      "result": "pass"
+    },
+    {
+      "command": "go vet ./... && go test ./...",
+      "result": "pass"
+    }
+  ],
+  "boundaries": [
+    "定位/循环重建的是离散音符与控制器状态：被重触发音符的包络从 attack 重新开始，不恢复原释放尾音或旧同音高声音层",
+    "滑音相位不保留：目标点已在滑音中的音符按目标音高重放（CC84 已被消费）；定位点之后的滑音仍从源音高完整复现",
+    "mono/legato 追溯按原始触发次序重放 note-on，最后一个音符胜出；连奏过渡的包络衔接不保证与连续播放一致",
+    "等价性证据来自内置基础音色与上述构造的真实离线 PCM；不据此宣称任意 MIDI、任意音色或任意负载下定位/循环声学无损",
+    "原生窗口、物理设备、听感与高负载表现仍属 P2 收尾清单第 4/5 项，未因此批次通过"
+  ]
+}

@@ -364,3 +364,63 @@ func TestRegionFilters(t *testing.T) {
 		t.Fatal("unknown track must yield no tracks")
 	}
 }
+
+func TestTrackAndClipColorPaletteTransactions(t *testing.T) {
+	st, _ := Blank("颜色", 480)
+	str := func(s string) *string { return &s }
+	// 合法颜色：track.add / clip.add 携带并保存。
+	mustApply(t, &st, Op{Kind: "track.add", Track: &TrackSpec{ID: "t_red", Name: "主旋律", Color: "coral", Channel: 0, Program: 40}})
+	mustApply(t, &st, Op{Kind: "clip.add", Clip: &ClipSpec{ID: "c_violet", TrackID: "t_red", Name: "A", Color: "violet", Start: 0, Length: 480}})
+	if st.Tracks[0].Color != "coral" || st.Tracks[0].Clips[0].Color != "violet" {
+		t.Fatalf("color not stored: %+v", st.Tracks[0])
+	}
+	// track.update / clip.update 修改颜色，逆操作恢复原值。
+	inv, _, _ := ApplyTransaction(&st, []Op{Op{Kind: "track.update", TrackID: "t_red", TrackPatch: &TrackPatch{Color: str("ice")}}})
+	if st.Tracks[0].Color != "ice" {
+		t.Fatalf("color not updated: %s", st.Tracks[0].Color)
+	}
+	if _, _, err := ApplyTransaction(&st, []Op{inv[0]}); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tracks[0].Color != "coral" {
+		t.Fatalf("inverse did not restore color: %s", st.Tracks[0].Color)
+	}
+	invC, _, _ := ApplyTransaction(&st, []Op{Op{Kind: "clip.update", ClipID: "c_violet", ClipPatch: &ClipPatch{Color: str("")}}})
+	if st.Tracks[0].Clips[0].Color != "" {
+		t.Fatal("clearing clip color failed")
+	}
+	if _, _, err := ApplyTransaction(&st, []Op{invC[0]}); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tracks[0].Clips[0].Color != "violet" {
+		t.Fatal("inverse did not restore clip color")
+	}
+	// 越界调色板值拒绝：add 与 update 都不留部分变更。
+	before := st
+	if _, _, err := ApplyTransaction(&st, []Op{{Kind: "track.add", Track: &TrackSpec{ID: "t_bad", Color: "hotpink", Channel: 0, Program: 0}}}); err == nil {
+		t.Fatal("off-palette track color accepted")
+	}
+	if _, _, err := ApplyTransaction(&st, []Op{Op{Kind: "track.update", TrackID: "t_red", TrackPatch: &TrackPatch{Color: str("#ff0000")}}}); err == nil {
+		t.Fatal("off-palette track patch accepted")
+	}
+	if _, _, err := ApplyTransaction(&st, []Op{Op{Kind: "clip.add", Clip: &ClipSpec{TrackID: "t_red", Color: "neon", Start: 0, Length: 10}}}); err == nil {
+		t.Fatal("off-palette clip color accepted")
+	}
+	if _, _, err := ApplyTransaction(&st, []Op{Op{Kind: "clip.update", ClipID: "c_violet", ClipPatch: &ClipPatch{Color: str("深蓝")}}}); err == nil {
+		t.Fatal("off-palette clip patch accepted")
+	}
+	if len(before.Tracks) != len(st.Tracks) || st.Tracks[0].Color != "coral" || st.Tracks[0].Clips[0].Color != "violet" {
+		t.Fatal("rejected color ops mutated state")
+	}
+	// remove → 逆操作恢复颜色。
+	invR, _, _ := ApplyTransaction(&st, []Op{Op{Kind: "track.remove", TrackID: "t_red"}})
+	if len(st.Tracks) != 0 {
+		t.Fatal("track not removed")
+	}
+	if _, _, err := ApplyTransaction(&st, []Op{invR[0]}); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tracks[0].Color != "coral" || st.Tracks[0].Clips[0].Color != "violet" {
+		t.Fatalf("undo of remove lost colors: %+v", st.Tracks[0])
+	}
+}

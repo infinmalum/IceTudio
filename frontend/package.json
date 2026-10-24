@@ -9,7 +9,7 @@
     "build": "tsc && vite build --mode production",
     "preview": "vite preview",
     "test:ui": "node e2e/product.mjs",
-    "test:music": "node --experimental-strip-types --test tests/time-map.test.ts"
+    "test:music": "node --experimental-strip-types --test tests/time-map.test.ts tests/gm.test.ts"
   },
   "dependencies": {
     "@wailsio/runtime": "3.0.0-beta.26",

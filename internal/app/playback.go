@@ -42,3 +42,51 @@ func (s *Service) ConfigureAudio(settings playback.Settings) error {
 	}
 	return s.playback.Configure(settings)
 }
+func (s *Service) SoundFonts() playback.FontList {
+	if s.playback == nil {
+		return playback.FontList{}
+	}
+	return s.playback.SoundFonts()
+}
+func (s *Service) AddSoundFont(path string) (playback.FontEntry, error) {
+	if s.playback == nil {
+		return playback.FontEntry{}, errors.New("此宿主未启用原生播放")
+	}
+	return s.playback.AddFont(path)
+}
+func (s *Service) RemoveSoundFont(id string) error {
+	if s.playback == nil {
+		return errors.New("此宿主未启用原生播放")
+	}
+	return s.playback.RemoveFont(id)
+}
+func (s *Service) SetDefaultSoundFont(id string) error {
+	if s.playback == nil {
+		return errors.New("此宿主未启用原生播放")
+	}
+	return s.playback.SetDefaultFont(id)
+}
+func (s *Service) MoveSoundFont(id string, delta int) error {
+	if s.playback == nil {
+		return errors.New("此宿主未启用原生播放")
+	}
+	return s.playback.MoveFont(id, delta)
+}
+func (s *Service) AuditionInstrument(req playback.AuditionRequest) error {
+	if s.playback == nil {
+		return errors.New("此宿主未启用原生播放")
+	}
+	return s.playback.Audition(req)
+}
+func (s *Service) StopAudition() error {
+	if s.playback != nil {
+		s.playback.AuditionStop()
+	}
+	return nil
+}
+func (s *Service) ResetAudioSettings() error {
+	if s.playback == nil {
+		return errors.New("此宿主未启用原生播放")
+	}
+	return s.playback.ResetSettings()
+}

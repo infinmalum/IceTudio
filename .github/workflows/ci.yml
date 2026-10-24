@@ -1,0 +1,44 @@
+# 基础 CI（工程化与安全基线，2026-10-23 纳入）：go test/vet、前端生产构建、
+# 音乐单元测试与 product/music e2e（headless）。
+# 依赖真实音频设备或桌面环境的验收（物理延迟、原生窗口、真实 Wails 交互）
+# 不在此伪装为通过，保留为 manual/native acceptance（见 IMPLEMENTATION_PLAN.md）。
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      # GitHub 托管 runner 预装 Google Chrome；本地默认 chromium 不变。
+      ICETUDIO_E2E_BROWSER: google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: 安装 FluidSynth 开发库（cgo 播放引擎编译/链接）
+        run: sudo apt-get update && sudo apt-get install -y libfluidsynth-dev
+      - name: Go 测试
+        run: go test ./...
+      - name: Go vet
+        run: go vet ./...
+      - name: 前端依赖
+        working-directory: frontend
+        run: npm ci
+      - name: 前端生产构建
+        working-directory: frontend
+        run: npm run build
+      - name: 音乐单元测试（时间图 + GM 元数据）
+        working-directory: frontend
+        run: npm run test:music
+      - name: Product e2e（headless）
+        working-directory: frontend
+        run: npm run test:ui

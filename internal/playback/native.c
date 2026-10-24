@@ -26,6 +26,12 @@ struct ice_engine {
   int64_t frame, loops;
   atomic_llong callbacks, misses;
   uint32_t active[1024][128];
+  // Instant audition (docs/p2-daw-workspace.md §7): one note group at a time,
+  // off the timeline, on a channel the current plan does not use.
+  int64_t rframe;       // render sample counter, advances even when stopped
+  int64_t aud_off;      // rframe deadline for note-off
+  int aud_chan, aud_program, aud_bank, aud_velocity;
+  int aud_keys[8], aud_nkeys, aud_on;
 };
 static void clear(ice_engine *e) {
   if (!e->plan)
@@ -149,6 +155,57 @@ static int lower(ice_plan *p, int64_t f) {
   }
   return a;
 }
+// Caller holds e->mutex. Release audition notes and kill hanging voices; safe
+// to call repeatedly. Never touches plan channels, so playback keeps sounding.
+static void audition_silence(ice_engine *e) {
+  if (!e->aud_on)
+    return;
+  int ch = e->aud_chan % 256;
+  fluid_synth_t *synth = e->synth[e->aud_chan / 256];
+  for (int i = 0; i < e->aud_nkeys; i++)
+    fluid_synth_noteoff(synth, ch, e->aud_keys[i]);
+  fluid_synth_all_sounds_off(synth, ch);
+  e->aud_on = 0;
+  e->aud_nkeys = 0;
+}
+void ice_audition(ice_engine *e, int channel, int program, int bank,
+                  const int *keys, int nkeys, int velocity, int64_t frames) {
+  if (!e || channel < 0 || channel >= 1024 || !keys || nkeys < 1 || nkeys > 8 ||
+      program < 0 || program > 127 || velocity < 1 || velocity > 127 || frames < 1)
+    return;
+  for (int i = 0; i < nkeys; i++)
+    if (keys[i] < 0 || keys[i] > 127)
+      return;
+  pthread_mutex_lock(&e->mutex);
+  audition_silence(e);
+  e->aud_chan = channel;
+  e->aud_program = program;
+  e->aud_bank = bank == 128 ? 128 : 0;
+  e->aud_velocity = velocity;
+  e->aud_nkeys = nkeys;
+  for (int i = 0; i < nkeys; i++)
+    e->aud_keys[i] = keys[i];
+  e->aud_off = e->rframe + frames;
+  e->aud_on = 1;
+  int ch = channel % 256;
+  fluid_synth_t *synth = e->synth[channel / 256];
+  fluid_synth_cc(synth, ch, 7, 100);
+  fluid_synth_cc(synth, ch, 10, 64);
+  fluid_synth_cc(synth, ch, 11, 127);
+  fluid_synth_pitch_bend(synth, ch, 8192);
+  fluid_synth_bank_select(synth, ch, e->aud_bank);
+  fluid_synth_program_change(synth, ch, program);
+  for (int i = 0; i < nkeys; i++)
+    fluid_synth_noteon(synth, ch, keys[i], velocity);
+  pthread_mutex_unlock(&e->mutex);
+}
+void ice_audition_stop(ice_engine *e) {
+  if (!e)
+    return;
+  pthread_mutex_lock(&e->mutex);
+  audition_silence(e);
+  pthread_mutex_unlock(&e->mutex);
+}
 void ice_render(ice_engine *e, int n, float *left, float *right) {
   memset(left, 0, n * sizeof(float));
   memset(right, 0, n * sizeof(float));
@@ -197,6 +254,28 @@ void ice_render(ice_engine *e, int n, float *left, float *right) {
     offset += len;
     e->frame += len;
   }
+  // Audition path: release expired notes, then render the audition group for
+  // the whole callback even while playback is stopped. While playback runs,
+  // the plan loop above already rendered that group; skip to avoid a double
+  // render of the same synth.
+  if (e->aud_on && e->rframe >= e->aud_off)
+    audition_silence(e);
+  if (e->aud_on) {
+    int group = e->aud_chan / 256;
+    int rendered = e->playing && e->plan && e->plan->groups[group];
+    if (!rendered)
+      for (int off = 0; off < n;) {
+        int len = n - off > 256 ? 256 : n - off;
+        float l[256], r[256];
+        fluid_synth_write_float(e->synth[group], len, l, 0, 1, r, 0, 1);
+        for (int i = 0; i < len; i++) {
+          left[off + i] += l[i];
+          right[off + i] += r[i];
+        }
+        off += len;
+      }
+  }
+  e->rframe += n;
   pthread_mutex_unlock(&e->mutex);
 }
 static int audio(void *data, int n, int nfx, float *fx[], int nout,

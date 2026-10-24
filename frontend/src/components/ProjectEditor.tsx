@@ -4,10 +4,14 @@ import type { Clip, Op, Track } from "../../bindings/icetudio/internal/project/m
 import type { useProjects } from "../hooks/useProjects";
 import { objectID, type EditTarget } from "../music/edits";
 import { useDialog } from "../shared/dialogs";
-import { Transport } from "./Transport";
+import { Transport, type EditorView } from "./Transport";
 import { PianoRoll } from "./PianoRoll";
 import { TimeMapEditor } from "./TimeMapEditor";
 import { Arrangement } from "./Arrangement";
+import { InstrumentPicker } from "./InstrumentPicker";
+import { TRACK_COLORS } from "../music/palette";
+import { trackInstrumentLabel } from "../music/gm";
+import { auditionInstrument, stopAudition } from "../music/audition";
 import { useMusicField } from "../hooks/useMusicInputs";
 
 type Projects = ReturnType<typeof useProjects>;
@@ -39,11 +43,24 @@ function NumberEdit({ label, value, min, max, disabled, target, title, trackID, 
     }}/>{!valid && <span role="alert">请输入 {min}–{max} 的整数；输入已保留，Escape 丢弃</span>}</label>;
 }
 
+const VIEW_KEY = "icetudio.editor-view", INSPECTOR_KEY = "icetudio.inspector-open";
+function loadView(): EditorView {
+  const saved = localStorage.getItem(VIEW_KEY);
+  return saved === "arrange" || saved === "split" || saved === "roll" ? saved : "arrange";
+}
+
 export function ProjectEditor({ project, projects: p }: { project: Project; projects: Projects }) {
   const dialog = useDialog();
   const tracks = project.state.tracks ?? [];
   const [trackID, setTrackID] = useState("");
   const [clipID, setClipID] = useState("");
+  // 吸附在编排与钢琴卷帘间共享（顶部 Transport 只读显示）；视图与检查器状态持久化。
+  const [snap, setSnap] = useState(1);
+  const [view, setView] = useState<EditorView>(loadView);
+  const [inspectorOpen, setInspectorOpen] = useState(() => localStorage.getItem(INSPECTOR_KEY) !== "0");
+  const changeView = (next: EditorView) => { setView(next); try { localStorage.setItem(VIEW_KEY, next); } catch {} };
+  const toggleInspector = (open: boolean) => { setInspectorOpen(open); try { localStorage.setItem(INSPECTOR_KEY, open ? "1" : "0"); } catch {} };
+  const openClip = () => { if (view === "arrange") changeView("split"); };
   const track = tracks.find(t => t.id === trackID) ?? tracks[0];
   const clip = track?.clips?.find(c => c.id === clipID) ?? track?.clips?.[0];
   useEffect(() => {
@@ -54,6 +71,7 @@ export function ProjectEditor({ project, projects: p }: { project: Project; proj
     }
   }, [p.inputs.focus, project.id]);
   const target = { id: project.id, revision: project.revision };
+  useEffect(() => () => stopAudition(), []);
   const edit = (ops: Op[], frozen: EditTarget = target) => p.edit(frozen, ops);
   function addTrack() {
     const id = objectID("t"), clipID = objectID("c");
@@ -90,10 +108,21 @@ export function ProjectEditor({ project, projects: p }: { project: Project; proj
       void edit([{ kind: "clip.remove", trackId: tid, clipId: c.id }], frozen);
   }
   return <div className="music-editor" aria-label="音乐编辑工作区">
-    <Transport key={project.id} project={project}/>
+    <Transport key={project.id} project={project} projects={p} snap={snap} setSnap={setSnap} view={view} setView={changeView}/>
     <TimeMapEditor project={project} projects={p}/>
-    <Arrangement project={project} trackID={track?.id} clipID={clip?.id} busy={p.busy} edit={p.edit} reportError={p.reportError} addTrack={addTrack}
-      select={(tid, cid) => { setTrackID(tid); setClipID(cid); }}/>
+    <div className="editor-center" data-view={view}>
+      <div className="editor-panes">
+        {view !== "roll" && <Arrangement project={project} trackID={track?.id} clipID={clip?.id} busy={p.busy} edit={p.edit} reportError={p.reportError} addTrack={addTrack} snap={snap} openClip={openClip}
+          select={(tid, cid) => { setTrackID(tid); setClipID(cid); }}/>}
+        {view !== "arrange" && (track && clip
+          ? (project.state.meter?.length && project.state.tempo?.length
+            ? <PianoRoll key={`${project.id}/${track.id}/${clip.id}`} title={project.title} target={{ ...target, track, clip, ppq: project.ppq }} meter={project.state.meter} tempo={project.state.tempo} busy={p.busy} edit={p.edit} shift={p.shift} reportError={p.reportError} snap={snap}/>
+            : null)
+          : <p className="editor-help pane-hint">{track ? "选择或双击一个片段进入钢琴卷帘" : "先添加音轨，再选择片段进入钢琴卷帘"}</p>)}
+      </div>
+    </div>
+    <details className="inspector-dock" open={inspectorOpen} onToggle={e => toggleInspector((e.target as HTMLDetailsElement).open)}>
+      <summary>检查器 · {track ? trackInstrumentLabel(track.program, track.channel) : "未选择轨道"}{track ? ` · ${track.name || "未命名音轨"}` : ""}{clip ? ` · ${clip.name || "片段"}` : ""}（通道、乐器程序等高级参数）</summary>
     {track && <div className="editor-toolbar track-inspector" key={track.id}>
       <span>{track.name}</span>
       <label>片段 <select aria-label="选择片段" value={clip?.id ?? ""} onChange={e => setClipID(e.target.value)}>
@@ -101,23 +130,37 @@ export function ProjectEditor({ project, projects: p }: { project: Project; proj
       </select></label>
       <button className="secondary" disabled={p.busy} onClick={() => void renameTrack(track)}>音轨重命名</button>
       <button className="secondary" disabled={p.busy} onClick={() => void deleteTrack(track)}>删除音轨</button>
-      <NumberEdit label="新音符通道（1–16）" value={track.channel + 1} min={1} max={16} disabled={p.busy} target={target} title={project.title} trackID={track.id}
-        commit={(value, frozen) => edit([{ kind: "track.update", trackId: track.id, trackPatch: { channel: value - 1 } }], frozen)}/>
-      <NumberEdit label="乐器程序（1–128）" value={track.program + 1} min={1} max={128} disabled={p.busy} target={target} title={project.title} trackID={track.id}
-        commit={(value, frozen) => edit([{ kind: "track.update", trackId: track.id, trackPatch: { program: value - 1 } }], frozen)}/>
+      <InstrumentPicker program={track.program} channel={track.channel} disabled={p.busy}
+        onPick={program => {
+          if (program !== track.program) void edit([{ kind: "track.update", trackId: track.id, trackPatch: { program } }]);
+          void auditionInstrument(program, track.channel, track.channel === 9 ? [36, 38] : [60]);
+        }}/>
+      <button className="secondary" disabled={p.busy} title="用当前轨道音色试听一个音（不修改工程）"
+        onClick={() => void auditionInstrument(track.program, track.channel, track.channel === 9 ? [36, 38] : [60])}>试听</button>
       <button className="secondary" disabled={p.busy} onClick={addClip}>添加片段</button>
+      <details className="advanced-params"><summary>高级参数</summary>
+        <div className="editor-toolbar">
+          <NumberEdit label="新音符通道（1–16）" value={track.channel + 1} min={1} max={16} disabled={p.busy} target={target} title={project.title} trackID={track.id}
+            commit={(value, frozen) => edit([{ kind: "track.update", trackId: track.id, trackPatch: { channel: value - 1 } }], frozen)}/>
+          <NumberEdit label="乐器程序（1–128）" value={track.program + 1} min={1} max={128} disabled={p.busy} target={target} title={project.title} trackID={track.id}
+            commit={(value, frozen) => edit([{ kind: "track.update", trackId: track.id, trackPatch: { program: value - 1 } }], frozen)}/>
+        </div>
+      </details>
     </div>}
-    {track && clip && <>
-      <div className="editor-toolbar clip-inspector" key={clip.id}>
+    {track && clip && <div className="editor-toolbar clip-inspector" key={clip.id}>
         <span>{clip.name || "未命名片段"}</span>
         <button className="secondary" disabled={p.busy} onClick={() => void renameClip(clip)}>片段重命名</button>
+        <label>片段颜色<select aria-label="片段颜色" value={clip.color ?? ""} disabled={p.busy}
+          title="片段显式颜色；未设置时跟随轨道色" onChange={e => { if ((clip.color ?? "") !== e.target.value) void edit([{ kind: "clip.update", trackId: track.id, clipId: clip.id, clipPatch: { color: e.target.value } }]); }}>
+          <option value="">跟随轨道</option>
+          {TRACK_COLORS.map(c => <option key={c.id} value={c.id}>{c.zh}</option>)}
+        </select></label>
         <NumberEdit clipID={clip.id} label="片段起点（tick）" value={clip.start} min={0} max={2147483647} disabled={p.busy} target={target} title={project.title} trackID={track.id}
           commit={(value, frozen) => edit([{ kind: "clip.update", trackId: track.id, clipId: clip.id, clipPatch: { start: value } }], frozen)}/>
         <NumberEdit clipID={clip.id} label="片段长度（tick）" value={clip.length} min={1} max={2147483647} disabled={p.busy} target={target} title={project.title} trackID={track.id}
           commit={(value, frozen) => edit([{ kind: "clip.update", trackId: track.id, clipId: clip.id, clipPatch: { length: value } }], frozen)}/>
         <button className="secondary" disabled={p.busy} onClick={() => void deleteClip(clip)}>删除片段</button>
-      </div>
-      {project.state.meter?.length && project.state.tempo?.length ? <PianoRoll key={`${project.id}/${track.id}/${clip.id}`} title={project.title} target={{ ...target, track, clip, ppq: project.ppq }} meter={project.state.meter} tempo={project.state.tempo} busy={p.busy} edit={p.edit} shift={p.shift} reportError={p.reportError}/> : null}
-    </>}
+      </div>}
+    </details>
   </div>;
 }

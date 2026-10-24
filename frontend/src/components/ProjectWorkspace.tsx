@@ -1,80 +1,45 @@
 import { ProjectEditor } from "./ProjectEditor";
+import { Browser } from "./Browser";
 import { useDialog } from "../shared/dialogs";
 import { useState } from "react";
 import type { useProjects } from "../hooks/useProjects";
 import { MusicInputs } from "../hooks/useMusicInputs";
+import { loadPaneWidth, paneStyle, PaneResizer } from "../shared/panes";
 
 type Projects = ReturnType<typeof useProjects>;
 
 // Project lifecycle lives in the left sidebar; the center stage is editor-only.
 export function ProjectWorkspace({
-  projects,
+  projects, openSettings, openAssistants,
 }: {
-  projects: Projects;
+  projects: Projects; openSettings?: () => void; openAssistants?: () => void;
 }) {
   const p = projects;
   const dialog = useDialog();
   const [draftBusy, setDraftBusy] = useState(false);
+  const [browserWidth, setBrowserWidth] = useState<string | null>(() => loadPaneWidth("icetudio.browser-width"));
+  const saveBrowserWidth = (width: number | null) => {
+    setBrowserWidth(width == null ? null : `${width}px`);
+    try {
+      if (width == null) localStorage.removeItem("icetudio.browser-width");
+      else localStorage.setItem("icetudio.browser-width", `${width}px`);
+    } catch { /* 本会话内保留 */ }
+  };
   const savedDraft = p.timeMapDrafts.snapshot;
   const active = p.active;
   return (
     <MusicInputs.Provider value={p.inputs}>
-      <header className="project-header">
-        <div>
-          <p className="eyebrow">音乐工程</p>
-          <h1>{active ? active.title : "未选择工程"}</h1>
-          {active ? (
-            <p className="project-meta">
-              修订 {active.revision} · PPQ {active.ppq} · 更新于{" "}
-              {active.updatedAt.slice(0, 19).replace("T", " ")}
-            </p>
-          ) : (
-            <p className="project-meta">新建或导入一个工程开始工作</p>
-          )}
-        </div>
-        <span className="project-badge">
-          MIDI 编辑 · 原生试听
-        </span>
-      </header>
+      <div className="workspace-body">
+      <Browser projects={p} style={paneStyle(browserWidth)} openSettings={openSettings} openAssistants={openAssistants}/>
+      <PaneResizer label="调整浏览器宽度" targetSelector=".browser" grow={1} min={180} max={380}
+        onWidth={saveBrowserWidth} />
+      <div className="workspace-center">
       <div className="project-canvas">
-        <div className="project-strip">
-          <div className="project-actions">
-            <button
-              className="secondary"
-              onClick={p.exportMIDI}
-              disabled={p.busy || !active}
-            >
-              导出 MIDI
-            </button>
-            <button
-              className="secondary"
-              onClick={p.rename}
-              disabled={p.busy || !active}
-            >
-              重命名
-            </button>
-            <button
-              className="secondary"
-              onClick={() => p.shift("undo")}
-              disabled={p.busy || !active}
-            >
-              撤销
-            </button>
-            <button
-              className="secondary"
-              onClick={() => p.shift("redo")}
-              disabled={p.busy || !active}
-            >
-              重做
-            </button>
-          </div>
-          {p.error ? (
-            <p className="project-error" role="alert">
-              {p.error}
-            </p>
-          ) : null}
-        </div>
-        <div className="project-save" role="status">{p.saveStatus || (active ? "工程自动保存" : "新建或导入 MIDI 开始编辑")}</div>
+        {p.error ? (
+          <p className="project-error" role="alert">
+            {p.error}
+          </p>
+        ) : null}
         {!p.recoveryReady && <div role="alert">{p.recoveryError || "正在检查工程恢复记录…"}<button className="secondary" onClick={() => void p.checkRecovery()}>重试恢复检查</button></div>}
         {p.pending && <button className="secondary" disabled={!p.recoveryReady} onClick={p.resolvePending}>查询保存结果</button>}
         {p.inputs.error && <p role="alert">{p.inputs.error}<button onClick={p.inputs.retry}>重试音乐输入保存/读取</button></p>}
@@ -102,14 +67,19 @@ export function ProjectWorkspace({
           }}>丢弃已保留草稿</button>
         </section>}
         {active ? <>
-          <button className="secondary project-reload" onClick={p.reload}>刷新工程</button>
           <ProjectEditor key={active.id} project={active} projects={p}/>
         </> : <div className="project-empty">
           <div className="project-symbol" aria-hidden>♫</div>
-          <h2>{p.activeID ? "正在读取工程…" : "从一个片段开始创作"}</h2>
-          <p>从左侧新建工程后添加音轨，在钢琴卷帘中编辑音符；也可以导入 MIDI 继续编曲。编辑自动保存，支持撤销/重做。选择工程后可用原生播放与基础音色试听。</p>
+          <h2>{p.activeID ? "正在读取工程…" : "开始创作"}</h2>
+          <div className="hero-actions">
+            <button disabled={p.busy} onClick={p.create}>新建工程</button>
+            <button className="secondary" disabled={p.busy} onClick={p.importMIDI}>导入 MIDI</button>
+          </div>
+          <p>新建后添加音轨即可在钢琴卷帘写音符；无需连接模型，随时可撤销/重做与试听。</p>
         </div>}
 
+      </div>
+      </div>
       </div>
     </MusicInputs.Provider>
   );

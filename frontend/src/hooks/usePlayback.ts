@@ -55,10 +55,5 @@ export function usePlayback(projectID: string, revision: number) {
     },
     seek: (tick: number, loop: boolean, start: number, end: number) => run(() => PlaybackService.Seek(request(tick, loop, start, end))),
     configure: (settings: Settings) => run(() => PlaybackService.Configure(settings)),
-    chooseFont: (driver: string) => run(async () => {
-      const path = await PlaybackService.PickSoundFont();
-      if (!path) return false;
-      await PlaybackService.Configure({ version: 1, driver, soundFont: path });
-    }),
   };
 }

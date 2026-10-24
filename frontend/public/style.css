@@ -1542,6 +1542,13 @@ small {
 .transport-position { width: 100%; }
 .audio-settings summary { font-size: 12px; cursor: pointer; padding: 6px 0; color: var(--text-secondary); }
 .time-map-dialog { width: min(820px, 94vw); max-height: 90vh; overflow: auto; }
+.time-map-bar { margin: 2px 0; }
+.time-map-bar button { font-size: 12px; padding: 4px 8px; }
+.hero-actions { display: flex; gap: 10px; margin: 14px 0 8px; }
+.hero-actions button { font-size: 14px; padding: 10px 18px; }
+.arrangement-empty { padding: 26px 8px; text-align: center; color: var(--muted, #888); font-size: 13px; }
+.track-inst-popover { position: absolute; z-index: 30; left: 100%; top: 0; width: 300px; max-width: 70vw; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+.arrangement-label { position: relative; }
 .time-map-table { overflow-x: auto; }
 .time-map-table table { width: 100%; border-collapse: collapse; }
 .time-map-table th, .time-map-table td { padding: 5px; text-align: left; font-size: 12px; }
@@ -1567,3 +1574,88 @@ small {
   .agent-dock { flex: none; width: 100%; min-height: 450px; border-left: 0; border-top: 1px solid var(--line); }
   .pane-resizer.dock-resizer { display: none; }
 }
+
+/* SoundFont 管理与 GM 乐器选择（docs/p2-daw-workspace.md §4/§5） */
+.soundfont-manager { margin: 8px 0; }
+.soundfont-list { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+.soundfont-item { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; }
+.soundfont-item[data-default=true] { border-color: var(--accent); }
+.soundfont-item[data-default=true] .name::after { content: " · 默认"; color: var(--accent); font-weight: 400; }
+.soundfont-item .name { font-weight: 600; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.soundfont-item .state { font-size: 11px; color: var(--muted, #888); flex: 1; }
+.soundfont-item .ops { display: flex; gap: 3px; }
+.soundfont-item button { font-size: 11px; padding: 3px 6px; }
+.instrument-picker { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.instrument-picker select { max-width: 240px; }
+.instrument-picker input { width: 200px; }
+.advanced-params summary { cursor: pointer; font-size: 12px; color: var(--muted, #888); }
+.advanced-params { margin-left: auto; }
+
+/* Track Header（名称/乐器/通道/M/S/颜色）与片段颜色（P2 工作区契约 §6） */
+.arrangement-label { flex-direction: column; align-items: stretch; width: 210px; gap: 3px; }
+.arrangement-label .track-head { display: flex; align-items: center; gap: 4px; }
+.arrangement-label .track-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.track-instrument { font-size: 11px; color: var(--muted, #888); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track-color { width: 14px; height: 14px; flex: none; border-radius: 3px; border: 1px solid rgba(0,0,0,.35); padding: 0; cursor: pointer; }
+.track-color:disabled { opacity: .5; cursor: default; }
+.track-color-picker { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.track-color-picker .swatch { width: 16px; height: 16px; border-radius: 3px; border: 1px solid rgba(0,0,0,.35); padding: 0; }
+.track-color-picker .swatch[aria-pressed=true] { outline: 2px solid var(--accent); outline-offset: 1px; }
+.arrangement-block[data-color] { border-left-width: 4px; }
+.arrangement-block[data-color=ice] { border-left-color: #5ec8e8; }
+.arrangement-block[data-color=mint] { border-left-color: #6fd6a3; }
+.arrangement-block[data-color=violet] { border-left-color: #a78bfa; }
+.arrangement-block[data-color=amber] { border-left-color: #f2b544; }
+.arrangement-block[data-color=coral] { border-left-color: #f28c6b; }
+.arrangement-block[data-color=rose] { border-left-color: #ec7bae; }
+.arrangement-block[data-color=slate] { border-left-color: #8fa3b8; }
+.arrangement-block[data-color=moss] { border-left-color: #9db85c; }
+
+/* DAW 工作区布局（P2 工作区契约 §1）：左侧浏览器、中央编排/钢琴卷帘视图、底部检查器。
+   原则：时间轴优先——固定高度的走带条 + 占满剩余高度的编辑区。 */
+.workspace-body { display: flex; flex: 1 1 auto; min-height: 0; align-items: stretch; }
+.browser { width: 216px; flex: none; display: flex; flex-direction: column; overflow-y: auto; padding: 6px; border-right: 1px solid var(--line); background: var(--panel); box-sizing: border-box; font-size: 12px; }
+.browser-brand { font-weight: 700; font-size: 13px; padding: 4px 2px 8px; letter-spacing: .3px; }
+.browser-foot { margin-top: auto; display: flex; gap: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
+.browser-foot button { flex: 1; font-size: 12px; padding: 5px 4px; }
+.workspace-center { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; }
+.browser-section { border-bottom: 1px solid var(--line); padding: 6px 0; }
+.browser-section > summary { cursor: pointer; font-weight: 600; font-size: 12px; padding: 4px 2px; color: var(--muted, #888); }
+.browser-section .editor-toolbar { margin: 6px 0; }
+.browser-search { display: flex; align-items: center; gap: 6px; font-size: 12px; margin: 4px 0; }
+.browser-search input { flex: 1; min-width: 0; padding: 5px 7px; }
+.browser .project-list { margin: 4px 0; }
+.transport-top { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); padding: 4px 6px 0; }
+.transport-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.transport-bar .transport-play { font-weight: 700; }
+.transport-btn { font-size: 12px; padding: 4px 8px; }
+.transport-play { font-size: 12px; padding: 4px 10px; }
+.transport-title { font-weight: 700; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; padding: 4px 8px; }
+.transport-readout { font-size: 12px; color: var(--muted, #888); white-space: nowrap; }
+.transport-readout.bar-beat { font-variant-numeric: tabular-nums; min-width: 64px; }
+.transport-readout.bpm b { color: var(--fg, #eee); font-weight: 600; }
+.transport-snap { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+.transport-snap select { padding: 3px 4px; font-size: 12px; }
+.transport-spacer { flex: 1 1 auto; }
+.view-switch { display: flex; gap: 2px; }
+.view-switch .transport-btn[aria-pressed=true] { background: var(--accent); color: #06121c; }
+.save-chip { font-size: 11px; color: var(--muted, #888); white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.font-chip { font-size: 11px; padding: 2px 7px; border: 1px solid var(--line); border-radius: 10px; white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; cursor: help; }
+.font-chip.kind-bundled, .font-chip.kind-user { border-color: var(--accent); }
+.transport-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 3px 0 2px; font-size: 12px; }
+.transport-row .transport-btn { padding: 3px 7px; }
+.transport-pos input { width: 84px; padding: 3px 5px; font-size: 12px; }
+.transport-pos { display: flex; align-items: center; gap: 4px; }
+.transport-loop { display: flex; align-items: center; gap: 4px; }
+.transport-warn { color: #ff9c9c; font-size: 12px; }
+.transport .transport-position { margin: 0 0 2px; height: 6px; }
+.editor-panes { display: flex; flex-direction: column; min-height: 0; }
+.editor-panes > section { flex: 0 0 auto; }
+.editor-panes[data-view=split] { display: grid; grid-template-rows: minmax(240px, 1fr) minmax(240px, 1fr); }
+.editor-panes[data-view=split] > section { min-height: 0; overflow: auto; }
+.editor-panes[data-view=split] > .pane-hint { display: none; }
+.pane-hint { padding: 18px 8px; }
+.inspector-dock > summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.editor-panes[data-view=roll] > section[aria-label=片段编排] { display: none; }
+.inspector-dock { border-top: 1px solid var(--line); margin-top: 8px; background: var(--panel); }
+.inspector-dock > summary { cursor: pointer; font-size: 12px; font-weight: 600; padding: 6px 2px; color: var(--muted, #888); }

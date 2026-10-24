@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"slices"
 )
 
 // Event kinds for ControlEvent. Values match the design contract in
@@ -66,6 +67,7 @@ type RawEvent struct {
 type Clip struct {
 	ID       string         `json:"id"`
 	Name     string         `json:"name,omitempty"`
+	Color    string         `json:"color,omitempty"` // 调色板枚举，空 = 未设置（P1 §11）
 	Start    int64          `json:"start"`
 	Length   int64          `json:"length"`
 	Notes    []Note         `json:"notes"`
@@ -73,10 +75,21 @@ type Clip struct {
 	Raw      []RawEvent     `json:"raw"`
 }
 
+// Palette 是 Track/Clip 颜色的限定调色板（P1 §11）；空串合法（未设置，显示层按轨道序回退）。
+var Palette = []string{"ice", "mint", "violet", "amber", "coral", "rose", "slate", "moss"}
+
+func ValidColor(c string) bool {
+	if c == "" {
+		return true
+	}
+	return slices.Contains(Palette, c)
+}
+
 // Track owns clips. The MIDI channel is routing metadata, not identity.
 type Track struct {
 	ID      string `json:"id"`
 	Name    string `json:"name,omitempty"`
+	Color   string `json:"color,omitempty"` // 调色板枚举，空 = 未设置（P1 §11）
 	Channel int    `json:"channel"`
 	Program int    `json:"program"`
 	Muted   bool   `json:"muted,omitempty"`

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useApp } from "./hooks/useApp";
-import { Sidebar } from "./components/Sidebar";
 import { ProjectWorkspace } from "./components/ProjectWorkspace";
+import { useTheme } from "./shared/theme";
 import { ConversationPanel } from "./components/ConversationPanel";
 import { loadPaneWidth, paneStyle, PaneResizer } from "./shared/panes";
 import { ProfileAdvanced } from "./components/ProfileAdvanced";
@@ -34,10 +34,8 @@ function usePaneWidth(key: string) {
 
 function App() {
   const app = useApp();
+  const { theme, toggle } = useTheme();
   const w = app.workspace;
-  const [sidebarWidth, setSidebarWidth] = usePaneWidth(
-    "icetudio.sidebar-width",
-  );
   const [dockWidth, setDockWidth] = usePaneWidth("icetudio.dock-width");
   const openModel = () => {
     app.setSettingsTab("model");
@@ -86,20 +84,6 @@ function App() {
   }
   return (
     <div className="shell">
-      <Sidebar
-        projects={app.projects}
-        page={app.page}
-        setPage={app.setPage}
-        style={paneStyle(sidebarWidth)}
-      />
-      <PaneResizer
-        label="调整工程栏宽度"
-        targetSelector=".sidebar"
-        grow={1}
-        min={180}
-        max={420}
-        onWidth={setSidebarWidth}
-      />
       <main className="content">
         {app.page === "workspace" ? (
           <div className="workspace-page">
@@ -111,7 +95,9 @@ function App() {
                     : app.error
                 }
               />
-              <ProjectWorkspace projects={app.projects} />
+              <ProjectWorkspace projects={app.projects}
+                openSettings={() => { app.setSettingsTab("model"); app.setPage("settings"); }}
+                openAssistants={() => app.setPage("assistants")} />
             </section>
             <PaneResizer
               className="dock-resizer"
@@ -144,12 +130,31 @@ function App() {
                 <p className="eyebrow">IceTudio</p>
                 <h1>{app.page === "assistants" ? "创作助手" : "设置"}</h1>
               </div>
-              <button
-                className="secondary"
-                onClick={() => app.setPage("workspace")}
-              >
-                返回工程
-              </button>
+              <div className="page-header-actions">
+                {app.page === "assistants" && (
+                  <button
+                    className="secondary"
+                    onClick={() => { app.setSettingsTab("extensions"); app.setPage("settings"); }}
+                    title="模型连接、技能与权限等设置"
+                  >
+                    ⚙ 设置
+                  </button>
+                )}
+                <button
+                  className="theme-toggle"
+                  onClick={toggle}
+                  aria-label={theme === "dark" ? "切换到浅色主题" : "切换到深色主题"}
+                  title={theme === "dark" ? "切换到浅色主题" : "切换到深色主题"}
+                >
+                  {theme === "dark" ? "☀ 浅色模式" : "🌙 深色模式"}
+                </button>
+                <button
+                  className="secondary"
+                  onClick={() => app.setPage("workspace")}
+                >
+                  返回工程
+                </button>
+              </div>
             </header>
             <ErrorNotice
               error={
