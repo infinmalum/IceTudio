@@ -54,7 +54,7 @@ func TestBasicToolsThroughApprovalAndDurableRecords(t *testing.T) {
 	if _, err := s.UpdateContextPolicy(c.ContextID, policy); err != nil {
 		t.Fatal(err)
 	}
-	r, err := s.StartConversationTask(c.ID, "修改文件并运行检查")
+	r, err := s.StartConversationTask(c.ID, "修改文件并运行检查", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

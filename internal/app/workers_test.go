@@ -96,7 +96,7 @@ func TestWorkerPinsConfigurationAndSkill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(conversation.ID, "write")
+	run, err := svc.StartConversationTask(conversation.ID, "write", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

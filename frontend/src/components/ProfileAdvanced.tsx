@@ -12,8 +12,21 @@ export function ProfileAdvanced({ configState }: { configState: Configs }) {
       </p>
       {configDraft && (
         <form className="model-form" onSubmit={configState.saveConfig}>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={configDraft.data.restrictTools ?? false}
+              onChange={(event) =>
+                setConfigDraft({
+                  ...configDraft,
+                  data: { ...configDraft.data, restrictTools: event.target.checked },
+                })
+              }
+            />
+            将空工具清单视为禁用全部工具
+          </label>
           <label>
-            工具白名单（每行一个，留空表示启用服务的全部工具）
+            工具允许清单（每行一个；非空时始终限制工具，含原生工程工具）
             <textarea
               rows={3}
               value={(configDraft.data.allowedTools ?? []).join("\n")}
@@ -31,6 +44,7 @@ export function ProfileAdvanced({ configState }: { configState: Configs }) {
               }
             />
           </label>
+          <p className="hint">清单留空且未勾选时，使用原生工程工具与已启用服务的工具；勾选后留空则禁用全部工具。</p>
           <label>
             模型来源
             <select

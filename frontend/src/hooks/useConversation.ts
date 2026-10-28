@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Events } from "@wailsio/runtime";
-import { StatusService, type AppStatus } from "../../bindings/icetudio";
+import { ProjectService, StatusService, type AppStatus } from "../../bindings/icetudio";
+import type { SendTarget } from "./useProjects";
 import type {
   SearchRequest,
   TaskReview,
@@ -27,6 +28,7 @@ import {
 export function useConversation(
   workspace: Workspace,
   status: AppStatus | null,
+  sendTarget?: SendTarget | null,
 ) {
   const {
     contextID,
@@ -453,12 +455,13 @@ export function useConversation(
         setTaskError(String(reason));
     }
   }
-  async function approveCall(call: ToolCall) {
+  async function approveCall(call: ToolCall, previewHash?: string) {
     const id = selected;
     const ctx = contextID;
     setApprovalBusy(true);
     try {
-      await StatusService.ApproveToolCall(call.id);
+      if (previewHash) await ProjectService.ApproveProjectEditPreview(call.id,previewHash);
+      else await StatusService.ApproveToolCall(call.id);
       if (activeSessionID.current === id && activeContextID.current === ctx)
         setTaskError("");
       await refreshCalls();
@@ -663,6 +666,19 @@ export function useConversation(
       const rootRunID = taskGraph?.rootRunId ?? runs[0]?.id ?? "";
       if (continuation && !rootRunID)
         throw new Error("找不到可以继续的原任务，请刷新对话后再试。");
+      // 工程内对话（docs/p3-agent-scope.md §5）：待输入态发送时绑定编辑器
+      // 当前工程；编辑器目标片段与绑定工程一致时携带片段范围，由服务端冻结。
+      if (!continuation && !activeConversation && sendTarget?.projectID) {
+        await ProjectService.SetConversationProject(sessionID, sendTarget.projectID);
+        await refreshConversations();
+      }
+      const scoped =
+        sendTarget &&
+        sendTarget.clips.length > 0 &&
+        sendTarget.projectID ===
+          (activeConversation?.projectId ?? sendTarget.projectID)
+          ? { clips: sendTarget.clips }
+          : undefined;
       const run = continuation
         ? await StatusService.ContinueConversationTask(
             rootRunID,
@@ -670,7 +686,7 @@ export function useConversation(
             prompt,
             uploads,
           )
-        : await StatusService.StartConversationTask(sessionID, prompt, uploads);
+        : await StatusService.StartConversationTask(sessionID, prompt, scoped ?? null, uploads);
       draftCache.current.delete(sessionID);
       lastSavedFiles.current.delete(sessionID);
       try {

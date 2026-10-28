@@ -114,17 +114,17 @@ func checkID(kind, id string) error {
 }
 
 func validateTrackValues(kind string, channel, program int) error {
-	if channel < 0 || channel > 15 {
+	if channel < 0 || channel > MaxChannel {
 		return opError(kind, "通道必须在 0–15，收到 %d", channel)
 	}
-	if program < 0 || program > 127 {
+	if program < 0 || program > MaxMIDI {
 		return opError(kind, "音色编号必须在 0–127，收到 %d", program)
 	}
 	return nil
 }
 
 func validateNoteValues(kind string, n NewNote) error {
-	if n.Channel < 0 || n.Channel > 15 {
+	if n.Channel < 0 || n.Channel > MaxChannel {
 		return opError(kind, "音符通道必须在 0–15，收到 %d", n.Channel)
 	}
 	if n.Duration < 1 {
@@ -133,10 +133,10 @@ func validateNoteValues(kind string, n NewNote) error {
 	if n.Start < 0 {
 		return opError(kind, "音符起点不能为负")
 	}
-	if n.Pitch < 0 || n.Pitch > 127 {
+	if n.Pitch < 0 || n.Pitch > MaxMIDI {
 		return opError(kind, "音高必须在 0–127，收到 %d", n.Pitch)
 	}
-	if n.Velocity < 1 || n.Velocity > 127 {
+	if n.Velocity < MinVelocity || n.Velocity > MaxMIDI {
 		return opError(kind, "力度必须在 1–127，收到 %d", n.Velocity)
 	}
 	if n.ID != "" {
@@ -149,28 +149,28 @@ func validateEventValues(kind string, e EventSpec) error {
 	if e.Tick < 0 {
 		return opError(kind, "事件 tick 不能为负")
 	}
-	if e.Channel < 0 || e.Channel > 15 {
+	if e.Channel < 0 || e.Channel > MaxChannel {
 		return opError(kind, "通道必须在 0–15，收到 %d", e.Channel)
 	}
 	switch e.Kind {
 	case KindCC:
-		if e.Controller < 0 || e.Controller > 127 || e.Value < 0 || e.Value > 127 {
+		if e.Controller < 0 || e.Controller > MaxMIDI || e.Value < 0 || e.Value > MaxMIDI {
 			return opError(kind, "CC 控制器与值必须在 0–127")
 		}
 	case KindPitchBend:
-		if e.Value < 0 || e.Value > 16383 {
+		if e.Value < 0 || e.Value > MaxPitchBend {
 			return opError(kind, "弯音值必须在 0–16383，收到 %d", e.Value)
 		}
 	case KindProgram:
-		if e.Program < 0 || e.Program > 127 {
+		if e.Program < 0 || e.Program > MaxMIDI {
 			return opError(kind, "音色编号必须在 0–127，收到 %d", e.Program)
 		}
 	case KindChannelAftertouch:
-		if e.Value < 0 || e.Value > 127 {
+		if e.Value < 0 || e.Value > MaxMIDI {
 			return opError(kind, "通道压力值必须在 0–127，收到 %d", e.Value)
 		}
 	case KindPolyAftertouch:
-		if e.Note < 0 || e.Note > 127 || e.Value < 0 || e.Value > 127 {
+		if e.Note < 0 || e.Note > MaxMIDI || e.Value < 0 || e.Value > MaxMIDI {
 			return opError(kind, "复音压力的音高与值必须在 0–127")
 		}
 	default:
@@ -295,10 +295,10 @@ func sortClips(t *Track) {
 
 func normalizeTempo(points []TempoPoint) ([]TempoPoint, error) {
 	for _, p := range points {
-		if p.Tick < 0 || p.Tick > maxTick {
+		if p.Tick < 0 || p.Tick > MaxTick {
 			return nil, fmt.Errorf("速度表 tick 超界：%d", p.Tick)
 		}
-		if p.USPerQuarter < 1 || p.USPerQuarter > 0xFFFFFF {
+		if p.USPerQuarter < 1 || p.USPerQuarter > MaxUSPerQuarter {
 			return nil, fmt.Errorf("速度值超出支持范围（微秒/四分 1–16777215）：%d", p.USPerQuarter)
 		}
 	}
@@ -318,14 +318,14 @@ func normalizeTempo(points []TempoPoint) ([]TempoPoint, error) {
 
 func normalizeMeter(points []MeterPoint) ([]MeterPoint, error) {
 	for _, p := range points {
-		if p.Tick < 0 || p.Tick > maxTick {
+		if p.Tick < 0 || p.Tick > MaxTick {
 			return nil, fmt.Errorf("拍号表 tick 超界：%d", p.Tick)
 		}
-		if p.Numerator < 1 || p.Numerator > 255 {
+		if p.Numerator < 1 || p.Numerator > MaxNumerator {
 			return nil, fmt.Errorf("拍号分子超出支持范围 1–255：%d", p.Numerator)
 		}
 		d := p.Denominator
-		if d < 1 || d > 128 || d&(d-1) != 0 {
+		if d < 1 || d > MaxMeterDenominator || d&(d-1) != 0 {
 			return nil, fmt.Errorf("拍号分母必须是 2 的幂（1–128）：%d", d)
 		}
 	}
@@ -349,7 +349,7 @@ func normalizeMeter(points []MeterPoint) ([]MeterPoint, error) {
 func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, err error) {
 	switch op.Kind {
 	case "project.rename":
-		if len([]rune(op.Title)) > 200 {
+		if len([]rune(op.Title)) > MaxTitleRunes {
 			return inv, nil, opError(op.Kind, "工程名过长")
 		}
 		inv = Op{Kind: op.Kind, Title: st.Title}
@@ -644,8 +644,16 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 		if len(op.NoteDeltas) == 0 {
 			return inv, nil, opError(op.Kind, "缺少要更新的音符")
 		}
+		// Index once for large batches. Keep the first matching position,
+		// matching findNote even for an invalid state with duplicate IDs.
+		noteIndex := make(map[string]int, len(c.Notes))
+		for i := range c.Notes {
+			if _, exists := noteIndex[c.Notes[i].ID]; !exists {
+				noteIndex[c.Notes[i].ID] = i
+			}
+		}
 		for _, d := range op.NoteDeltas {
-			if _, ok := findNote(c, d.ID); !ok {
+			if _, ok := noteIndex[d.ID]; !ok {
 				return inv, nil, opError(op.Kind, "音符不存在：%s", d.ID)
 			}
 			if d.Start != nil && *d.Start < 0 {
@@ -663,7 +671,7 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 		}
 		inv = Op{Kind: op.Kind, ClipID: op.ClipID, NoteDeltas: make([]NoteDelta, 0, len(op.NoteDeltas))}
 		for _, d := range op.NoteDeltas {
-			ni, _ := findNote(c, d.ID)
+			ni := noteIndex[d.ID]
 			n := &c.Notes[ni]
 			idelta := NoteDelta{ID: d.ID}
 			if d.Start != nil {

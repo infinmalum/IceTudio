@@ -68,3 +68,7 @@ jobs:
       - name: Product e2e（headless）
         working-directory: frontend
         run: npm run test:ui
+      - name: Music e2e（真实 Go 服务与 SQLite；音频门面模拟）
+        env:
+          ICETUDIO_MUSIC_BROWSER: "1"
+        run: go test ./internal/app -run '^TestMusicEditorBrowser$' -count=1 -timeout=180s -v

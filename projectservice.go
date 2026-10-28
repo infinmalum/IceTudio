@@ -24,6 +24,19 @@ type ProjectEditRecovery = app.ProjectEditRecovery
 type TimeMapDraftRecord = app.TimeMapDraftRecord
 type MusicInputsRecord = app.MusicInputsRecord
 
+func (s *ProjectService) PreviewProjectEdit(callID string) (app.ProjectEditPreview, error) {
+	return s.svc.PreviewProjectEdit(callID)
+}
+func (s *ProjectService) ApproveProjectEditPreview(callID, hash string) (storage.ToolCall, error) {
+	return s.svc.ApproveProjectEditPreview(callID, hash)
+}
+func (s *ProjectService) PlayProjectEditPreview(callID, variant string) error {
+	return s.svc.PlayProjectEditPreview(callID, variant)
+}
+func (s *ProjectService) StopProjectEditPreview(callID string) error {
+	return s.svc.StopProjectEditPreview(callID)
+}
+
 func (s *ProjectService) GetTimeMapDraft() (*TimeMapDraftRecord, error) {
 	return s.svc.GetTimeMapDraft()
 }

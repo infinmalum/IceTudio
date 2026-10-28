@@ -22,14 +22,14 @@ export function useApp() {
   const runtime = useRuntimeSettings();
   const configs = useConfigs();
   const local = useLocalContext(workspace.contextID, workspace.selected);
-  const conversation = useConversation(workspace, runtime.status);
-  // The music project strip: stored projects plus the shared edit service
-  // (rename/undo/redo), bound to the active conversation's project.
+  // The music project strip first: the conversation hook reads the editor's
+  // current send target to freeze the run's project scope.
   const projects = useProjects(
     workspace.activeConversation?.id ?? null,
     workspace.activeConversation?.projectId ?? "",
     workspace.refreshConversations,
   );
+  const conversation = useConversation(workspace, runtime.status, projects.sendTarget);
   const skillDrafts = useSkillDrafts(workspace.selected);
   const [page, setPage] = useState<"workspace" | "assistants" | "settings">(
     "workspace",

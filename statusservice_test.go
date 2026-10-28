@@ -104,7 +104,7 @@ func TestTaskPersistenceAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "你好", nil)
+	run, err := svc.StartConversationTask(session.ID, "你好", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestTaskPersistenceAndCancellation(t *testing.T) {
 	}
 	// A second task must be startable after the first one finished and its
 	// result must persist alongside the first.
-	run2, err := svc.StartConversationTask(session.ID, "再来一次", nil)
+	run2, err := svc.StartConversationTask(session.ID, "再来一次", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

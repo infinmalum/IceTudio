@@ -31,6 +31,9 @@ func (s *Service) ApproveToolCall(callRowID string) (storage.ToolCall, error) {
 	if err := s.store.ApproveToolCall(context.Background(), callRowID, storage.ApprovalUser); err != nil {
 		return storage.ToolCall{}, err
 	}
+	if s.playback != nil {
+		s.playback.StopPreview(callRowID)
+	}
 	s.signalApproval(callRowID)
 	return s.store.GetToolCall(context.Background(), callRowID)
 }
@@ -50,6 +53,9 @@ func (s *Service) DenyToolCall(callRowID, note string) (storage.ToolCall, error)
 	}
 	if err := s.store.DenyToolCall(context.Background(), callRowID, note); err != nil {
 		return storage.ToolCall{}, err
+	}
+	if s.playback != nil {
+		s.playback.StopPreview(callRowID)
 	}
 	s.signalApproval(callRowID)
 	return s.store.GetToolCall(context.Background(), callRowID)

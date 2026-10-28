@@ -59,7 +59,7 @@ func TestTransportFailureBlocksFurtherRuns(t *testing.T) {
 	}}
 	svc, _ := newTestService(t, toolCallScript(t, extToolCall("send", "remote__send", "{}"), "", "must not continue"), tools)
 	session, _ := svc.CreateSession()
-	run, err := svc.StartConversationTask(session.ID, "send")
+	run, err := svc.StartConversationTask(session.ID, "send", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestTransportFailureBlocksFurtherRuns(t *testing.T) {
 	if err != nil || len(list) != 2 || list[1].State != storage.CallExecutionUnknown {
 		t.Fatalf("outcome: %+v %v", list, err)
 	}
-	if _, err = svc.StartConversationTask(session.ID, "retry"); err == nil {
+	if _, err = svc.StartConversationTask(session.ID, "retry", nil); err == nil {
 		t.Fatal("unknown outcome allowed another Run")
 	}
 	if calls != 1 {

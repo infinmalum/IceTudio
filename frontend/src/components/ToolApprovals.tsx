@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ConversationState } from "../hooks/useConversation";
 import type { ToolCall } from "../../bindings/icetudio/internal/storage";
+import { ProjectEditApproval,supportsNotePreview,type PreviewWorkspace } from "./ProjectEditApproval";
 export function describeCall(call: ToolCall) {
   let args: Record<string, unknown> = {};
   try {
@@ -15,6 +16,12 @@ export function describeCall(call: ToolCall) {
         : "")
     : String(args.command ?? args.cmd ?? "");
   const name = call.toolName.split("__").slice(-1)[0] ?? "";
+  if(call.toolName==="project__edit" || call.toolName==="project__transform") return {
+    title:call.toolName==="project__transform"&&args.dryRun?"计算音符变换预演":"修改音乐工程",
+    target:"本任务冻结的音乐工程范围",
+    detail:call.toolName==="project__transform"&&args.dryRun?"仅计算变换统计，不写入音乐。":"本批尚未提供轨道、时间图、控制事件或混合操作的差异预览；请检查具体操作后决定，仍执行原权限与修订校验。",
+    name,args,
+  };
   const labels: Record<string, string> = {
     read_file: "读取文件或文件夹",
     write_file: "写入文件",
@@ -51,7 +58,9 @@ export function describeCall(call: ToolCall) {
 }
 export function ToolApprovals({
   conversation: c,
+  projects,
 }: {
+  projects?: PreviewWorkspace;
   conversation: Pick<
     ConversationState,
     | "approvalBusy"
@@ -66,6 +75,7 @@ export function ToolApprovals({
   return (
     <>
       {c.pendingCalls.map((call) => {
+        if(supportsNotePreview(call)) return <ProjectEditApproval key={call.id} call={call} conversation={c} projects={projects}/>;
         const d = describeCall(call);
         return (
           <section className="approval-card" key={call.id}>

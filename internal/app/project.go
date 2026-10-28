@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -129,7 +128,7 @@ func (s *Service) ProjectHistory(projectID string) ([]project.HistoryEntry, erro
 }
 
 // SetConversationProject binds or unbinds a conversation to a project. The
-// binding decides which project the conversation's agent may touch.
+// binding decides which project the conversation's next run freezes.
 func (s *Service) SetConversationProject(conversationID, projectID string) error {
 	return s.store.SetSessionProject(context.Background(), conversationID, projectID)
 }
@@ -190,11 +189,12 @@ func (s *Service) ExportProjectMIDI(projectID, path string) error {
 }
 
 // projectDefinitions are the agent-facing music tools. They are offered
-// only when the run's conversation is bound to a project.
+// when the run has a frozen project target. Main and delegated workers share
+// discovery, invocation and the same projectAccess guard.
 func projectDefinitions() []model.Tool {
 	specs := []struct{ name, description, schema string }{
-		{"project__query", "查询当前对话绑定的音乐工程：轨道、片段、音符、控制事件、速度/拍号映射与当前修订号。可选限定范围：trackId/clipId 或 startTick/endTick（半开区间 [start,end)，音符按重叠计入）；给出任一范围时只返回该区域，适合先查区域再构造批量编辑。结果 JSON 的 revision 字段是提交编辑时必须携带的基础修订。", `{"type":"object","properties":{"projectId":{"type":"string"},"trackId":{"type":"string"},"clipId":{"type":"string"},"startTick":{"type":"integer"},"endTick":{"type":"integer"}},"required":["projectId"],"additionalProperties":false}`},
-		{"project__edit", "对绑定的音乐工程提交一组编辑操作（原子事务）：提供 baseRevision（来自最近一次查询）、opId（本次调用的唯一 ID）与 ops 数组。整组成功或整组拒绝；修订冲突时必须重新查询后重试。", `{"type":"object","properties":{"projectId":{"type":"string"},"opId":{"type":"string"},"baseRevision":{"type":"integer"},"ops":{"type":"array","items":{"type":"object","properties":{"kind":{"type":"string"}},"required":["kind"]}}},"required":["projectId","opId","baseRevision","ops"],"additionalProperties":false}`},
+		{"project__query", "查询本任务冻结范围内的音乐工程：轨道、片段、音符、控制事件、速度/拍号映射与当前修订号。可选限定范围：trackId/clipId 或 startTick/endTick（半开区间 [start,end)，音符按重叠计入）；给出任一范围时只返回该区域，适合先查区域再构造批量编辑。结果 JSON 的 revision 字段是提交编辑时必须携带的基础修订。", `{"type":"object","properties":{"projectId":{"type":"string"},"trackId":{"type":"string"},"clipId":{"type":"string"},"startTick":{"type":"integer"},"endTick":{"type":"integer"}},"required":["projectId"],"additionalProperties":false}`},
+		{"project__edit", "对本任务冻结范围内的音乐工程提交一组编辑操作（原子事务）：提供 baseRevision（来自最近一次查询）、opId（本次调用的唯一 ID）与 ops 数组。整组成功或整组拒绝；修订冲突时必须重新查询后重试。使用规则：先 project__query 再构造编辑，范围不明确时用限定区域查询；ops 引用的对象 ID 必须来自最近一次查询结果，不得凭空构造；不得自行重放未确认的结果，中断后先查询提交结果（重放由 opId 幂等机制安全处理，但未查询时不得重复提交大批次）。", string(projectEditContract().schema)},
 	}
 	out := []model.Tool{}
 	for _, s := range specs {
@@ -204,7 +204,7 @@ func projectDefinitions() []model.Tool {
 		d.Function.Parameters = json.RawMessage(s.schema)
 		out = append(out, d)
 	}
-	return out
+	return append(out, transformDefinitions()...)
 }
 
 type projectEditArgs struct {
@@ -214,16 +214,28 @@ type projectEditArgs struct {
 	Ops          []project.Op `json:"ops"`
 }
 
-// projectCall implements the two project tools inside a run. The run's
-// session must be bound to a project, and both tools operate on exactly
-// that project — a task cannot reach other projects by ID.
+// projectCall implements the project tools inside a run. A normal
+// conversation's run with a frozen scope
+// (docs/p3-agent-scope.md) works only on that project and within its
+// track/clip allowlists — later rebinds or selection changes do not retarget
+// in-flight work. Empty scopes never fall back to the session binding.
 func (t bookkeepingTools) projectCall(ctx context.Context, name, raw string) (string, error) {
-	session, err := t.svc.store.GetSession(ctx, t.sessionID)
-	if err != nil {
-		return "", fmt.Errorf("无法读取对话：%w", err)
+	if !t.profile.AllowsTool(name) {
+		return "", errors.New("当前运行未允许此工程工具")
 	}
-	if session.ProjectID == "" {
-		return "", errors.New("当前对话未绑定音乐工程；请先在工程工作区选择或创建工程")
+	target, scope, hasScope, err := t.projectAccess(ctx)
+	if err != nil {
+		return "", err
+	}
+	readOnly := false
+	if hasScope {
+		readOnly = scope.AccessMode != "write"
+	}
+	if name == "project__select" {
+		return t.projectSelectCall(ctx, raw, target, scope, hasScope)
+	}
+	if name == "project__transform" {
+		return t.projectTransformCall(ctx, raw, target, scope, hasScope, readOnly)
 	}
 	if name == "project__query" {
 		var args struct {
@@ -236,12 +248,18 @@ func (t bookkeepingTools) projectCall(ctx context.Context, name, raw string) (st
 		if err := decodeRequiredOperation(raw, &args, "projectId"); err != nil {
 			return "", err
 		}
-		if args.ProjectID != session.ProjectID {
+		if args.ProjectID != target {
+			if hasScope {
+				return "", errors.New("只能查询任务冻结的工程")
+			}
 			return "", errors.New("只能查询当前对话绑定的工程")
 		}
 		item, err := t.svc.QueryProject(args.ProjectID, args.TrackID, args.ClipID, args.StartTick, args.EndTick)
 		if err != nil {
 			return "", err
+		}
+		if hasScope {
+			item.State = *project.ScopeRegion(&item.State, scope.Tracks, scope.Clips)
 		}
 		payload := map[string]any{
 			"projectId": item.ID, "title": item.Title, "ppq": item.PPQ,
@@ -254,15 +272,50 @@ func (t bookkeepingTools) projectCall(ctx context.Context, name, raw string) (st
 		return string(out), nil
 	}
 	// project__edit
+	if err := checkProjectOpFields(raw); err != nil {
+		return "", err
+	}
 	var args projectEditArgs
 	if err := decodeRequiredOperation(raw, &args, "projectId", "opId", "baseRevision", "ops"); err != nil {
 		return "", err
 	}
-	if args.ProjectID != session.ProjectID {
+	if args.ProjectID != target {
+		if hasScope {
+			if readOnly {
+				return "", errors.New("本任务为只读，不能编辑工程")
+			}
+			return "", errors.New("只能编辑任务冻结的工程")
+		}
 		return "", errors.New("只能编辑当前对话绑定的工程")
 	}
+	if hasScope {
+		if scope.AccessMode != "write" {
+			return "", errors.New("本任务为只读，不能编辑工程")
+		}
+		// Replay short-circuit before scope checks: a retry of an already
+		// committed op whose objects were later removed must return the
+		// stored result, not a misleading scope error.
+		if stored, ok, err := t.svc.GetProjectTransaction(scope.ProjectID, args.OpID); err != nil {
+			return "", err
+		} else if ok {
+			out, err := json.Marshal(stored)
+			if err != nil {
+				return "", err
+			}
+			return string(out), nil
+		}
+		if len(scope.Tracks) > 0 || len(scope.Clips) > 0 {
+			item, err := t.svc.GetProject(scope.ProjectID)
+			if err != nil {
+				return "", err
+			}
+			if err := checkScopeOps(scope, args.Ops, &item.State); err != nil {
+				return "", err
+			}
+		}
+	}
 	source := "agent:" + t.runID
-	result, err := t.svc.submitProjectOps(ctx, session.ProjectID, args.OpID, source, *args.BaseRevision, args.Ops)
+	result, err := t.svc.submitProjectOps(ctx, args.ProjectID, args.OpID, source, *args.BaseRevision, args.Ops)
 	if err != nil {
 		return "", err
 	}

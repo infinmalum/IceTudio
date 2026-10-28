@@ -75,7 +75,7 @@ func TestFixedWorkflowWaitAnswerContinueOriginalWithoutRepeatingStages(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := s.StartConversationTask(c.ID, "用户特定目标")
+	r, err := s.StartConversationTask(c.ID, "用户特定目标", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestFixedWorkflowTwoInputGatesKeepSuccessfulStages(t *testing.T) {
 	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
-	r, err := s.StartConversationTask(c.ID, "用户特定目标")
+	r, err := s.StartConversationTask(c.ID, "用户特定目标", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

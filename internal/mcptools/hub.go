@@ -115,7 +115,7 @@ func NewLocal(ctx context.Context, catalog *skills.Catalog) (*Hub, error) {
 // from the user's own config — no shell is involved at any point.
 func (h *Hub) ConnectCommand(ctx context.Context, server config.MCPServer) error {
 	name, command, args := server.Name, server.Command, server.Args
-	if name == "" || strings.Contains(name, "__") || name == "local" || command == "" {
+	if name == "" || strings.Contains(name, "__") || name == "local" || name == "project" || command == "" {
 		return errors.New("MCP 服务名称或命令无效")
 	}
 	h.mu.Lock()

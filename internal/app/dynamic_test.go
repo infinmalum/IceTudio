@@ -130,7 +130,7 @@ func approveDynamicUntilDone(t *testing.T, svc *Service, c storage.Conversation,
 func TestDynamicPlannerParallelDependencyAndDelivery(t *testing.T) {
 	m := &dynamicMock{barrier: make(chan struct{})}
 	svc, c, _ := dynamicFixture(t, m)
-	run, err := svc.StartConversationTask(c.ID, "分析两份材料并整合")
+	run, err := svc.StartConversationTask(c.ID, "分析两份材料并整合", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestDynamicPlannerParallelDependencyAndDelivery(t *testing.T) {
 func TestDynamicWaitingDoesNotPretendSuccess(t *testing.T) {
 	m := &dynamicMock{waiting: true}
 	svc, c, _ := dynamicFixture(t, m)
-	run, err := svc.StartConversationTask(c.ID, "分析材料")
+	run, err := svc.StartConversationTask(c.ID, "分析材料", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +245,7 @@ func TestDynamicBoundedRetryKeepsFailures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := svc.StartConversationTask(c.ID, "做安全分析")
+	r, err := svc.StartConversationTask(c.ID, "做安全分析", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestDynamicRootModelBudgetCannotReset(t *testing.T) {
 	if _, err := svc.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
-	r, err := svc.StartConversationTask(c.ID, "分析")
+	r, err := svc.StartConversationTask(c.ID, "分析", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

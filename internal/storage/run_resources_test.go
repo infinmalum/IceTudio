@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"icetudio/internal/skills"
@@ -63,7 +64,16 @@ func TestWorkerProjectionEmptyIntersectionDeniesTools(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if child.AllowsTool("local__read_file") || child.AllowsTool("local__list_directory") {
+	if child.AllowsTool("local__read_file") || child.AllowsTool("local__list_directory") || child.AllowsTool("project__edit") || child.AllowsTool("project__query") {
 		t.Fatal("empty capability intersection allowed tools")
+	}
+	// The empty restriction survives the JSON snapshot boundary.
+	raw, err := json.Marshal(child)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored RuntimeConfigData
+	if err := json.Unmarshal(raw, &restored); err != nil || restored.AllowsTool("project__query") {
+		t.Fatalf("empty restriction lost in snapshot: %s %v", raw, err)
 	}
 }

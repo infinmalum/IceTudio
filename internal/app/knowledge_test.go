@@ -109,7 +109,7 @@ func TestPlanToolPersistsAndReviews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "查时间并汇报")
+	run, err := svc.StartConversationTask(session.ID, "查时间并汇报", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestPlanToolDependencyConflictRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "先收集再总结")
+	run, err := svc.StartConversationTask(session.ID, "先收集再总结", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

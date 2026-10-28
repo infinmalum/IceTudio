@@ -47,6 +47,14 @@ type Classifier struct {
 // Classify maps one tool invocation to its registered effect and the
 // sensitivity of the data it touches.
 func (c Classifier) Classify(name, arguments string) (Effect, Sensitivity) {
+	// These exact native names are not external MCP calls. Classify before
+	// the generic namespace rule, including for read-only worker filtering.
+	switch name {
+	case "project__query", "project__select":
+		return EffectRead, SensWorkspace
+	case "project__edit", "project__transform":
+		return EffectWrite, SensUnknown
+	}
 	if server, _, ok := strings.Cut(name, "__"); ok && server != "" && server != "local" {
 		return EffectExternal, SensUnknown
 	}
@@ -81,14 +89,6 @@ func (c Classifier) Classify(name, arguments string) (Effect, Sensitivity) {
 		// Plan state is host-local bookkeeping: nothing is read and nothing
 		// leaves the machine.
 		return EffectPure, SensPublic
-	case "project__query":
-		// Querying the conversation's bound project: user content that is
-		// already part of this conversation's working material.
-		return EffectRead, SensWorkspace
-	case "project__edit":
-		// Editing the bound project changes user creative work; it asks for
-		// confirmation in every non-automatic mode.
-		return EffectWrite, SensUnknown
 	case "local__delegate_task":
 		// Delegation starts an autonomous subtask that can run further
 		// tools, and the passed materials' sensitivity cannot be decided
@@ -106,6 +106,16 @@ func (c Classifier) Classify(name, arguments string) (Effect, Sensitivity) {
 	default:
 		return EffectUnknown, SensUnknown
 	}
+}
+
+// IsProjectTool recognizes only registered native names, never arbitrary
+// tools using the reserved namespace.
+func IsProjectTool(name string) bool {
+	switch name {
+	case "project__query", "project__select", "project__edit", "project__transform":
+		return true
+	}
+	return false
 }
 
 func (c Classifier) classifyPath(path string) Sensitivity {

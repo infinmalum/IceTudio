@@ -8,6 +8,12 @@ import (
 	"testing"
 )
 
+func TestMCPRejectsNativeProjectNamespace(t *testing.T) {
+	if err := (MCPServer{Name: "project", Command: "unused"}).validate(); err == nil {
+		t.Fatal("MCP configuration accepted the native project namespace")
+	}
+}
+
 func TestLoadDefaultsAndInvalidConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	got, err := Load(path)
@@ -110,5 +116,31 @@ func TestDefaultPathsUsesInstalledAppImage(t *testing.T) {
 	paths, err := DefaultPaths()
 	if err != nil || paths.Data != filepath.Join(filepath.Dir(image), "data") {
 		t.Fatalf("AppImage paths: %+v %v", paths, err)
+	}
+}
+
+func TestDefaultPathsExplicitDataDirectory(t *testing.T) {
+	root := t.TempDir()
+	for _, tc := range []struct {
+		value string
+		valid bool
+	}{
+		{filepath.Join(root, "user-data"), true},
+		{"", false},
+		{"relative/data", false},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			t.Setenv("ICETUDIO_DATA_DIR", tc.value)
+			paths, err := DefaultPaths()
+			if !tc.valid {
+				if err == nil {
+					t.Fatalf("accepted invalid explicit path %q", tc.value)
+				}
+				return
+			}
+			if err != nil || paths.Data != tc.value || paths.Config != filepath.Join(tc.value, "config.json") {
+				t.Fatalf("explicit path: %+v, %v", paths, err)
+			}
+		})
 	}
 }

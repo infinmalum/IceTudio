@@ -71,7 +71,7 @@ func WorkerProjection(root, source RuntimeConfigData) (RuntimeConfigData, error)
 		}
 		child.AllMCPServers = false
 	}
-	if len(root.AllowedTools) > 0 {
+	if root.RestrictTools || len(root.AllowedTools) > 0 {
 		var names []string
 		for _, name := range root.AllowedTools {
 			if child.AllowsTool(name) {
@@ -79,6 +79,7 @@ func WorkerProjection(root, source RuntimeConfigData) (RuntimeConfigData, error)
 			}
 		}
 		child.AllowedTools = names
+		child.RestrictTools = true
 		if len(names) == 0 {
 			child.AllMCPServers = false
 			child.EnabledMCPServers = nil

@@ -15,3 +15,6 @@ No GridSound assets, fonts, soundfonts or samples are included. The general appl
 
 Local modifications, 2026-10-18:
 - gsuiPianoroll.html.js and gsuiPianoroll.js: omit note-link dragline/drop DOM from each note and allow pointer handling without that widget. IceTudio does not expose the upstream synthesizer's linked-note contract; its MIDI note model and existing move/resize/selection controls are retained. Empty dragline messages remain no-ops in upstream helpers. This avoids allocating hidden link widgets for dense MIDI clips.
+
+Local modification, 2026-10-27:
+- gsuiSliderGroup.js: read the numeric z-index already set inline by the slider instead of repeatedly requesting computed style during selection changes. This avoids repeated style recalculation for large selections while retaining the existing stacking adjustment.

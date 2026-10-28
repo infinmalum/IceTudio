@@ -22,7 +22,7 @@ import (
 
 // currentVersion is the schema version this binary writes. Opening a database
 // with a different version is refused; development releases do not migrate data.
-const currentVersion = 29
+const currentVersion = 30
 
 type Store struct {
 	db   *sql.DB
@@ -80,6 +80,10 @@ type Run struct {
 	Error     string `json:"error"`
 	CreatedAt string `json:"createdAt"`
 	UpdatedAt string `json:"updatedAt"`
+	// ProjectScope is the frozen edit range (docs/p3-agent-scope.md): the
+	// target project, base revision, access mode and track/clip allowlists
+	// this run's project tools are confined to. Empty means no music access.
+	ProjectScope string `json:"projectScope,omitempty"`
 }
 
 const (
@@ -446,6 +450,10 @@ type CreateRunOptions struct {
 	WorkerName     string
 	ParentRunID    string
 	Depth          int
+	// ProjectScope freezes the root run's project edit range (JSON of
+	// ProjectScope). Child runs inherit it; omitted root scopes are captured
+	// from the session binding in this same transaction.
+	ProjectScope string
 }
 
 // CreateRun starts a run for a session and resolves the owning Context's
@@ -579,6 +587,9 @@ func (s *Store) CreateRunWithOptions(ctx context.Context, sessionID string, opts
 			parent = opts.ParentRunID
 		}
 		if opts.ParentRunID != "" && item.Component == "worker" {
+			if err := checkWorkerConcurrencyInTx(ctx, tx, opts.ParentRunID, opts.TaskSpec); err != nil {
+				return err
+			}
 			root, err := rootInTx(ctx, tx, opts.ParentRunID)
 			if err != nil {
 				return err
@@ -600,7 +611,30 @@ func (s *Store) CreateRunWithOptions(ctx context.Context, sessionID string, opts
 		}
 		item.ComponentVersion = componentVersion(item.Component)
 		persistedComponent := item.Component
-		_, err = tx.ExecContext(ctx, `INSERT INTO runs(id,session_id,config_id,config_revision,config_snapshot,parent_run_id,depth,status,created_at,updated_at,component,component_version,worker_name,resources_snapshot) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, id, sessionID, frozen.ID, frozen.Revision, string(snapshot), parent, opts.Depth, item.Status, item.CreatedAt, item.UpdatedAt, persistedComponent, item.ComponentVersion, opts.WorkerName, resourcesRaw)
+		scope := ""
+		if opts.ParentRunID != "" {
+			if opts.ProjectScope != "" {
+				return errors.New("子运行范围由父运行继承，不能单独指定")
+			}
+			if err := tx.QueryRowContext(ctx, `SELECT project_scope FROM runs WHERE id=?`, opts.ParentRunID).Scan(&scope); err != nil {
+				return err
+			}
+			access := ""
+			if opts.TaskSpec != nil {
+				access = opts.TaskSpec.AccessMode
+			}
+			scope, err = inheritProjectScope(scope, item.Component, access)
+			if err != nil {
+				return err
+			}
+		} else {
+			scope, err = freezeProjectScopeInTx(ctx, tx, sessionID, opts.ProjectScope, item.Component, opts.Inspection != nil)
+			if err != nil {
+				return err
+			}
+		}
+		item.ProjectScope = scope
+		_, err = tx.ExecContext(ctx, `INSERT INTO runs(id,session_id,config_id,config_revision,config_snapshot,parent_run_id,depth,status,created_at,updated_at,component,component_version,worker_name,resources_snapshot,project_scope) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, id, sessionID, frozen.ID, frozen.Revision, string(snapshot), parent, opts.Depth, item.Status, item.CreatedAt, item.UpdatedAt, persistedComponent, item.ComponentVersion, opts.WorkerName, resourcesRaw, scope)
 		if err != nil {
 			return err
 		}
@@ -750,12 +784,12 @@ func sweepRunArtifacts(ctx context.Context, tx *sql.Tx, runID string) error {
 	return nil
 }
 
-const runColumns = `id, session_id, (SELECT context_id FROM sessions WHERE id=runs.session_id), config_id, config_revision, parent_run_id, depth, CASE WHEN status='failed' AND (SELECT state FROM task_coordination WHERE root_run_id=runs.id) IN ('waiting','blocked') THEN (SELECT state FROM task_coordination WHERE root_run_id=runs.id) ELSE status END, error, created_at, updated_at, component, component_version, worker_name`
+const runColumns = `id, session_id, (SELECT context_id FROM sessions WHERE id=runs.session_id), config_id, config_revision, parent_run_id, depth, CASE WHEN status='failed' AND (SELECT state FROM task_coordination WHERE root_run_id=runs.id) IN ('waiting','blocked') THEN (SELECT state FROM task_coordination WHERE root_run_id=runs.id) ELSE status END, error, created_at, updated_at, component, component_version, worker_name, project_scope`
 
 func scanRun(scanner interface{ Scan(...any) error }) (Run, error) {
 	var item Run
 	var parent sql.NullString
-	err := scanner.Scan(&item.ID, &item.SessionID, &item.ContextID, &item.ConfigID, &item.ConfigRevision, &parent, &item.Depth, &item.Status, &item.Error, &item.CreatedAt, &item.UpdatedAt, &item.Component, &item.ComponentVersion, &item.WorkerName)
+	err := scanner.Scan(&item.ID, &item.SessionID, &item.ContextID, &item.ConfigID, &item.ConfigRevision, &parent, &item.Depth, &item.Status, &item.Error, &item.CreatedAt, &item.UpdatedAt, &item.Component, &item.ComponentVersion, &item.WorkerName, &item.ProjectScope)
 	if err != nil {
 		return Run{}, err
 	}

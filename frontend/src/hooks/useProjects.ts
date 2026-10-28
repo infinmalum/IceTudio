@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Call, Events } from "@wailsio/runtime";
 import { ProjectService, type Project, type ProjectSummary } from "../../bindings/icetudio";
 import type { Op } from "../../bindings/icetudio/internal/project/models";
+import type { ProjectEditPreview } from "../../bindings/icetudio/internal/app/models";
 import type { EditTarget } from "../music/edits";
 import { useDialog } from "../shared/dialogs";
 import { useCloseBlocker } from "../shared/closeGuard";
@@ -23,6 +24,9 @@ export function useProjects(
   const [activeID, setActiveID] = useState<string | null>(null);
   const [detail, setDetail] = useState<Project | null>(null);
   const [busy, setBusy] = useState(false);
+  // 当前编辑上下文（docs/p3-agent-scope.md §5）：发送时据此冻结任务范围。
+  // clips 为空 = 整个工程；编辑器卸载/切工程时由 ProjectEditor 清空。
+  const [sendTarget, setSendTarget] = useState<SendTarget | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [recoveryReady, setRecoveryReady] = useState(false);
   const [recoveryError, setRecoveryError] = useState("");
@@ -40,12 +44,27 @@ export function useProjects(
   currentID.current = activeID;
   const active = detail?.id === activeID ? detail : null;
   activeRef.current = active;
+	const [preview,setPreview] = useState<ProjectEditPreview|null>(null);
+	const previewRef = useRef(preview);
+	previewRef.current = preview;
+	const clearPreview = useCallback((callID?: string) => {
+		const old=previewRef.current;
+		if (!old || (callID && old.callId!==callID)) return;
+		previewRef.current=null;setPreview(null);
+		void ProjectService.StopProjectEditPreview(old.callId).catch(e=>setError(`候选试听停止失败；请用播放栏停止。${String(e)}`));
+	},[]);
 
   const select = useCallback((id: string | null) => {
+	if (previewRef.current && previewRef.current.projectId!==id) clearPreview();
     currentID.current = id;
     detailRequest.current++;
     setActiveID(id);
-  }, []);
+  }, [clearPreview]);
+	const showPreview = useCallback((value: ProjectEditPreview) => {
+		if (previewRef.current?.callId!==value.callId) clearPreview();
+		select(value.projectId);previewRef.current=value;setPreview(value);
+	},[select,clearPreview]);
+	useEffect(()=>{if(preview && active?.id===preview.projectId && active.revision!==preview.baseRevision) clearPreview(preview.callId)},[active,preview,clearPreview]);
 
   const refresh = useCallback(async () => {
     const seq = ++listRequest.current;
@@ -292,6 +311,7 @@ export function useProjects(
     });
   }
   return {
+    preview,showPreview,clearPreview,
     inputs,
     timeMapDrafts,
     error, projects, activeID, active, busy: busy || !!pending || !recoveryReady,
@@ -302,5 +322,8 @@ export function useProjects(
     edit: (target: EditTarget, ops: Op[]) => mutate(target, ops),
     reportError: (e: unknown) => setError(String(e)),
     create, importMIDI, exportMIDI, remove, rename, shift, bind,
+    sendTarget, setSendTarget,
   };
 }
+
+export type SendTarget = { projectID: string; clips: string[]; label: string };

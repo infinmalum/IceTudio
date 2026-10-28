@@ -49,7 +49,7 @@ func TestConversationWithHTTPModelService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(c.ID, "write")
+	run, err := svc.StartConversationTask(c.ID, "write", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestConfigFirstTaskUsesComponentAndAuthorizedTool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(c.ID, "现在几点？")
+	run, err := svc.StartConversationTask(c.ID, "现在几点？", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestChildTranscriptCannotStartOrdinaryTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.StartConversationTask(child.ID, "read target memory"); err == nil {
+	if _, err := svc.StartConversationTask(child.ID, "read target memory", nil); err == nil {
 		t.Fatal("child transcript admitted an ordinary root run")
 	}
 }

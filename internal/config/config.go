@@ -17,9 +17,16 @@ type Paths struct {
 	Data   string
 }
 
-// DefaultPaths keeps application state beside the installed executable. It
-// never depends on the working directory or falls back to a user directory.
+// DefaultPaths uses the explicit data directory when supplied; otherwise it
+// keeps application state beside the executable or installed AppImage.
 func DefaultPaths() (Paths, error) {
+	if dataDir, present := os.LookupEnv("ICETUDIO_DATA_DIR"); present {
+		if !filepath.IsAbs(dataDir) {
+			return Paths{}, errors.New("ICETUDIO_DATA_DIR 必须是非空绝对路径")
+		}
+		root := filepath.Clean(dataDir)
+		return Paths{Config: filepath.Join(root, "config.json"), Data: root}, nil
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		return Paths{}, fmt.Errorf("定位应用程序: %w", err)
@@ -68,7 +75,7 @@ type MCPServer struct {
 }
 
 func (m MCPServer) validate() error {
-	if strings.TrimSpace(m.Name) == "" || strings.Contains(m.Name, "__") || m.Name == "local" {
+	if strings.TrimSpace(m.Name) == "" || strings.Contains(m.Name, "__") || m.Name == "local" || m.Name == "project" {
 		return fmt.Errorf("MCP 服务名称无效: %q", m.Name)
 	}
 	if strings.TrimSpace(m.Command) == "" {
@@ -269,7 +276,7 @@ func Save(path string, cfg Config) error {
 func EnsureDirs(paths Paths) error {
 	for _, dir := range []string{filepath.Dir(paths.Config), paths.Data, filepath.Join(paths.Data, "skills")} {
 		if err := os.MkdirAll(dir, 0700); err != nil {
-			return fmt.Errorf("无法创建应用数据目录 %s，请将应用放在可写目录: %w", dir, err)
+			return fmt.Errorf("无法创建应用数据目录 %s，请确认目录可写: %w", dir, err)
 		}
 	}
 	return nil

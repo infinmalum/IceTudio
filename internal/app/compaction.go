@@ -136,11 +136,18 @@ func (t bookkeepingTools) definitionsWith(ctx context.Context, definitions []mod
 			definitions = append(definitions, d)
 		}
 	}
-	// Project tools exist only when this conversation is bound to a
-	// project; the tools themselves re-check the binding on every call.
-	if session, err := t.svc.store.GetSession(ctx, t.sessionID); err == nil && session.ProjectID != "" {
+	// Use the same frozen-target/binding guard as tool invocation.
+	if target, scope, _, err := t.projectAccess(ctx); err == nil && target != "" {
+		rawScope, err := json.Marshal(scope)
+		if err != nil {
+			return nil, err
+		}
 		for _, d := range projectDefinitions() {
+			if scope.AccessMode != "write" && (d.Function.Name == "project__edit" || d.Function.Name == "project__transform") {
+				continue
+			}
 			if t.profile.AllowsTool(d.Function.Name) {
+				d.Function.Description += "\n宿主冻结的本任务工程范围：" + string(rawScope) + "。使用这里的 projectId；先查询范围内对象和当前 revision，再编辑。这里的 baseRevision 只记录任务起点，不代替最新查询。不得通过文件或命令绕过工程事务。"
 				definitions = append(definitions, d)
 			}
 		}
@@ -203,7 +210,7 @@ func (t bookkeepingTools) Call(ctx context.Context, name, arguments string) (str
 	switch name {
 	case "local__write_file", "local__edit_file", "local__exec":
 		return t.basicCall(ctx, name, arguments)
-	case "project__query", "project__edit":
+	case "project__query", "project__select", "project__edit", "project__transform":
 		return t.projectCall(ctx, name, arguments)
 	case "local__search_worker_traces", "local__list_worker_traces", "local__get_worker_trace", "local__record_observation":
 		return t.traceCall(ctx, name, arguments)

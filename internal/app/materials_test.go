@@ -29,7 +29,7 @@ func TestConversationAttachmentHistoryAndEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "", materials.Upload{Name: "note.txt", Data: base64.StdEncoding.EncodeToString([]byte("冻结附件正文"))})
+	run, err := svc.StartConversationTask(session.ID, "", nil, materials.Upload{Name: "note.txt", Data: base64.StdEncoding.EncodeToString([]byte("冻结附件正文"))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,12 +50,12 @@ func TestConversationAttachmentHistoryAndEvidence(t *testing.T) {
 	if err != nil || len(snap.Attachments) != 1 {
 		t.Fatalf("review binding lost attachments: %+v %v", snap, err)
 	}
-	next, err := svc.StartConversationTask(session.ID, "继续分析")
+	next, err := svc.StartConversationTask(session.ID, "继续分析", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	waitForRun(t, svc, next.ID, "completed")
-	if _, err := svc.StartConversationTask(session.ID, "bad", materials.Upload{Name: "bad", Data: "invalid"}); err == nil {
+	if _, err := svc.StartConversationTask(session.ID, "bad", nil, materials.Upload{Name: "bad", Data: "invalid"}); err == nil {
 		t.Fatal("bad upload accepted")
 	}
 }

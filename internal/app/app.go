@@ -403,7 +403,11 @@ func (s *Service) checkSessionExists(sessionID string) error {
 	return err
 }
 
-func (s *Service) StartConversationTask(sessionID, input string, uploads ...materials.Upload) (storage.Run, error) {
+// StartConversationTask starts a root run. selection freezes the run's
+// project edit range (docs/p3-agent-scope.md): nil or empty means the whole
+// bound project at the current revision; a selection requires a bound
+// project and references only existing objects.
+func (s *Service) StartConversationTask(sessionID, input string, selection *ProjectScopeSelection, uploads ...materials.Upload) (storage.Run, error) {
 	if err := s.checkReady(); err != nil {
 		return storage.Run{}, err
 	}
@@ -419,6 +423,10 @@ func (s *Service) StartConversationTask(sessionID, input string, uploads ...mate
 		return storage.Run{}, errors.New("任务内容长度必须在 1 到 10000 字节之间")
 	}
 	session, err := s.store.GetSession(context.Background(), sessionID)
+	if err != nil {
+		return storage.Run{}, err
+	}
+	scopeJSON, err := s.buildRunScope(session, selection)
 	if err != nil {
 		return storage.Run{}, err
 	}
@@ -463,7 +471,7 @@ func (s *Service) StartConversationTask(sessionID, input string, uploads ...mate
 	s.mu.RLock()
 	defaultModel := s.config.Model
 	s.mu.RUnlock()
-	item, runCtx, resolved, err := s.runs.StartPrepared(context.Background(), sessionID, defaultModel, s.skills.Snapshot, s.configuredSearchTools()...)
+	item, runCtx, resolved, err := s.runs.StartPrepared(context.Background(), sessionID, defaultModel, s.skills.Snapshot, scopeJSON, s.configuredSearchTools()...)
 	if err != nil {
 		return storage.Run{}, err
 	}

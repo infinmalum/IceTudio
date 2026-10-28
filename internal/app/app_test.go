@@ -115,7 +115,7 @@ func TestTaskWithToolCallPersistsStructuredHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "几点了")
+	run, err := svc.StartConversationTask(session.ID, "几点了", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestRestartRebuildsSameStructuredHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "几点了")
+	run, err := svc.StartConversationTask(session.ID, "几点了", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ func TestRestartRebuildsSameStructuredHistory(t *testing.T) {
 	if err := svc2.Recover(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	run2, err := svc2.StartConversationTask(session.ID, "再问一次")
+	run2, err := svc2.StartConversationTask(session.ID, "再问一次", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +259,7 @@ func TestPartialToolBatchNotReplayed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "查两次")
+	run, err := svc.StartConversationTask(session.ID, "查两次", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +275,7 @@ func TestPartialToolBatchNotReplayed(t *testing.T) {
 	if calls[1].State != storage.CallExecutionUnknown {
 		t.Fatalf("second call state: %+v", calls[1])
 	}
-	if _, err := svc.StartConversationTask(session.ID, "继续"); err == nil || !strings.Contains(err.Error(), "结果未知") {
+	if _, err := svc.StartConversationTask(session.ID, "继续", nil); err == nil || !strings.Contains(err.Error(), "结果未知") {
 		t.Fatalf("auto-advance not blocked: %v", err)
 	}
 	if err := svc.store.ResolveToolCall(context.Background(), calls[1].ID, storage.CallFailed, "", "确认该查询未产生效果"); err != nil {
@@ -302,7 +302,7 @@ func TestPartialToolBatchNotReplayed(t *testing.T) {
 		},
 	}}
 	svc.chat = followup
-	run2, err := svc.StartConversationTask(session.ID, "继续")
+	run2, err := svc.StartConversationTask(session.ID, "继续", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +333,7 @@ func TestCancelDuringExecutionBlocksUntilResolved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "慢慢查")
+	run, err := svc.StartConversationTask(session.ID, "慢慢查", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -351,7 +351,7 @@ func TestCancelDuringExecutionBlocksUntilResolved(t *testing.T) {
 	if err != nil || len(calls) != 1 || calls[0].State != storage.CallExecutionUnknown {
 		t.Fatalf("cancelled call must stay unknown: %+v %v", calls, err)
 	}
-	if _, err := svc.StartConversationTask(session.ID, "继续"); err == nil {
+	if _, err := svc.StartConversationTask(session.ID, "继续", nil); err == nil {
 		t.Fatal("session advanced despite unknown result")
 	}
 	if _, err := svc.ResolveToolCall(calls[0].ID, storage.CallFailed, "", "确认查询未执行"); err != nil {
@@ -378,15 +378,15 @@ func TestDoubleRunRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.StartConversationTask(session.ID, "第一问"); err != nil {
+	if _, err := svc.StartConversationTask(session.ID, "第一问", nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.StartConversationTask(session.ID, "第二问"); err == nil || !strings.Contains(err.Error(), "运行中") {
+	if _, err := svc.StartConversationTask(session.ID, "第二问", nil); err == nil || !strings.Contains(err.Error(), "运行中") {
 		t.Fatalf("double run accepted: %v", err)
 	}
 	close(release)
 	svc.WaitIdle()
-	if _, err := svc.StartConversationTask(session.ID, "第三问"); err != nil {
+	if _, err := svc.StartConversationTask(session.ID, "第三问", nil); err != nil {
 		t.Fatalf("next run after completion rejected: %v", err)
 	}
 	svc.WaitIdle()

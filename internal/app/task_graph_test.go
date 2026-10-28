@@ -87,7 +87,7 @@ func TestPlannedWorkersExecuteDependenciesAndKeepAttempts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(c.ID, "收集并总结")
+	run, err := svc.StartConversationTask(c.ID, "收集并总结", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

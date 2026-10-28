@@ -44,7 +44,7 @@ func TestDirectReviewReworkPreservesDeliveryAndBudget(t *testing.T) {
 	s, c := reviewFixture(t, &reviewMock{}, "required", nil)
 	m := &repairMock{}
 	s.chat = m
-	r, err := s.StartConversationTask(c.ID, "完整交付")
+	r, err := s.StartConversationTask(c.ID, "完整交付", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestReworkUsesRemainingBudgetAndCancellation(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			r, err := s.StartConversationTask(c.ID, "正文")
+			r, err := s.StartConversationTask(c.ID, "正文", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -169,7 +169,7 @@ func TestDynamicReworkRoutesDefectToOriginalWorker(t *testing.T) {
 			if _, err := s.UpdateRuntimeConfig(p); err != nil {
 				t.Fatal(err)
 			}
-			r, err := s.StartConversationTask(c.ID, "整合")
+			r, err := s.StartConversationTask(c.ID, "整合", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -228,7 +228,7 @@ func TestReworkSchedulesNecessaryChecksThroughExistingApproval(t *testing.T) {
 			if _, err := s.UpdateContextPolicy(c.ContextID, storage.ContextPolicy{ApprovalMode: "semi", Permissions: storage.PermissionScope{WorkspacePaths: []string{m.dir}, Commands: []string{"/bin/sh"}}}); err != nil {
 				t.Fatal(err)
 			}
-			r, err := s.StartConversationTask(c.ID, "正文并验证")
+			r, err := s.StartConversationTask(c.ID, "正文并验证", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -293,7 +293,7 @@ func TestReworkSchedulesNecessaryChecksThroughExistingApproval(t *testing.T) {
 func TestUnknownEffectPreventsAutomaticRework(t *testing.T) {
 	s, c := reviewFixture(t, &reviewMock{status: "passed"}, "required", nil)
 	ctx := context.Background()
-	root, runCtx, p, err := s.runs.StartPrepared(ctx, c.ID, s.config.Model, s.skills.Snapshot)
+	root, runCtx, p, err := s.runs.StartPrepared(ctx, c.ID, s.config.Model, s.skills.Snapshot, "")
 	if err != nil {
 		t.Fatal(err)
 	}

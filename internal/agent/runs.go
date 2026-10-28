@@ -31,8 +31,11 @@ func (r *Runs) Start(ctx context.Context, sessionID string) (storage.Run, contex
 	return r.start(ctx, sessionID, storage.CreateRunOptions{})
 }
 
-func (r *Runs) StartPrepared(ctx context.Context, sessionID string, model config.Model, snapshot storage.SkillSnapshotter, searchTools ...string) (storage.Run, context.Context, storage.RunConfigSnapshot, error) {
-	return r.start(ctx, sessionID, storage.CreateRunOptions{DefaultModel: model, SnapshotSkills: snapshot, SearchTools: searchTools})
+// StartPrepared creates the run with a resolved model and skill snapshot.
+// projectScope freezes the run's project edit range (docs/p3-agent-scope.md);
+// an empty request captures the session binding in the creation transaction.
+func (r *Runs) StartPrepared(ctx context.Context, sessionID string, model config.Model, snapshot storage.SkillSnapshotter, projectScope string, searchTools ...string) (storage.Run, context.Context, storage.RunConfigSnapshot, error) {
+	return r.start(ctx, sessionID, storage.CreateRunOptions{DefaultModel: model, SnapshotSkills: snapshot, SearchTools: searchTools, ProjectScope: projectScope})
 }
 
 func (r *Runs) StartInspection(ctx context.Context, sessionID, target string, retrospective bool, source config.Model, snapshot storage.SkillSnapshotter) (storage.Run, context.Context, storage.RunConfigSnapshot, error) {

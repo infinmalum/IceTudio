@@ -19,19 +19,22 @@ const DefaultConfigID = "default"
 // model binding, capability selection and budgets. It never holds instance
 // data, history, secrets or authorization.
 type RuntimeConfigData struct {
-	SchemaVersion     int              `json:"schemaVersion"`
-	Execution         Execution        `json:"execution"`
-	Persona           string           `json:"persona"`
-	Description       string           `json:"description"`
-	SystemPrompt      string           `json:"systemPrompt"`
-	Model             config.Model     `json:"model"`
-	AllMCPServers     bool             `json:"allMcpServers"`
-	EnabledMCPServers []string         `json:"enabledMcpServers"`
-	AllowedTools      []string         `json:"allowedTools"`
-	AllSkills         bool             `json:"allSkills"`
-	EnabledSkills     []string         `json:"enabledSkills"`
-	Delegation        DelegationPolicy `json:"delegation"`
-	ContextBudget     int              `json:"contextBudget"`
+	SchemaVersion     int          `json:"schemaVersion"`
+	Execution         Execution    `json:"execution"`
+	Persona           string       `json:"persona"`
+	Description       string       `json:"description"`
+	SystemPrompt      string       `json:"systemPrompt"`
+	Model             config.Model `json:"model"`
+	AllMCPServers     bool         `json:"allMcpServers"`
+	EnabledMCPServers []string     `json:"enabledMcpServers"`
+	AllowedTools      []string     `json:"allowedTools"`
+	// RestrictTools makes an empty allowlist an explicit denial of all tools.
+	// It is also set on frozen projections whose selected intersection is empty.
+	RestrictTools bool             `json:"restrictTools,omitempty"`
+	AllSkills     bool             `json:"allSkills"`
+	EnabledSkills []string         `json:"enabledSkills"`
+	Delegation    DelegationPolicy `json:"delegation"`
+	ContextBudget int              `json:"contextBudget"`
 	// PlanEnabled is the config's preference for the optional plan
 	// capability: the update_plan tool and the plan prompt fragment.
 	PlanEnabled bool `json:"planEnabled"`
@@ -134,7 +137,7 @@ func (d RuntimeConfigData) AllowsTool(name string) bool {
 			return false
 		}
 	}
-	if len(d.AllowedTools) == 0 {
+	if len(d.AllowedTools) == 0 && !d.RestrictTools {
 		return true
 	}
 	for _, tool := range d.AllowedTools {

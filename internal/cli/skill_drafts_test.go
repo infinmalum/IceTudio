@@ -28,7 +28,7 @@ func TestSkillDraftCLI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	target, err := s.StartConversationTask(c.ID, "观察一个任务")
+	target, err := s.StartConversationTask(c.ID, "观察一个任务", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

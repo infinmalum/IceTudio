@@ -81,7 +81,7 @@ func TestStreamDeltasBroadcastMergeAndClear(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "几点了")
+	run, err := svc.StartConversationTask(session.ID, "几点了", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

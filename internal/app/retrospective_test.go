@@ -72,7 +72,7 @@ func TestRetrospectiveSupportsFailedTaskWithoutDeliveryAndPreservesState(t *test
 			if _, err = s.UpdateRuntimeConfig(p); err != nil {
 				t.Fatal(err)
 			}
-			original, err := s.StartConversationTask(c.ID, "目标：解释材料")
+			original, err := s.StartConversationTask(c.ID, "目标：解释材料", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -144,7 +144,7 @@ func TestRetrospectiveRejectsForgedReferencesAndToolCalls(t *testing.T) {
 			s, c := reviewFixture(t, &reviewMock{}, "on_demand", nil)
 			m := &retrospectiveMock{forged: !tools, tools: tools}
 			s.chat = m
-			original, err := s.StartConversationTask(c.ID, "目标")
+			original, err := s.StartConversationTask(c.ID, "目标", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -167,7 +167,7 @@ func TestRetrospectiveCancellationAndFrozenRemoteGrant(t *testing.T) {
 			s, c := reviewFixture(t, &reviewMock{}, "on_demand", nil)
 			m := &retrospectiveMock{}
 			s.chat = m
-			original, err := s.StartConversationTask(c.ID, "私人材料")
+			original, err := s.StartConversationTask(c.ID, "私人材料", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -217,7 +217,7 @@ func TestRetrospectiveInheritsUnknownToolScopeAndRejectsChangedEvidence(t *testi
 		t.Run(map[bool]string{false: "unknown", true: "changed"}[changed], func(t *testing.T) {
 			s, c := reviewFixture(t, &reviewMock{}, "on_demand", nil)
 			ctx := context.Background()
-			target, _, _, err := s.runs.StartPrepared(ctx, c.ID, s.config.Model, s.skills.Snapshot)
+			target, _, _, err := s.runs.StartPrepared(ctx, c.ID, s.config.Model, s.skills.Snapshot, "")
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -1,4 +1,4 @@
-// Package host boots the single IceTudio host for an executable-local data directory:
+// Package host boots the single IceTudio host for its selected data directory:
 // configuration, the ownership lock, the SQLite store, run recovery, the
 // skills catalog, the MCP hub and the application service. The desktop
 // entry point and the headless `icetudio serve` host share this path so both

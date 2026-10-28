@@ -74,7 +74,7 @@ func TestAGNativeSearchThroughHostGrantBudgetAndRecords(t *testing.T) {
 				if _, err := s.SetConversationOptions(c.ID, storage.ConversationOptions{WebSearch: true}); err != nil {
 					t.Fatal(err)
 				}
-				run, err := s.StartConversationTask(c.ID, "搜索")
+				run, err := s.StartConversationTask(c.ID, "搜索", nil)
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -1,5 +1,54 @@
 package project
 
+// ScopeRegion narrows a state to a frozen run scope's allowlists
+// (docs/p3-agent-scope.md §4). Empty allowlists mean the whole project. A
+// track allowlist keeps those tracks with all their clips; a clips allowlist
+// keeps only the listed clips and drops tracks left without any.
+func ScopeRegion(st *State, tracks, clips []string) *State {
+	out := *st
+	if len(tracks) == 0 && len(clips) == 0 {
+		return &out
+	}
+	trackSet, clipSet := map[string]bool{}, map[string]bool{}
+	for _, id := range tracks {
+		trackSet[id] = true
+	}
+	for _, id := range clips {
+		clipSet[id] = true
+	}
+	out.Tracks = nil
+	for _, tr := range st.Tracks {
+		if len(trackSet) > 0 && !trackSet[tr.ID] {
+			continue
+		}
+		kept := tr
+		kept.Clips = nil
+		for _, c := range tr.Clips {
+			if len(clipSet) > 0 && !clipSet[c.ID] {
+				continue
+			}
+			kept.Clips = append(kept.Clips, c)
+		}
+		if len(clipSet) > 0 && len(kept.Clips) == 0 {
+			continue
+		}
+		out.Tracks = append(out.Tracks, kept)
+	}
+	return &out
+}
+
+// ClipTrack returns the owning track of a clip.
+func ClipTrack(st *State, clipID string) (string, bool) {
+	for _, tr := range st.Tracks {
+		for _, c := range tr.Clips {
+			if c.ID == clipID {
+				return tr.ID, true
+			}
+		}
+	}
+	return "", false
+}
+
 // Region returns a filtered copy of the state: only the requested track
 // (all tracks when trackID is empty), only the requested clip (or every
 // clip when clipID is empty), and only the events inside the half-open

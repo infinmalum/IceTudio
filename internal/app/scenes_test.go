@@ -157,7 +157,7 @@ func TestDefaultSceneExecutionContracts(t *testing.T) {
 			if _, err = s.UpdateContextPolicy(c.ContextID, storage.ContextPolicy{ApprovalMode: "semi", Permissions: storage.PermissionScope{WorkspacePaths: []string{m.dir}, Commands: []string{"/bin/sh"}}}); err != nil {
 				t.Fatal(err)
 			}
-			run, err := s.StartConversationTask(c.ID, inputs[scene])
+			run, err := s.StartConversationTask(c.ID, inputs[scene], nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -210,7 +210,7 @@ func TestResearchSceneMissingMaterialsWaits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := s.StartConversationTask(c.ID, "比较未提供的材料")
+	r, err := s.StartConversationTask(c.ID, "比较未提供的材料", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

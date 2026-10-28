@@ -139,7 +139,9 @@ class gsuiSliderGroup extends gsui0ne {
 		const id = sli.element.$dataId();
 
 		if ( b !== this.#selected.has( id ) ) {
-			const zind = +sli.element.$css( "zIndex" );
+			// $sliderWhen always sets an inline numeric z-index. Reading that
+			// value avoids forcing computed style after each selection change.
+			const zind = +sli.element.$get( 0 ).style.zIndex;
 
 			b
 				? this.#selected.set( id, sli )

@@ -40,7 +40,7 @@ func TestCLIContinueFixedTaskThroughIPC(t *testing.T) {
 	if _, err = s.UpdateContextPolicy(c.ContextID, storage.ContextPolicy{ApprovalMode: "automatic"}); err != nil {
 		t.Fatal(err)
 	}
-	r, err := s.StartConversationTask(c.ID, "整理")
+	r, err := s.StartConversationTask(c.ID, "整理", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -31,7 +31,7 @@ func TestCLIRetrospectiveIPCAndStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	original, err := svc.StartConversationTask(c.ID, "原目标")
+	original, err := svc.StartConversationTask(c.ID, "原目标", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

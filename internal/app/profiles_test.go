@@ -78,7 +78,7 @@ func TestSharedConfigEditAffectsSubsequentRuns(t *testing.T) {
 		contextID string
 		sessionID string
 	}{{contextA.ID, sessionA.ID}, {contextB.ID, sessionB.ID}} {
-		run, err := svc.StartConversationTask(tc.sessionID, "你好")
+		run, err := svc.StartConversationTask(tc.sessionID, "你好", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -114,7 +114,7 @@ func TestInFlightRunKeepsConfigSnapshot(t *testing.T) {
 	}
 	setContextPolicy(t, svc, local.ID, func(p *storage.ContextPolicy) { p.ApprovalMode = "semi" })
 	svc.chat = promptScript(t, extToolCall("call-1", "extsvc__ping", "{}"), "旧提示词", true)
-	run, err := svc.StartConversationTask(session.ID, "ping 一下")
+	run, err := svc.StartConversationTask(session.ID, "ping 一下", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestInFlightRunKeepsConfigSnapshot(t *testing.T) {
 	}
 	// The next run resolves the newly committed content.
 	svc.chat = promptScript(t, extToolCall("call-2", "local__current_time", "{}"), "新提示词", false)
-	run2, err := svc.StartConversationTask(session.ID, "再问")
+	run2, err := svc.StartConversationTask(session.ID, "再问", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

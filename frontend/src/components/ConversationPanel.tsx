@@ -205,6 +205,10 @@ export function ConversationPanel({
             {pj.boundProjectID === pj.activeID
               ? `当前对话已绑定工程「${pj.active.title}」`
               : "当前对话未绑定这个工程"}
+            {pj.sendTarget && pj.sendTarget.projectID === pj.activeID &&
+              pj.boundProjectID === pj.activeID && (
+              <span> · 任务范围：{pj.sendTarget.label}（发送时冻结）</span>
+            )}
           </span>
           {pj.boundProjectID === pj.activeID ? (
             <button
@@ -228,7 +232,7 @@ export function ConversationPanel({
       <div className="chat-scroll">
         <div className="chat-body">
           <Transcript conversation={c} />
-          <ToolApprovals conversation={c} />
+          <ToolApprovals conversation={c} projects={pj}/>
           <SearchRecords conversation={c} />
           <TaskProgress conversation={c} />
           <ErrorNotice error={c.taskError || folderError} />
@@ -240,7 +244,11 @@ export function ConversationPanel({
       <div className="composer-wrap">
         {c.loadingSession && <p className="hint">正在打开对话…</p>}
         {!w.selected && w.loaded && (
-          <p className="hint">输入消息，直接开始新对话。</p>
+          <p className="hint">
+            输入消息，直接开始新对话。
+            {pj.sendTarget &&
+              ` 发送后绑定工程「${pj.active?.title ?? ""}」，任务范围：${pj.sendTarget.label}。`}
+          </p>
         )}
         {r.status?.storageReady && !r.status?.runtimeReady && (
           <div className="setup-banner">

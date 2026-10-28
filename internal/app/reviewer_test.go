@@ -64,7 +64,7 @@ func reviewFixture(t *testing.T, m *reviewMock, mode string, checks []string) (*
 }
 func TestRequiredReviewSuccessAndSharedBudget(t *testing.T) {
 	s, c := reviewFixture(t, &reviewMock{status: "passed"}, "required", nil)
-	r, err := s.StartConversationTask(c.ID, "写正文")
+	r, err := s.StartConversationTask(c.ID, "写正文", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestRequiredReviewRejectsMissingChecksDefectsAndForgedEvidence(t *testing.T
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, c := reviewFixture(t, &tc.m, "required", tc.checks)
-			r, err := s.StartConversationTask(c.ID, "写正文")
+			r, err := s.StartConversationTask(c.ID, "写正文", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -124,7 +124,7 @@ func TestRequiredReviewRejectsMissingChecksDefectsAndForgedEvidence(t *testing.T
 }
 func TestOnDemandReviewPreservesOldOutcomeAndUsesNewRoot(t *testing.T) {
 	s, c := reviewFixture(t, &reviewMock{status: "changes_requested"}, "on_demand", nil)
-	r, err := s.StartConversationTask(c.ID, "写正文")
+	r, err := s.StartConversationTask(c.ID, "写正文", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestDynamicRequiredReviewRunsAfterActualDelivery(t *testing.T) {
 	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
-	r, err := s.StartConversationTask(c.ID, "分析两份材料并整合")
+	r, err := s.StartConversationTask(c.ID, "分析两份材料并整合", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestRequiredReviewBudgetExhaustionCannotComplete(t *testing.T) {
 	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
-	r, err := s.StartConversationTask(c.ID, "正文")
+	r, err := s.StartConversationTask(c.ID, "正文", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +224,7 @@ func TestRequiredReviewRemoteModelNeedsFrozenGrant(t *testing.T) {
 	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
-	r, err := s.StartConversationTask(c.ID, "私人材料")
+	r, err := s.StartConversationTask(c.ID, "私人材料", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +257,7 @@ func TestCancelDuringRequiredReviewStopsChildren(t *testing.T) {
 	s, c := reviewFixture(t, &reviewMock{status: "passed"}, "required", nil)
 	m := &cancelReviewMock{entered: make(chan struct{})}
 	s.chat = m
-	r, err := s.StartConversationTask(c.ID, "正文")
+	r, err := s.StartConversationTask(c.ID, "正文", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

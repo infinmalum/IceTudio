@@ -132,6 +132,20 @@ func (g toolGate) Recheck(ctx context.Context, req agent.ToolRequest) agent.Deci
 // stay inside the workspace boundary when one is configured. A user
 // confirmation can never override these.
 func (g toolGate) hardLimits(ctx context.Context, profile storage.RunConfigSnapshot, req agent.ToolRequest) string {
+	if mcptools.IsProjectTool(req.Tool) {
+		run, err := g.svc.store.GetRun(ctx, g.runID)
+		if err != nil {
+			return "音乐工具需要持久运行记录：" + err.Error()
+		}
+		t := bookkeepingTools{svc: g.svc, runID: g.runID, sessionID: run.SessionID}
+		_, scope, _, err := t.projectAccess(ctx)
+		if err != nil {
+			return err.Error()
+		}
+		if scope.AccessMode != "write" && (req.Tool == "project__edit" || req.Tool == "project__transform") {
+			return "本任务为只读，不能编辑工程"
+		}
+	}
 	if g.runID != "" {
 		spec, ok, err := g.svc.store.RunTaskSpec(ctx, g.runID)
 		if err != nil {

@@ -26,6 +26,11 @@ func TestClassifierClassifiesBuiltinAndExternalTools(t *testing.T) {
 	}{
 		{"local__current_time", "{}", EffectPure, SensPublic},
 		{"local__load_skill", `{"name":"x"}`, EffectRead, SensWorkspace},
+		{"project__query", "{}", EffectRead, SensWorkspace},
+		{"project__select", "{}", EffectRead, SensWorkspace},
+		{"project__edit", "{}", EffectWrite, SensUnknown},
+		{"project__transform", "{}", EffectWrite, SensUnknown},
+		{"project__unregistered", "{}", EffectExternal, SensUnknown},
 		{"myskills__search", "{}", EffectExternal, SensUnknown},
 		{"totally_unknown", "{}", EffectUnknown, SensUnknown},
 	}

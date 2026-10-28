@@ -1,10 +1,14 @@
 import { spawn } from "node:child_process";
-import { mkdirSync, openSync, writeFileSync } from "node:fs";
+import { closeSync, mkdirSync, mkdtempSync, openSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const dir = resolve(root, ".cache/browser/product");
-mkdirSync(dir, { recursive: true });
+// One-use browser artifacts are not a dependency/build cache. Keep them out
+// of project .cache; retain only when a caller explicitly requests a directory.
+const artifactParent = process.env.ICETUDIO_PRODUCT_ARTIFACT_DIR;
+if (artifactParent) mkdirSync(artifactParent, { recursive: true });
+const dir = mkdtempSync(resolve(artifactParent || tmpdir(), "icetudio-product-"));
 const log = openSync(resolve(dir, "services.log"), "a");
 const vite = spawn(
   "npm",
@@ -76,7 +80,7 @@ ListConversations:async()=>{if(state.failList)throw Error('列表刷新失败');
 GetLocalContext:async(id)=>structuredClone(state.contexts[id]),UpdateContextPolicy:async(id,policy)=>{state.contexts[id].policy=structuredClone(policy);return structuredClone(state.contexts[id])},ListExfilGrants:async(id)=>structuredClone(state.grants[id]??[]),GrantExfil:async(id,destination,scopes)=>{state.grants[id]=[{destination,scopes}]},RevokeExfil:async(id)=>{state.grants[id]=[]},PreviewSend:async(id)=>{const c=state.conversations.find(c=>c.id===id);return state.previewRemote&&!state.grants[c.contextId]?.length?[{provider:'openai',destination:'https://custom.example',scopes:['personal','unknown'],missing:['personal','unknown']}]:[]},
 ConversationSearchAvailability:async()=>({available:false,reason:'模拟能力不可用'}),ListConversationSearch:async()=>[],SetConversationOptions:async(id,options)=>{const c=state.conversations.find(c=>c.id===id);c.options=structuredClone(options);return structuredClone(c)},
 ListMessages:async(id)=>structuredClone(state.messages[id]??[]),ListChatMessages:async(id)=>({messages:structuredClone(state.messages[id]??[]).map((m,i)=>({...m,seq:i+1,sessionId:id})),beforeSeq:1,hasMore:false}),ListRuns:async(id)=>structuredClone(Object.values(state.runs).filter(r=>r.sessionId===id).reverse()),ListToolCalls:async()=>[],PendingApprovals:async()=>structuredClone(state.pending),GetSessionSummary:async()=>{throw Error('none')},GetSessionPlan:async()=>{throw Error('none')},ListChildRuns:async()=>[],GetTaskGraph:async()=>({tasks:[],attempts:[],artifacts:[],coordination:{state:'complete',rounds:0},continuations:[]}),ListTaskReviews:async()=>[],ListTaskRetrospectives:async()=>[],PendingStreamText:async()=>'',
-StartConversationTask:async(id,input,uploads)=>{state.lastSend={id,input,uploads};const c=state.conversations.find(c=>c.id===id),r={id:'r'+(++state.n),sessionId:id,contextId:c.contextId,profileId:c.configId,profileRevision:0,component:'main',status:'completed',createdAt:new Date().toISOString()};state.runs[r.id]=r;c.title=input.slice(0,32)||'附件分析';state.messages[id].push({id:r.id+'u',runId:r.id,role:'user',content:input,attachments:uploads.map(u=>({name:u.name,size:10,mediaType:u.name.endsWith('.png')?'image/png':'text/plain'}))},{id:r.id+'a',runId:r.id,role:'assistant',content:'# 回答\\n\\n- 已处理材料\\n\\n| 项目 | 状态 |\\n| --- | --- |\\n| 文件 | 完成 |\\n\\n\u0060\u0060\u0060js\\nconst answer = 42;\\n\u0060\u0060\u0060\\n\\n<script>window.__unsafe=true</script>'});return {...r,status:'running'}},GetRun:async(id)=>structuredClone(state.runs[id]),CancelTask:async(id)=>{state.runs[id].status='cancelled'},
+StartConversationTask:async(id,input,scope,uploads)=>{state.lastSend={id,input,scope,uploads};uploads=uploads??[];const c=state.conversations.find(c=>c.id===id),r={id:'r'+(++state.n),sessionId:id,contextId:c.contextId,profileId:c.configId,profileRevision:0,component:'main',status:'completed',createdAt:new Date().toISOString()};state.runs[r.id]=r;c.title=input.slice(0,32)||'附件分析';state.messages[id].push({id:r.id+'u',runId:r.id,role:'user',content:input,attachments:uploads.map(u=>({name:u.name,size:10,mediaType:u.name.endsWith('.png')?'image/png':'text/plain'}))},{id:r.id+'a',runId:r.id,role:'assistant',content:'# 回答\\n\\n- 已处理材料\\n\\n| 项目 | 状态 |\\n| --- | --- |\\n| 文件 | 完成 |\\n\\n\u0060\u0060\u0060js\\nconst answer = 42;\\n\u0060\u0060\u0060\\n\\n<script>window.__unsafe=true</script>'});return {...r,status:'running'}},GetRun:async(id)=>structuredClone(state.runs[id]),CancelTask:async(id)=>{state.runs[id].status='cancelled'},
 ApproveToolCall:async(id)=>{state.approvals.push(id);state.pending=state.pending.filter(c=>c.id!==id)},DenyToolCall:async(id)=>{state.denied=id;state.pending=state.pending.filter(c=>c.id!==id)},ResolveToolCall:async(id,status,result,note)=>{state.resolution={id,status,result,note};state.pending=state.pending.filter(c=>c.id!==id)},
 PickFolder:async()=>'/home/mock/Documents',MessageAttachment:async()=>({name:'note.txt',mediaType:'text/plain',text:'原始附件内容'}),
 ListSkillDrafts:async()=>state.skillDrafts,
@@ -131,6 +135,9 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
         m.params.exceptionDetails.exception?.description ??
           m.params.exceptionDetails.text,
       );
+    else if (m.method === "Runtime.consoleAPICalled" &&
+      m.params.args.some(arg => String(arg.value ?? arg.description ?? "").includes("Maximum update depth exceeded")))
+      errors.push("React exceeded the maximum update depth");
   };
   await send("Runtime.enable");
   await send("Page.enable");
@@ -274,6 +281,16 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
   await click("发送 ↑");
   await until(
     `window.__product.conversations.length===1 && window.__product.lastSend?.input==='第一条消息'`,
+  );
+  // 工程内新对话：发送即绑定编辑器当前工程（导入的工程）；无片段目标时不携带范围。
+  await until(
+    `window.__product.conversations.some(c=>c.projectId===window.__product.projects[1].id)`,
+  );
+  if ((await evaluate(`window.__product.lastSend?.scope`)) !== null)
+    throw Error("clip-free editor target must send a whole-project scope");
+  await clickIn(".agent-dock", "解绑工程");
+  await until(
+    `window.__product.conversations.every(c=>!c.projectId)`,
   );
   await clickIn(".agent-dock", "绑定当前工程");
   await until(
@@ -704,4 +721,11 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
       process.kill(-child.pid, "SIGTERM");
     } catch {}
   }
+  await Promise.all([vite, chrome].map(child => child.exitCode !== null || child.signalCode !== null ? null : new Promise(resolve => {
+    const timer = setTimeout(resolve, 2000);
+    child.once("exit", () => { clearTimeout(timer); resolve(); });
+  })));
+  closeSync(log);
+  if (artifactParent) console.log(`Browser artifacts: ${dir}`);
+  else rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
 }

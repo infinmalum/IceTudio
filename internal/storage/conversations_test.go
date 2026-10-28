@@ -116,6 +116,9 @@ func TestComponentProjectionAndRevisionHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if main.AllowsTool("project__query") || main.AllowsTool("project__edit") {
+		t.Fatal("explicit empty main subset reopened native project tools")
+	}
 	if main.SystemPrompt != "main override" || main.AllowsTool("local__current_time") || worker.SystemPrompt != "worker override" || !worker.AllowsTool("local__current_time") {
 		t.Fatal("component projection broadened tools or changed sibling")
 	}

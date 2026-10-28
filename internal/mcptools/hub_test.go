@@ -7,8 +7,24 @@ import (
 	"strings"
 	"testing"
 
+	"icetudio/internal/config"
 	"icetudio/internal/skills"
 )
+
+func TestProjectNamespaceReservedForNativeTools(t *testing.T) {
+	hub, err := NewLocal(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hub.Close()
+	server := config.MCPServer{Name: "project", Command: "does-not-run"}
+	if err := hub.Configure([]config.MCPServer{server}); err == nil {
+		t.Fatal("external server claimed native project namespace")
+	}
+	if err := hub.ConnectCommand(context.Background(), server); err == nil || !strings.Contains(err.Error(), "名称或命令无效") {
+		t.Fatalf("reserved server reached process resolution: %v", err)
+	}
+}
 
 func TestLocalMCPToolDiscoveryAndCall(t *testing.T) {
 	hub, err := NewLocal(context.Background(), nil)

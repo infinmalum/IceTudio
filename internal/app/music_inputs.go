@@ -28,11 +28,11 @@ type MusicInputsRecord struct {
 type musicInputsShape struct {
 	Version int `json:"version"`
 	Entries []struct {
-		Key     string `json:"key"`
-		Raw     string `json:"raw"`
-		Label   string `json:"label"`
-		Title   string `json:"title"`
-		Target  struct {
+		Key    string `json:"key"`
+		Raw    string `json:"raw"`
+		Label  string `json:"label"`
+		Title  string `json:"title"`
+		Target struct {
 			ID       string `json:"id"`
 			Revision int64  `json:"revision"`
 		} `json:"target"`

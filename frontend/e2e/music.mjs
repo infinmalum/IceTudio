@@ -20,6 +20,8 @@ export const DesktopService={Ready:async()=>{closeState.readyCalls++;if(window.m
 const audio=window.musicTransport={available:true,ready:false,playing:false,projectId:'',revision:0,tick:0,endTick:960,loop:false,loopStart:0,loopEnd:960,sampleRate:48000,callbacks:0,missedBlocks:0,loops:0,skippedEvents:0,engine:'UI transport mock',settings:{version:2,driver:'pulseaudio',fonts:[],defaultFont:''},resolvedFont:'Basic Waves（内置基础波形）',resolvedKind:'basic',notice:'',error:''};
 export const PlaybackService={Status:async()=>structuredClone(audio),Play:async req=>{if(window.musicAudioFailure)throw Error('test device unavailable');const p=await call('GetProject',req.projectId);audio.ready=true;audio.playing=true;audio.projectId=req.projectId;audio.revision=p.revision;audio.tick=req.tick;audio.loop=req.loop;audio.loopStart=req.loopStart;audio.loopEnd=req.loopEnd;audio.endTick=Math.max(1920,...p.state.tracks.flatMap(t=>t.clips.map(c=>c.start+c.length)))},Stop:async()=>{audio.playing=false},StopProject:async id=>{if(audio.projectId===id)audio.playing=false},Seek:async req=>{(window.musicSeekRequests??=[]).push(req);audio.tick=req.tick;audio.loop=req.loop;audio.loopStart=req.loopStart;audio.loopEnd=req.loopEnd},Configure:async settings=>{audio.settings=settings;audio.ready=true;audio.playing=false},PickSoundFont:async()=>window.musicPickedFont??'',AddSoundFont:async path=>({id:'font_test',name:path.split('/').pop(),path,priority:0,addedAt:''}),RemoveSoundFont:async()=>{},SetDefaultSoundFont:async()=>{},MoveSoundFont:async()=>{},ResetAudioSettings:async()=>{},Audition:async()=>{},StopAudition:async()=>{},SoundFonts:async()=>({bundled:{id:'bundled',name:'MuseScore_General.sf3',path:'',source:'bundled',exists:false,size:0,error:'',active:false,isDefault:true,priority:-1},basic:{id:'basic',name:'Basic Waves（内置基础波形）',path:'',source:'basic',exists:true,size:0,error:'',active:true,isDefault:false,priority:1073741824},fonts:[],defaultFont:'',notice:''})};
 export const ProjectService=new Proxy({}, {get:(_,method)=>async(...args)=>{
+ if(method==='PlayProjectEditPreview'){const p=await call('PreviewProjectEdit',args[0]);if(window.musicPreviewPlayHold)await new Promise(resolve=>{window.musicPreviewPlayRelease=resolve});audio.previewId=args[0];audio.previewVariant=args[1];audio.playing=true;audio.projectId=p.projectId;audio.revision=p.baseRevision;window.musicPreviewPlayCompleted=(window.musicPreviewPlayCompleted??0)+1;return null}
+ if(method==='StopProjectEditPreview'){if(audio.previewId===args[0]){audio.previewId='';audio.previewVariant='';audio.playing=false}return null}
  if(method==='GetTimeMapDraft'&&window.musicDraftReadFails){window.musicDraftReadFails--;throw new window.__musicRuntimeError('test draft read failed')}
  const inputsRecord=()=>{const raw=localStorage.getItem('test.musicInputsRecord');return raw?JSON.parse(raw):null};
  if(method==='GetMusicInputs'){if(window.musicInputsReadFails){window.musicInputsReadFails--;throw new window.__musicRuntimeError('test music inputs read failed')}return inputsRecord()}
@@ -34,6 +36,7 @@ export const ProjectService=new Proxy({}, {get:(_,method)=>async(...args)=>{
  if(method==='ClearPendingProjectEdit'&&window.musicRecoveryClearFails)throw new TypeError('test recovery clear failed');
  if(method==='GetProjectTransaction'&&window.musicLookupFails){window.musicLookupFails--;throw Error('test lookup interrupted')}
  const result=await call(method,...(['UndoProject','RedoProject'].includes(method)?[args[0],args[1],'gui',args[2]]:args));
+ if(method==='PreviewProjectEdit'&&window.musicPreviewHold)await new Promise(resolve=>{window.musicPreviewRelease=resolve});
  if(method==='SaveTimeMapDraft'&&window.musicDraftLoseReply){window.musicDraftLoseReply=false;throw new TypeError('test draft reply lost')}
  if(method==='BeginProjectEdit'&&window.musicRecoveryBeginLoseReply){window.musicRecoveryBeginLoseReply=false;throw new TypeError('test Begin reply lost after persist')}
  if(method==='SubmitProjectOps'&&window.musicHoldSave)await new Promise(resolve=>{window.musicReleaseSave=resolve});
@@ -55,7 +58,7 @@ try{
  ws=new WebSocket(targets.find(t=>t.type==='page').webSocketDebuggerUrl);await new Promise((r,j)=>{ws.onopen=r;ws.onerror=j});
  let seq=0;const pending=new Map();
  const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq;const timer=setTimeout(()=>reject(Error('timeout '+method)),20000);pending.set(id,{resolve,reject,timer});ws.send(JSON.stringify({id,method,params}))});
- ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.id){const q=pending.get(m.id);if(q){pending.delete(m.id);clearTimeout(q.timer);m.error?q.reject(Error(JSON.stringify(m.error))):q.resolve(m.result)}}else if(m.method==='Fetch.requestPaused'){const body=m.params.request.url.includes('/bindings/')?bridge:runtime;send('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'text/javascript'}],body:Buffer.from(body).toString('base64')}).catch(e=>report.errors.push(String(e)))}else if(m.method==='Runtime.exceptionThrown')report.errors.push(m.params.exceptionDetails.exception?.description||m.params.exceptionDetails.text)};
+ ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.id){const q=pending.get(m.id);if(q){pending.delete(m.id);clearTimeout(q.timer);m.error?q.reject(Error(JSON.stringify(m.error))):q.resolve(m.result)}}else if(m.method==='Fetch.requestPaused'){const body=m.params.request.url.includes('/bindings/')?bridge:runtime;send('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'text/javascript'}],body:Buffer.from(body).toString('base64')}).catch(e=>report.errors.push(String(e)))}else if(m.method==='Runtime.exceptionThrown')report.errors.push(m.params.exceptionDetails.exception?.description||m.params.exceptionDetails.text);else if(m.method==='Runtime.consoleAPICalled'&&m.params.args.some(a=>String(a.value??a.description??'').includes('Maximum update depth exceeded')))report.errors.push('React exceeded the maximum update depth')};
  const ev=async expression=>{const v=await send('Runtime.evaluate',{expression:`(async()=>(${expression}))()`,returnByValue:true,awaitPromise:true});if(v.exceptionDetails)throw Error(v.exceptionDetails.exception?.description||v.exceptionDetails.text);return v.result.value};
  debug=async()=>{const shot=await send('Page.captureScreenshot');writeFileSync(resolve(dir,'debug.png'),Buffer.from(shot.data,'base64'));return ev('document.body.innerText')};
  const until=async expression=>{for(let i=0;i<120;i++){try{if(await ev(`Boolean(${expression})`))return}catch(e){if(!/Inspected target navigated|Cannot find context|Execution context was destroyed/.test(String(e)))throw e}await sleep(100)}throw Error('not reached '+expression)};
@@ -299,6 +302,55 @@ try{
  const empty=await rect('.gsui-row[data-midi="62"] > div');
  const nr=await rect('[data-id=n_seed]');await mouse('mousePressed',nr.x+240,empty.y,{clickCount:1});await mouse('mouseReleased',nr.x+240,empty.y,{clickCount:1});
  await until('(await getMusic()).state.tracks[0].clips[0].notes.length===3');report.checks.push('Empty-row click adds a note');
+ // Production approval card and ghost adapter, driven by actual scripted
+ // Agent runs. Only the audio facade remains mocked in this browser suite.
+ await ev(`(async()=>{window.previewBefore=await getMusic();window.previewClip=previewBefore.state.tracks[0].clips[0].id;window.previewCall=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(previewCall)})()`);
+ await until('document.querySelector(".music-edit-approval")');
+ await check('Music adoption is disabled until a valid preview is inspected',`Array.from(document.querySelectorAll('.music-edit-approval button')).find(b=>b.textContent==='采用这次修改').disabled`);
+ await click('查看音符差异','.music-edit-approval');await until('document.querySelector(".note-diff-table tbody tr")');
+ await check('Candidate preview reads real pending Agent parameters without changing project revision',`(await getMusic()).revision===previewBefore.revision&&document.querySelector('.note-diff-table').textContent.includes('力度')`);
+ await click('在卷帘查看','.music-edit-approval');await until('document.querySelector(".piano-ghost-after")');
+ await check('Ghosts are read-only and excluded from vendor note count',`getComputedStyle(document.querySelector('.piano-ghost')).pointerEvents==='none'&&Array.from(document.querySelectorAll('.piano-ghost')).every(e=>!e.dataset.id)&&(await getMusic()).state.tracks[0].clips[0].notes.length===3`);
+ await click('试听候选','.music-edit-approval');await until('document.querySelector(".preview-playing")');
+ await check('Preview transport explicitly labels the uncommitted candidate (mock audio)',`document.querySelector('.preview-playing').textContent.includes('候选')&&(await getMusic()).revision===previewBefore.revision`);
+ await click('采用这次修改','.music-edit-approval');await until('(await getMusic()).revision===previewBefore.revision+1&&!document.querySelector(".music-edit-approval")&&!document.querySelector(".piano-ghost")');
+ await check('Adoption executes the original Agent transaction and retires ghosts',`(await getMusic()).state.tracks[0].clips[0].notes.every((n,i)=>n.pitch===previewBefore.state.tracks[0].clips[0].notes[i].pitch+1)`);
+ await click('撤销','.transport-bar');await until('(await getMusic()).revision===previewBefore.revision+2');
+ await check('Agent candidate uses the same GUI undo history',`JSON.stringify((await getMusic()).state.tracks[0].clips[0].notes)===JSON.stringify(previewBefore.state.tracks[0].clips[0].notes)`);
+ await ev(`(async()=>{window.discardBefore=(await getMusic()).revision;window.previewCall=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(previewCall)})()`);
+ await click('查看音符差异','.music-edit-approval');await until('document.querySelector(".note-diff-table tbody tr")');await click('在卷帘查看','.music-edit-approval');
+ await click('丢弃候选','.music-edit-approval');await until('!document.querySelector(".music-edit-approval")&&!document.querySelector(".piano-ghost")');
+ await check('Discarding a pending candidate leaves music untouched',`(await getMusic()).revision===discardBefore`);
+ await ev(`(async()=>{window.previewCall=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(previewCall)})()`);
+ await click('查看音符差异','.music-edit-approval');await until('document.querySelector(".note-diff-table tbody tr")');await click('在卷帘查看','.music-edit-approval');
+ await ev(`(async()=>{const p=await getMusic();await musicCall('SubmitProjectOps',p.id,'preview-user-edit','external',p.revision,[{kind:'project.rename',title:p.title}])})()`);
+ await until('document.querySelector(".music-edit-approval [role=alert]")?.textContent.includes("过时")&&!document.querySelector(".piano-ghost")');
+ await check('User edit invalidates candidate projection and disables adoption',`Array.from(document.querySelectorAll('.music-edit-approval button')).find(b=>b.textContent==='采用这次修改').disabled`);
+ await click('丢弃候选','.music-edit-approval');await until('!document.querySelector(".music-edit-approval")');
+ await ev(`(async()=>{window.previewCall=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(previewCall);window.musicPreviewHold=true})()`);
+ await click('查看音符差异','.music-edit-approval');await until('window.musicPreviewRelease');
+ await ev(`(async()=>{const p=await getMusic();await musicCall('SubmitProjectOps',p.id,'preview-inflight-user-edit','external',p.revision,[{kind:'project.rename',title:p.title}])})()`);
+ await until('document.querySelector(".music-edit-approval [role=alert]")?.textContent.includes("过时")');
+ await ev(`(()=>{window.musicPreviewHold=false;musicPreviewRelease();delete window.musicPreviewRelease})()`);
+ await sleep(100);await check('Project change invalidates even an in-flight preview response',`!document.querySelector('.note-diff-table')&&Array.from(document.querySelectorAll('.music-edit-approval button')).find(b=>b.textContent==='采用这次修改').disabled`);
+ await click('丢弃候选','.music-edit-approval');await until('!document.querySelector(".music-edit-approval")');
+ for(const retire of ['stop','unmount']) {
+   await ev(`(async()=>{window.previewCall=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(previewCall)})()`);
+   await click('查看音符差异','.music-edit-approval');await until('document.querySelector(".note-diff-table tbody tr")');
+   await ev(`(()=>{window.musicPreviewPlayHold=true;window.previewPlayBefore=window.musicPreviewPlayCompleted??0})()`);
+   await click('试听候选','.music-edit-approval');await until('window.musicPreviewPlayRelease');
+   if(retire==='stop')await click('停止候选试听','.music-edit-approval');
+   else {await ev(`musicShowPreview(null)`);await until('!document.querySelector(".music-edit-approval")')}
+   await ev(`(()=>{window.musicPreviewPlayHold=false;musicPreviewPlayRelease();delete window.musicPreviewPlayRelease})()`);
+   await until('(window.musicPreviewPlayCompleted??0)>previewPlayBefore&&!musicTransport.previewId&&!musicTransport.playing');
+   await check(retire+' retires a late audition request (mock audio)',`!musicTransport.previewId&&!musicTransport.playing`);
+   await ev(`(async()=>{await musicCall('DenyToolCall',previewCall.id,'结束迟到试听');musicShowPreview(null)})()`);
+ }
+ await ev(`(async()=>{window.lateA=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(lateA);window.musicPreviewHold=true})()`);
+ await click('查看音符差异','.music-edit-approval');await until('window.musicPreviewRelease');
+ await ev(`(async()=>{window.musicPreviewHold=false;window.lateB=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(lateB);musicPreviewRelease();delete window.musicPreviewRelease})()`);
+ await sleep(100);await check('Unmounted candidate response cannot replace a newer candidate view',`!document.querySelector('.note-diff-table')&&!document.querySelector('.piano-ghost')`);
+ await ev(`(async()=>{await musicCall('DenyToolCall',lateA.id,'结束旧候选');await musicCall('DenyToolCall',lateB.id,'结束新候选');musicShowPreview(null)})()`);
  // Keyboard edits use the same batch path; IME input in numeric controls
  // must not trigger note operations.
  await click('全选本页');
@@ -562,6 +614,7 @@ try{
  await check('Blank numeric music input is retained without a zero edit',`(await getMusic()).revision===inputBase.revision&&JSON.parse(JSON.parse(localStorage.getItem('test.musicInputsRecord')).payload).entries[0].raw===''&&document.querySelector('[aria-label="片段长度（tick）"]').value===''`);
  const inputOrigin=await ev('performance.timeOrigin');await send('Page.reload');await until(`performance.timeOrigin!==${inputOrigin}&&document.querySelector('[aria-label="已保留音乐输入"]')&&document.querySelector('[data-close-guard=ready]')`);
  await ev(`window.getMusic=()=>musicCall('GetProject',localStorage.getItem('icetudio.lastProject'))`);
+ await until('document.querySelector(\'[aria-label="片段长度（tick）"]\')');
  await check('Reload offers music input without automatically restoring or applying it',`document.querySelector('[aria-label="片段长度（tick）"]').disabled&&document.querySelector('[aria-label="片段长度（tick）"]').value!==''`);
  await click('恢复输入','[aria-label="已保留音乐输入"]');await until(`document.querySelector('[aria-label="片段长度（tick）"]').value===''`);
  await ev(`(async()=>{const p=await getMusic();await musicCall('SubmitProjectOps',p.id,'input-conflict','cli',p.revision,[{kind:'track.update',trackId:p.state.tracks[0].id,trackPatch:{name:'输入冻结检查'}}])})()`);await until('document.querySelector(".track-name").textContent==="输入冻结检查"');
@@ -596,7 +649,24 @@ try{
   const scrollBegan=performance.now();await ev(`(()=>{const a=document.querySelector('.gsuiTimewindow-scrollArea');a.scrollTop+=200;a.scrollLeft+=120})()`);await ev('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
   const scrollMs=performance.now()-scrollBegan,selectBegan=performance.now();await click('全选本页');await ev('new Promise(requestAnimationFrame)');const selectMs=performance.now()-selectBegan;
   await check(`Dense ${count} all-page selection includes notes outside the mounted viewport`,`document.body.textContent.includes('${count} 个已选')`);
+  if(count===1000) {
+   await check('Dense note selection displays without per-note transitions',`(()=>{const n=document.querySelector('.piano-host .gsuiBlocksManager-block[data-selected]');return !!n&&getComputedStyle(n).transitionDuration==='0s'})()`);
+   await check('Selected velocity slider retains the correct stacking order',`(()=>{const s=document.querySelector('.gsuiSliderGroup-sliderSelected');return !!s&&Number(s.style.zIndex)===Math.floor(parseFloat(s.style.left)*100)+1000})()`);
+   await click('取消选择');await until(`document.body.textContent.includes('0 个已选')`);
+   await check('Deselected velocity slider restores its stacking order',`(()=>{const s=document.querySelector('.gsuiSliderGroup-slider');return !!s&&!s.classList.contains('gsuiSliderGroup-sliderSelected')&&Number(s.style.zIndex)===Math.floor(parseFloat(s.style.left)*100)})()`);
+   await click('全选本页');await until(`document.body.textContent.includes('1000 个已选')`);
+  }
+  const profileDense=process.env.ICETUDIO_PROFILE_DENSE==='1'&&count===10000;
+  let traceDone;
+  if(profileDense){
+   traceDone=new Promise(resolve=>{const listener=e=>{const m=JSON.parse(e.data);if(m.method==='Tracing.tracingComplete'){ws.removeEventListener('message',listener);resolve(m.params.stream)}};ws.addEventListener('message',listener)});
+   await send('Profiler.enable');await send('Profiler.start');await send('Tracing.start',{categories:'devtools.timeline,v8',transferMode:'ReturnAsStream'});
+  }
   const editBegan=performance.now();await fill('[aria-label="音符力度"]','99');await click('应用力度');await until(`(await getMusic()).state.tracks[0].clips[0].notes.every(n=>n.velocity===99)&&!document.querySelector('gsui-pianoroll[disabled]')`);
+  if(profileDense){
+   await send('Tracing.end');const stream=await traceDone;let trace='';for(;;){const part=await send('IO.read',{handle:stream});trace+=part.data;if(part.eof)break}await send('IO.close',{handle:stream});writeFileSync(resolve(dir,'dense-edit-trace.json'),trace);
+   const profile=await send('Profiler.stop');writeFileSync(resolve(dir,'dense-edit-profile.json'),JSON.stringify(profile.profile));await send('Profiler.disable');
+  }
   await check(`Dense ${count} edit keeps every source note and updates offscreen notes`,`(await getMusic()).state.tracks[0].clips[0].notes.length===${count}`);
   const frames=await ev(`(()=>{window.denseCapture=false;const v=denseFrames.slice().sort((a,b)=>a-b);return {max:v.at(-1),p95:v[Math.floor(v.length*.95)],samples:v.length}})()`);
   report.timings.push({shape:'same-page-dense',count,...projected,commitAndInteractionMs:performance.now()-began,scrollMs,selectMs,editToVisibleMs:performance.now()-editBegan,frameGaps:frames});

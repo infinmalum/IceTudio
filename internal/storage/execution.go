@@ -44,6 +44,7 @@ type WorkerConfiguration struct {
 	AllMCPServers     bool         `json:"allMcpServers"`
 	EnabledMCPServers []string     `json:"enabledMcpServers"`
 	AllowedTools      []string     `json:"allowedTools"`
+	RestrictTools     bool         `json:"restrictTools,omitempty"`
 	AllSkills         bool         `json:"allSkills"`
 	EnabledSkills     []string     `json:"enabledSkills"`
 	ContextBudget     int          `json:"contextBudget"`
@@ -54,7 +55,7 @@ func WorkerConfigurationFrom(c RuntimeConfig) (WorkerConfiguration, error) {
 	if err != nil {
 		return WorkerConfiguration{}, err
 	}
-	return WorkerConfiguration{Name: c.Name, Persona: d.Persona, SystemPrompt: d.SystemPrompt, Model: d.Model, AllMCPServers: d.AllMCPServers, EnabledMCPServers: d.EnabledMCPServers, AllowedTools: d.AllowedTools, AllSkills: d.AllSkills, EnabledSkills: d.EnabledSkills, ContextBudget: d.ContextBudget}, nil
+	return WorkerConfiguration{Name: c.Name, Persona: d.Persona, SystemPrompt: d.SystemPrompt, Model: d.Model, AllMCPServers: d.AllMCPServers, EnabledMCPServers: d.EnabledMCPServers, AllowedTools: d.AllowedTools, RestrictTools: d.RestrictTools, AllSkills: d.AllSkills, EnabledSkills: d.EnabledSkills, ContextBudget: d.ContextBudget}, nil
 }
 
 func (c WorkerConfiguration) ConfigData() RuntimeConfigData {
@@ -65,6 +66,7 @@ func (c WorkerConfiguration) ConfigData() RuntimeConfigData {
 	d.AllMCPServers = c.AllMCPServers
 	d.EnabledMCPServers = c.EnabledMCPServers
 	d.AllowedTools = c.AllowedTools
+	d.RestrictTools = c.RestrictTools
 	d.AllSkills = c.AllSkills
 	d.EnabledSkills = c.EnabledSkills
 	d.ContextBudget = c.ContextBudget
@@ -237,9 +239,11 @@ func (data RuntimeConfigData) ResolveComponent(role string) (RuntimeConfigData, 
 		out.AllMCPServers = false
 		out.EnabledMCPServers = nil
 		out.AllowedTools = nil
+		out.RestrictTools = true
 	}
 	if c.RestrictTools && role != "planner" && role != "reviewer" && role != "improver" {
 		out.AllowedTools = append([]string(nil), c.AllowedTools...)
+		out.RestrictTools = true
 		if len(c.AllowedTools) == 0 {
 			out.AllMCPServers = false
 			out.EnabledMCPServers = nil

@@ -10,7 +10,7 @@ import (
 func evidenceTarget(t *testing.T, s *Service, c storage.Conversation) (storage.Run, storage.ToolCall) {
 	t.Helper()
 	ctx := context.Background()
-	r, _, _, err := s.runs.StartPrepared(ctx, c.ID, s.config.Model, s.skills.Snapshot)
+	r, _, _, err := s.runs.StartPrepared(ctx, c.ID, s.config.Model, s.skills.Snapshot, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestSkillDraftRejectsInvalidTaskEvidence(t *testing.T) {
 	if _, err = s.StartSkillDraft(c.ID, "", "重复", []string{target.ID, target.ID}); err == nil {
 		t.Fatal("duplicate evidence allowed")
 	}
-	r, _, _, err := s.runs.StartPrepared(ctx, c.ID, s.config.Model, s.skills.Snapshot)
+	r, _, _, err := s.runs.StartPrepared(ctx, c.ID, s.config.Model, s.skills.Snapshot, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestManagedSkillCarriesSourceScopesAcrossReuse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, _, resolved, err := s.runs.StartPrepared(ctx, independent.ID, s.config.Model, s.skills.Snapshot)
+	run, _, resolved, err := s.runs.StartPrepared(ctx, independent.ID, s.config.Model, s.skills.Snapshot, "")
 	if err != nil {
 		t.Fatal(err)
 	}

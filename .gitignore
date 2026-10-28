@@ -63,3 +63,10 @@ build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 # 默认音色大文件不进 Git 历史（授权档案与 NOTICE 保留；用 scripts/fetch-soundfont.sh 拉取）
 assets/soundfonts/*.sf2
 assets/soundfonts/*.sf3
+
+# Local implementation plans, stage contracts and validation records.
+# Keep these files on disk without publishing them with the code.
+/IMPLEMENTATION_PLAN.md
+/docs/p[0-9]-*.md
+/docs/validation/
+/docs/history/*implementation*.md

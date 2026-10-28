@@ -34,7 +34,7 @@ func fixedFixture(t *testing.T, m *dynamicMock) (*Service, storage.Conversation,
 func TestFixedWorkflowParallelJoinFrozenConfigurationAndShare(t *testing.T) {
 	m := &dynamicMock{barrier: make(chan struct{})}
 	s, c, p := fixedFixture(t, m)
-	r, err := s.StartConversationTask(c.ID, "分析用户材料")
+	r, err := s.StartConversationTask(c.ID, "分析用户材料", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestFixedWorkflowSerialEffectsAndReviewGate(t *testing.T) {
 			if _, err := s.UpdateRuntimeConfig(p); err != nil {
 				t.Fatal(err)
 			}
-			r, err := s.StartConversationTask(c.ID, "用户特定目标")
+			r, err := s.StartConversationTask(c.ID, "用户特定目标", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -165,7 +165,7 @@ func TestFixedWorkflowFailureStopsSuccessorsAndDoesNotRetry(t *testing.T) {
 			if _, err := s.UpdateRuntimeConfig(p); err != nil {
 				t.Fatal(err)
 			}
-			r, err := s.StartConversationTask(c.ID, "用户特定目标")
+			r, err := s.StartConversationTask(c.ID, "用户特定目标", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -192,7 +192,7 @@ func TestFixedWorkflowApprovalDenialStopsDispatch(t *testing.T) {
 	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
-	r, err := s.StartConversationTask(c.ID, "用户特定目标")
+	r, err := s.StartConversationTask(c.ID, "用户特定目标", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestFixedWorkflowIndependentInspectionsDoNotExecuteStages(t *testing.T) {
 	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
-	original, err := s.StartConversationTask(c.ID, "用户特定目标")
+	original, err := s.StartConversationTask(c.ID, "用户特定目标", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

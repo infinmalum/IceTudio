@@ -61,6 +61,14 @@ export function ProjectEditor({ project, projects: p }: { project: Project; proj
   const changeView = (next: EditorView) => { setView(next); try { localStorage.setItem(VIEW_KEY, next); } catch {} };
   const toggleInspector = (open: boolean) => { setInspectorOpen(open); try { localStorage.setItem(INSPECTOR_KEY, open ? "1" : "0"); } catch {} };
   const openClip = () => { if (view === "arrange") changeView("split"); };
+  useEffect(()=>{
+    const candidate=p.preview;
+    const focus=candidate?.diff.changes?.[0];
+    if (candidate?.projectId===project.id && focus) {
+      setTrackID(focus.trackId);setClipID(focus.clipId);
+      setView("split");try{localStorage.setItem(VIEW_KEY,"split")}catch{}
+    }
+  },[p.preview,project.id]);
   const track = tracks.find(t => t.id === trackID) ?? tracks[0];
   const clip = track?.clips?.find(c => c.id === clipID) ?? track?.clips?.[0];
   useEffect(() => {
@@ -71,6 +79,17 @@ export function ProjectEditor({ project, projects: p }: { project: Project; proj
     }
   }, [p.inputs.focus, project.id]);
   const target = { id: project.id, revision: project.revision };
+  // 发送范围来源（docs/p3-agent-scope.md §5）：卷帘/拆分视图下是当前片段，
+  // 编排视图是整个工程；编辑器卸载时清空，避免指向已关闭的工程。
+  const setSendTarget = p.setSendTarget;
+  useEffect(() => {
+    if (view !== "arrange" && clip) {
+      setSendTarget({ projectID: project.id, clips: [clip.id], label: clip.name || "所选片段" });
+    } else {
+      setSendTarget({ projectID: project.id, clips: [], label: "整个工程" });
+    }
+    return () => setSendTarget(null);
+  }, [setSendTarget, project.id, view, clip?.id, clip?.name]);
   useEffect(() => () => stopAudition(), []);
   const edit = (ops: Op[], frozen: EditTarget = target) => p.edit(frozen, ops);
   function addTrack() {
@@ -116,7 +135,7 @@ export function ProjectEditor({ project, projects: p }: { project: Project; proj
           select={(tid, cid) => { setTrackID(tid); setClipID(cid); }}/>}
         {view !== "arrange" && (track && clip
           ? (project.state.meter?.length && project.state.tempo?.length
-            ? <PianoRoll key={`${project.id}/${track.id}/${clip.id}`} title={project.title} target={{ ...target, track, clip, ppq: project.ppq }} meter={project.state.meter} tempo={project.state.tempo} busy={p.busy} edit={p.edit} shift={p.shift} reportError={p.reportError} snap={snap}/>
+            ? <PianoRoll key={`${project.id}/${track.id}/${clip.id}`} title={project.title} target={{ ...target, track, clip, ppq: project.ppq }} meter={project.state.meter} tempo={project.state.tempo} busy={p.busy} edit={p.edit} shift={p.shift} reportError={p.reportError} snap={snap} preview={p.preview}/>
             : null)
           : <p className="editor-help pane-hint">{track ? "选择或双击一个片段进入钢琴卷帘" : "先添加音轨，再选择片段进入钢琴卷帘"}</p>)}
       </div>

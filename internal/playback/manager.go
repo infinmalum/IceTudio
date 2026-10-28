@@ -29,18 +29,19 @@ type Settings struct {
 	Fonts       []FontEntry `json:"fonts"`
 	DefaultFont string      `json:"defaultFont"` // 音色 ID；空 = 打包默认音色（缺失时自动回退）
 }
+
 // FontState 是单个音色来源的当前状态；文件级检查不打开引擎。
 type FontState struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Path     string `json:"path"`
-	Source   string `json:"source"` // user | bundled | basic
-	Exists   bool   `json:"exists"`
-	Size     int64  `json:"size"`
-	Error    string `json:"error"`
-	Active   bool   `json:"active"`
-	IsDefault bool  `json:"isDefault"`
-	Priority int    `json:"priority"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	Source    string `json:"source"` // user | bundled | basic
+	Exists    bool   `json:"exists"`
+	Size      int64  `json:"size"`
+	Error     string `json:"error"`
+	Active    bool   `json:"active"`
+	IsDefault bool   `json:"isDefault"`
+	Priority  int    `json:"priority"`
 }
 type FontList struct {
 	Bundled     FontState   `json:"bundled"`
@@ -58,52 +59,57 @@ type Request struct {
 	LoopEnd   int64  `json:"loopEnd"`
 }
 type Status struct {
-	Available     bool     `json:"available"`
-	Ready         bool     `json:"ready"`
-	Playing       bool     `json:"playing"`
-	ProjectID     string   `json:"projectId"`
-	Revision      int64    `json:"revision"`
-	Tick          float64  `json:"tick"`
-	EndTick       int64    `json:"endTick"`
-	Loop          bool     `json:"loop"`
-	LoopStart     int64    `json:"loopStart"`
-	LoopEnd       int64    `json:"loopEnd"`
-	SampleRate    int      `json:"sampleRate"`
-	Callbacks     int64    `json:"callbacks"`
-	MissedBlocks  int64    `json:"missedBlocks"`
-	Loops         int64    `json:"loops"`
-	SkippedEvents int      `json:"skippedEvents"`
-	Engine        string   `json:"engine"`
-	Settings      Settings `json:"settings"`
-	ResolvedFont  string   `json:"resolvedFont"` // 引擎实际加载的音色名
-	ResolvedKind  string   `json:"resolvedKind"` // user | bundled | basic
-	Notice        string   `json:"notice"`       // 回退/告警（非错误）
-	Error         string   `json:"error"`
+	Available      bool     `json:"available"`
+	Ready          bool     `json:"ready"`
+	Playing        bool     `json:"playing"`
+	ProjectID      string   `json:"projectId"`
+	Revision       int64    `json:"revision"`
+	Tick           float64  `json:"tick"`
+	EndTick        int64    `json:"endTick"`
+	Loop           bool     `json:"loop"`
+	LoopStart      int64    `json:"loopStart"`
+	LoopEnd        int64    `json:"loopEnd"`
+	SampleRate     int      `json:"sampleRate"`
+	Callbacks      int64    `json:"callbacks"`
+	MissedBlocks   int64    `json:"missedBlocks"`
+	Loops          int64    `json:"loops"`
+	SkippedEvents  int      `json:"skippedEvents"`
+	Engine         string   `json:"engine"`
+	Settings       Settings `json:"settings"`
+	ResolvedFont   string   `json:"resolvedFont"` // 引擎实际加载的音色名
+	ResolvedKind   string   `json:"resolvedKind"` // user | bundled | basic
+	Notice         string   `json:"notice"`       // 回退/告警（非错误）
+	Error          string   `json:"error"`
+	PreviewID      string   `json:"previewId,omitempty"`
+	PreviewVariant string   `json:"previewVariant,omitempty"`
 }
 type Getter func(string) (Snapshot, error)
 type Manager struct {
-	mu            sync.Mutex
-	control       sync.Mutex // serialize user controls, not audio callbacks
-	dir           string
-	open          func(string, string) (*native, error)
-	get           Getter
-	settings      Settings
-	settingsErr   error
-	engine        *native
-	score         *Score
-	request       Request
-	targetID      string // most recently requested project, including in-flight Play
-	generation    uint64
-	closed        bool
-	errorText     string
-	resolvedFont  string
-	resolvedKind  string
-	notice        string
-	updates       chan struct{}
-	done          chan struct{}
-	wg            sync.WaitGroup
-	lastCallbacks int64
-	lastProgress  time.Time
+	mu             sync.Mutex
+	control        sync.Mutex // serialize user controls, not audio callbacks
+	dir            string
+	open           func(string, string) (*native, error)
+	get            Getter
+	settings       Settings
+	settingsErr    error
+	engine         *native
+	score          *Score
+	request        Request
+	targetID       string // most recently requested project, including in-flight Play
+	previewID      string // installed preview token; empty for committed playback
+	previewTarget  string // reserved token, including an in-flight preview
+	previewVariant string
+	generation     uint64
+	closed         bool
+	errorText      string
+	resolvedFont   string
+	resolvedKind   string
+	notice         string
+	updates        chan struct{}
+	done           chan struct{}
+	wg             sync.WaitGroup
+	lastCallbacks  int64
+	lastProgress   time.Time
 }
 
 // BundledFontName 是随发行物提供的默认 GM 音色（MIT，见 assets/soundfonts 授权档）。
@@ -201,9 +207,9 @@ func (m *Manager) bundledCandidates() []string {
 }
 
 type resolved struct {
-	path  string // "" = Basic Waves
-	kind  string // user | bundled | basic
-	name  string
+	path   string // "" = Basic Waves
+	kind   string // user | bundled | basic
+	name   string
 	notice string
 }
 
@@ -316,6 +322,7 @@ func (m *Manager) reconfigure(settings Settings) error {
 	m.settings = settings
 	m.score = nil
 	m.targetID = ""
+	m.previewID, m.previewTarget, m.previewVariant = "", "", ""
 	m.generation++
 	m.errorText = ""
 	m.resolvedFont = choice.name
@@ -735,10 +742,37 @@ func (m *Manager) ensure() error {
 	return nil
 }
 func (m *Manager) Play(req Request) error {
+	return m.play(req, nil, "", "")
+}
+
+// PlayPreview installs only a host-prepared immutable score. It never replaces
+// project state, and committed refresh hints cannot resume this temporary score.
+func (m *Manager) PlayPreview(req Request, snapshot Snapshot, token, variant string) error {
+	if token == "" || (variant != "original" && variant != "candidate") || snapshot.ID != req.ProjectID || snapshot.Revision != req.Revision {
+		return errors.New("候选试听请求无效")
+	}
+	return m.play(req, &snapshot, token, variant)
+}
+
+func (m *Manager) play(req Request, supplied *Snapshot, token, variant string) error {
+	installed := false
+	var requestGeneration uint64
+	defer func() {
+		if supplied != nil && !installed {
+			m.mu.Lock()
+			if m.previewTarget == token && m.generation == requestGeneration {
+				m.previewTarget = ""
+			}
+			m.mu.Unlock()
+		}
+	}()
 	// Requery after installing: a commit during the first read/compile may
 	// have sent its notification before there was a current playback score.
 	// Rejected requests must also preserve coalesced updates for the old score.
 	defer func() {
+		if supplied != nil {
+			return
+		}
 		m.mu.Lock()
 		id := ""
 		if m.score != nil {
@@ -746,7 +780,12 @@ func (m *Manager) Play(req Request) error {
 		}
 		m.mu.Unlock()
 		if id != "" {
-			m.Changed(id)
+			// A delayed self-refresh is not a committed project change. Do
+			// not invalidate a preview that started after control unlocked.
+			select {
+			case m.updates <- struct{}{}:
+			default:
+			}
 		}
 	}()
 
@@ -759,7 +798,16 @@ func (m *Manager) Play(req Request) error {
 	}
 	m.generation++
 	generation := m.generation
+	requestGeneration = generation
+	if m.previewID != "" {
+		if m.engine != nil {
+			m.engine.stop()
+		}
+		m.score = nil
+	}
+	m.previewID, m.previewVariant = "", ""
 	m.targetID = req.ProjectID
+	m.previewTarget = token
 	m.mu.Unlock()
 	if req.ProjectID == "" || req.Tick < 0 || (req.Loop && (req.LoopStart < 0 || req.LoopEnd <= req.LoopStart)) {
 		return errors.New("播放位置或循环范围无效")
@@ -770,6 +818,15 @@ func (m *Manager) Play(req Request) error {
 	}
 	if snapshot.Revision != req.Revision {
 		return errors.New("工程已修改，请刷新后再播放")
+	}
+	if supplied != nil {
+		snapshot = *supplied
+	}
+	m.mu.Lock()
+	cancelled := m.closed || generation != m.generation
+	m.mu.Unlock()
+	if cancelled {
+		return errors.New("播放请求已取消")
 	}
 	score, err := Compile(snapshot)
 	if err != nil {
@@ -784,6 +841,15 @@ func (m *Manager) Play(req Request) error {
 	if err = m.ensure(); err != nil {
 		return err
 	}
+	if supplied != nil {
+		latest, err := m.get(req.ProjectID)
+		if err != nil {
+			return err
+		}
+		if latest.Revision != req.Revision {
+			return errors.New("工程已修改，候选试听已过时")
+		}
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed || generation != m.generation {
@@ -794,6 +860,8 @@ func (m *Manager) Play(req Request) error {
 	}
 	m.score = score
 	m.request = req
+	m.previewID, m.previewTarget, m.previewVariant = token, token, variant
+	installed = true
 	m.errorText = ""
 	return nil
 }
@@ -804,6 +872,27 @@ func (m *Manager) Stop() {
 	if m.engine != nil {
 		m.engine.stop()
 	}
+	if m.previewID != "" {
+		m.score = nil
+	}
+	m.previewID, m.previewTarget, m.previewVariant = "", "", ""
+}
+
+// Token-aware cleanup must not stop a later ordinary play or another preview.
+func (m *Manager) StopPreview(token string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if token == "" || (m.previewTarget != token && m.previewID != token) {
+		return
+	}
+	m.generation++
+	if m.previewID == token {
+		if m.engine != nil {
+			m.engine.stop()
+		}
+		m.score = nil
+	}
+	m.previewID, m.previewTarget, m.previewVariant = "", "", ""
 }
 
 // StopProject is used by an editor being unmounted or completing late work.
@@ -818,6 +907,10 @@ func (m *Manager) StopProject(id string) {
 	if m.engine != nil {
 		m.engine.stop()
 	}
+	if m.previewID != "" {
+		m.score = nil
+	}
+	m.previewID, m.previewTarget, m.previewVariant = "", "", ""
 }
 
 // Seek changes position and loop configuration without starting stopped audio.
@@ -828,6 +921,9 @@ func (m *Manager) Seek(req Request) error {
 	defer m.mu.Unlock()
 	if m.closed || m.engine == nil || m.score == nil || m.score.ID != req.ProjectID {
 		return errors.New("请先播放当前工程，再调整播放位置")
+	}
+	if m.previewID != "" {
+		return errors.New("正在试听候选；请先播放工程，再调整工程播放位置")
 	}
 	if req.Revision != m.score.Revision {
 		return errors.New("播放快照已更新，请重试定位")
@@ -853,6 +949,7 @@ func (m *Manager) Status() Status {
 	defer m.mu.Unlock()
 	out := Status{Available: nativeAvailable(), Engine: "FluidSynth " + nativeVersion(), Settings: m.settings, SampleRate: SampleRate, Error: m.errorText, Ready: m.engine != nil,
 		ResolvedFont: m.resolvedFont, ResolvedKind: m.resolvedKind, Notice: m.notice}
+	out.PreviewID, out.PreviewVariant = m.previewID, m.previewVariant
 	if !out.Available && out.Error == "" {
 		out.Error = "当前构建未启用 Linux/cgo FluidSynth 播放；仍可编辑和导出 MIDI"
 	}
@@ -884,6 +981,21 @@ func (m *Manager) Status() Status {
 }
 func (m *Manager) Changed(id string) {
 	m.mu.Lock()
+	if m.targetID == id && (m.previewTarget != "" || m.previewID != "") {
+		m.generation++
+		hadPreview := m.previewID != ""
+		if hadPreview {
+			if m.engine != nil {
+				m.engine.stop()
+			}
+			m.score = nil
+		}
+		m.previewID, m.previewTarget, m.previewVariant = "", "", ""
+		if hadPreview {
+			m.mu.Unlock()
+			return
+		}
+	}
 	relevant := !m.closed && m.score != nil && m.score.ID == id
 	m.mu.Unlock()
 	if !relevant {
@@ -900,6 +1012,7 @@ func (m *Manager) Deleted(id string) {
 	if m.targetID == id {
 		m.generation++
 		m.targetID = ""
+		m.previewID, m.previewTarget, m.previewVariant = "", "", ""
 	}
 	if m.score != nil && m.score.ID == id {
 		m.engine.stop()
@@ -927,7 +1040,7 @@ func (m *Manager) worker() {
 }
 func (m *Manager) refresh(id string) {
 	m.mu.Lock()
-	if m.closed || m.score == nil || m.score.ID != id {
+	if m.closed || m.score == nil || m.score.ID != id || m.previewID != "" || m.previewTarget != "" {
 		m.mu.Unlock()
 		return
 	}
@@ -979,6 +1092,7 @@ func (m *Manager) Close() {
 		return
 	}
 	m.closed = true
+	m.previewID, m.previewTarget, m.previewVariant = "", "", ""
 	m.generation++
 	close(m.done)
 	engine := m.engine

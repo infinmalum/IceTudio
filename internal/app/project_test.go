@@ -55,7 +55,7 @@ func TestProjectThreeEntrypointsShareOneState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bookkeeping := bookkeepingTools{inner: emptyTools{}, svc: svc, profile: profile, sessionID: conv.ID, runID: "test-run"}
+	bookkeeping := bookkeepingTools{inner: emptyTools{}, svc: svc, profile: profile, sessionID: conv.ID, runID: projectToolRun(t, store, conv.ID)}
 	defs, err := bookkeeping.Definitions(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -183,7 +183,7 @@ func TestProjectToolsRequireBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bookkeeping := bookkeepingTools{inner: emptyTools{}, svc: svc, profile: profile, sessionID: conv.ID, runID: "test-run"}
+	bookkeeping := bookkeepingTools{inner: emptyTools{}, svc: svc, profile: profile, sessionID: conv.ID, runID: projectToolRun(t, store, conv.ID)}
 	defs, err := bookkeeping.Definitions(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -196,12 +196,29 @@ func TestProjectToolsRequireBinding(t *testing.T) {
 	if err := svc.SetConversationProject(conv.ID, proj.ID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := bookkeeping.Call(ctx, "project__query", `{"projectId":"`+proj.ID+`"}`); err == nil {
+		t.Fatal("a later binding must not grant project access to an unbound run")
+	}
+	if err := store.SetRunStatus(ctx, bookkeeping.runID, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	bookkeeping.runID = projectToolRun(t, store, conv.ID)
 	if _, err := bookkeeping.Call(ctx, "project__query", `{"projectId":"other"}`); err == nil {
 		t.Fatal("foreign projectId must be refused")
 	}
 	if _, err := bookkeeping.Call(ctx, "project__edit", `{"projectId":"other","opId":"x","baseRevision":0,"ops":[{"kind":"project.rename","title":"x"}]}`); err == nil {
 		t.Fatal("foreign projectId must be refused")
 	}
+}
+
+// Real run rows exercise the same frozen-scope path used by the agent loop.
+func projectToolRun(t *testing.T, store *storage.Store, sessionID string) string {
+	t.Helper()
+	run, _, err := store.CreateRun(context.Background(), sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return run.ID
 }
 
 func TestProjectImportExportFiles(t *testing.T) {

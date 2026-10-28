@@ -56,6 +56,7 @@ export function Transport({ project, projects: p, snap, setSnap, view, setView }
   const inputDisabled = audio.busy || field.locked || !!field.error;
   const fontTitle = `音源：${status?.resolvedFont || "Basic Waves"}${status?.notice ? `\n${status.notice}` : ""}\n${status?.engine || ""} · ${status?.sampleRate || 48000} Hz\n管理与切换在左侧浏览器「音色」分区`;
   return <section className="transport transport-top" aria-label="工程播放与工具栏" data-busy={audio.busy}>
+    {current?.previewId && <span className="preview-playing" role="status">正在试听{current.previewVariant==="original"?"原版":"候选"} · 尚未采用</span>}
     <div className="transport-bar">
       <button className="transport-play" disabled={disabled || !validPosition || !validLoop} title={!status?.available ? status?.error || "正在读取音频状态" : "从当前位置播放；无需连接模型"}
         onClick={() => void apply(() => audio.play(position, loop, loopStart, loopEnd))}>{current?.playing ? "重播" : "播放"}</button>

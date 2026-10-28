@@ -151,7 +151,7 @@ func TestToolDiscoveryModelLoopLoadsAndExecutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := s.StartConversationTask(session.ID, "发现 task042 工具后执行")
+	r, err := s.StartConversationTask(session.ID, "发现 task042 工具后执行", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

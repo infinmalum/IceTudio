@@ -21,8 +21,8 @@ func (s *PlaybackService) SoundFonts() playback.FontList { return s.svc.SoundFon
 func (s *PlaybackService) AddSoundFont(path string) (playback.FontEntry, error) {
 	return s.svc.AddSoundFont(path)
 }
-func (s *PlaybackService) RemoveSoundFont(id string) error       { return s.svc.RemoveSoundFont(id) }
-func (s *PlaybackService) SetDefaultSoundFont(id string) error   { return s.svc.SetDefaultSoundFont(id) }
+func (s *PlaybackService) RemoveSoundFont(id string) error     { return s.svc.RemoveSoundFont(id) }
+func (s *PlaybackService) SetDefaultSoundFont(id string) error { return s.svc.SetDefaultSoundFont(id) }
 func (s *PlaybackService) MoveSoundFont(id string, delta int) error {
 	return s.svc.MoveSoundFont(id, delta)
 }

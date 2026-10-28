@@ -305,7 +305,12 @@ func (s *Score) Chase(frame int64) []Event {
 						// FluidSynth 2.6.1 retains bank, volume, pan, balance,
 						// sound controllers and effects depth on CC121.
 						cc := k[2]
-						if k[1] == CC && cc == 37 { v := controls[k]; v.B = 0; controls[k] = v; continue }
+						if k[1] == CC && cc == 37 {
+							v := controls[k]
+							v.B = 0
+							controls[k] = v
+							continue
+						}
 						keep := k[1] == CC && (cc == 0 || cc == 32 || cc == 7 || cc == 39 || cc == 10 || cc == 42 || cc == 8 || cc == 40 || cc >= 70 && cc <= 79 || cc >= 91 && cc <= 95 || cc >= 124) || k[1] == Parameter && (cc == 0 || cc == 3 || cc == 4 || cc == 5)
 						if !keep {
 							delete(controls, k)

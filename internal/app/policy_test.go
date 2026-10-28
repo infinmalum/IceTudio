@@ -105,12 +105,12 @@ func TestApprovalFlowSemiMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "ping 一下")
+	run, err := svc.StartConversationTask(session.ID, "ping 一下", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	call := waitForCallState(t, svc, session.ID, storage.CallPending)
-	if _, err := svc.StartConversationTask(session.ID, "再发一次"); err == nil {
+	if _, err := svc.StartConversationTask(session.ID, "再发一次", nil); err == nil {
 		t.Fatal("new run accepted while approval pending")
 	}
 	approved, err := svc.ApproveToolCall(call.ID)
@@ -141,7 +141,7 @@ func TestApprovalDenialReturnsToModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "ping 一下")
+	run, err := svc.StartConversationTask(session.ID, "ping 一下", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestApprovalTimeoutExpiresCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "ping 一下")
+	run, err := svc.StartConversationTask(session.ID, "ping 一下", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestApprovalTimeoutExpiresCall(t *testing.T) {
 	if len(tools.calls) != 0 {
 		t.Fatalf("expired tool executed: %v", tools.calls)
 	}
-	if _, err := svc.StartConversationTask(session.ID, "继续"); err != nil {
+	if _, err := svc.StartConversationTask(session.ID, "继续", nil); err != nil {
 		t.Fatalf("session unusable after expiry: %v", err)
 	}
 	svc.WaitIdle()
@@ -203,7 +203,7 @@ func TestAutomaticModeStillConfirmsUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "ping 一下")
+	run, err := svc.StartConversationTask(session.ID, "ping 一下", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +225,7 @@ func TestSemiModeAutoExecutesPureTool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "几点了")
+	run, err := svc.StartConversationTask(session.ID, "几点了", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +267,7 @@ func TestGateWorkspaceBoundaryHardDeny(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := svc.StartConversationTask(session.ID, "读配置")
+	run, err := svc.StartConversationTask(session.ID, "读配置", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +280,7 @@ func TestGateWorkspaceBoundaryHardDeny(t *testing.T) {
 	// executes in semi mode.
 	chat2 := toolCallScript(t, extToolCall("call-2", "local__read_file", `{"path":"`+inside+`"}`), "inside content", "读完")
 	svc.chat = chat2
-	run2, err := svc.StartConversationTask(session.ID, "读笔记")
+	run2, err := svc.StartConversationTask(session.ID, "读笔记", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

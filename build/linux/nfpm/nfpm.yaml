@@ -21,18 +21,32 @@ contents:
     dst: "/usr/share/licenses/icetudio/LICENSE"
   - src: "./licenses/"
     dst: "/usr/share/licenses/icetudio/audio/"
+  - src: "./assets/soundfonts/NOTICE.md"
+    dst: "/usr/share/licenses/icetudio/musescore/NOTICE.md"
+  - src: "./assets/soundfonts/MuseScore_General_License.md"
+    dst: "/usr/share/licenses/icetudio/musescore/LICENSE.md"
+  - src: "./assets/soundfonts/MuseScore_General_Changelog.md"
+    dst: "/usr/share/licenses/icetudio/musescore/Changelog.md"
+  - src: "./assets/soundfonts/MuseScore_General_Sample_Sources.csv"
+    dst: "/usr/share/licenses/icetudio/musescore/Sample_Sources.csv"
+  - src: "./assets/soundfonts/MuseScore_General.sf3"
+    dst: "/usr/lib/icetudio/MuseScore_General.sf3"
   - src: "./bin/icetudio"
+    dst: "/usr/lib/icetudio/icetudio"
+  - src: "./build/linux/icetudio-launcher.sh"
     dst: "/usr/local/bin/icetudio"
+    file_info:
+      mode: 0755
   - src: "./build/appicon.png"
     dst: "/usr/share/icons/hicolor/128x128/apps/icetudio.png"
   - src: "./build/linux/icetudio.desktop"
     dst: "/usr/share/applications/icetudio.desktop"
 
-# Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
+# GTK4 + WebKitGTK 6.0; FluidSynth 2.6 or newer is required by native.c.
 depends:
   - libgtk-4-1
   - libwebkitgtk-6.0-4
-  - libfluidsynth3
+  - libfluidsynth3 (>= 2.6.0)
 
 # Distribution-specific overrides for different package formats
 overrides:
@@ -48,7 +62,7 @@ overrides:
     depends:
       - gtk4
       - webkitgtk-6.0
-      - fluidsynth
+      - fluidsynth>=2.6.0
 
 # scripts section to ensure desktop database is updated after install
 scripts:

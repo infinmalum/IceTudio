@@ -1527,6 +1527,9 @@ small {
   --gsuiCursor-default: default; --gsuiCursor-pointer: pointer; --gsuiCursor-ew-resize: ew-resize; --gsuiCursor-ns-resize: ns-resize; --gsuiCursor-grab: grab; --gsuiCursor-grabbing: grabbing; --gsuiCursor-crosshair: crosshair;
 }
 .piano-host gsui-pianoroll { height: 100%; width: 100%; }
+/* Dense selection can start thousands of simultaneous note animations;
+   keep selection and gesture feedback immediate without transition events. */
+.piano-host .gsuiBlocksManager-block { transition: none; }
 /* Synth-specific gain/pan/filter/LFO and portamento are not MIDI controls. */
 .piano-host .gsuiTimewindow-contentDown, .piano-host .gsuiTimewindow-panelContentDown,
 .piano-host gsui-prop-select, .piano-host gsui-dragline, .piano-host gsui-slidergroup { display: none !important; }
@@ -1659,3 +1662,9 @@ small {
 .editor-panes[data-view=roll] > section[aria-label=片段编排] { display: none; }
 .inspector-dock { border-top: 1px solid var(--line); margin-top: 8px; background: var(--panel); }
 .inspector-dock > summary { cursor: pointer; font-size: 12px; font-weight: 600; padding: 6px 2px; color: var(--muted, #888); }
+.piano-ghost { position: absolute; top: 1px; height: calc(100% - 2px); box-sizing: border-box; pointer-events: none; user-select: none; z-index: 6; border: 2px dashed; }
+.piano-ghost-before { border-color: #ff8a8a; background: #ff8a8a18; transform: translateY(1px); }
+.piano-ghost-after { border-color: #6ee7b7; background: #6ee7b730; }
+.note-diff-table { max-height: 16rem; overflow: auto; margin-block: 8px; }
+.note-diff-table td, .note-diff-table th { text-align: left; padding: 5px 8px; font-size: 12px; border-bottom: 1px solid var(--line); }
+.preview-playing { color: #6ee7b7; font-size: 12px; }

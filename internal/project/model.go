@@ -127,7 +127,21 @@ const (
 	MaxNotes          = 200000
 	MaxStateJSONBytes = 64 << 20
 	MaxRawBytes       = 8 << 20
-	maxTick           = int64(1)<<31 - 1
+)
+
+// Edit-op payload bounds. The authoritative validator (ops.go) and the
+// agent-facing JSON Schema (app/project_schema.go) must quote the same
+// numbers; both read them from here so they cannot drift apart.
+const (
+	MaxTick             = int64(1)<<31 - 1
+	MaxChannel          = 15
+	MaxMIDI             = 127 // 7-bit fields: pitch, program, CC controller/value, poly note
+	MinVelocity         = 1
+	MaxPitchBend        = 16383
+	MaxUSPerQuarter     = 0xFFFFFF
+	MaxNumerator        = 255
+	MaxMeterDenominator = 128 // powers of two up to this value
+	MaxTitleRunes       = 200
 )
 
 // NewID returns a fresh stable object id: prefix + 12 hex chars.

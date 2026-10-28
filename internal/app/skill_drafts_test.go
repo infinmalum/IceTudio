@@ -75,7 +75,7 @@ func TestSkillDraftCopyPublicationFrozenContentRestart(t *testing.T) {
 	if _, err = store.AddMessage(ctx, c.ID, "", storage.RoleUser, "UNRELATED_HISTORY_SECRET"); err != nil {
 		t.Fatal(err)
 	}
-	oldRoot, _, _, err := s.runs.StartPrepared(ctx, c.ID, s.config.Model, s.skills.Snapshot)
+	oldRoot, _, _, err := s.runs.StartPrepared(ctx, c.ID, s.config.Model, s.skills.Snapshot, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestSkillDraftCopyPublicationFrozenContentRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, _, _, err := s.runs.StartPrepared(ctx, c.ID, s.config.Model, s.skills.Snapshot)
+	run, _, _, err := s.runs.StartPrepared(ctx, c.ID, s.config.Model, s.skills.Snapshot, "")
 	if err != nil {
 		t.Fatal(err)
 	}

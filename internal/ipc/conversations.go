@@ -1,6 +1,7 @@
 package ipc
 
 import (
+	"icetudio/internal/app"
 	"icetudio/internal/materials"
 	"icetudio/internal/storage"
 )
@@ -17,6 +18,7 @@ func (s *Server) dispatchConversation(request Request) (any, error) {
 		Title        string                      `json:"title"`
 		Input        string                      `json:"input"`
 		Policy       storage.ContextPolicy       `json:"policy"`
+		Scope        *app.ProjectScopeSelection  `json:"scope"`
 	}
 	if err := decodeParams(request.Params, &params); err != nil {
 		return nil, err
@@ -35,7 +37,7 @@ func (s *Server) dispatchConversation(request Request) (any, error) {
 	case "conversations.create":
 		return s.svc.CreateConversation(params.ConfigID, params.ReuseSession, params.Title)
 	case "conversations.start":
-		return s.svc.StartConversationTask(params.ID, params.Input, params.Attachments...)
+		return s.svc.StartConversationTask(params.ID, params.Input, params.Scope, params.Attachments...)
 	case "contexts.get":
 		return s.svc.GetLocalContext(params.ID)
 	case "contexts.update":

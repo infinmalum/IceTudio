@@ -24,7 +24,7 @@ CREATE TABLE task_retrospectives(id TEXT PRIMARY KEY,root_run_id TEXT NOT NULL R
 CREATE INDEX task_retrospectives_root ON task_retrospectives(root_run_id,created_at);
 CREATE TABLE review_requests(run_id TEXT PRIMARY KEY REFERENCES task_roots(run_id) ON DELETE CASCADE,target_run_id TEXT NOT NULL REFERENCES task_roots(run_id));
 CREATE TABLE root_budgets(root_run_id TEXT PRIMARY KEY REFERENCES task_roots(run_id) ON DELETE CASCADE,limits TEXT NOT NULL CHECK(json_valid(limits)),model_calls INTEGER NOT NULL DEFAULT 0,tool_calls INTEGER NOT NULL DEFAULT 0,tokens INTEGER NOT NULL DEFAULT 0,unknown_usage INTEGER NOT NULL DEFAULT 0,deadline TEXT NOT NULL);
-CREATE TABLE runs (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, status TEXT NOT NULL CHECK(status IN ('running','completed','cancelled','failed','interrupted')), created_at TEXT NOT NULL, updated_at TEXT NOT NULL, error TEXT NOT NULL DEFAULT '', config_revision INTEGER NOT NULL DEFAULT 1, config_id TEXT NOT NULL DEFAULT '', config_snapshot TEXT NOT NULL DEFAULT '', parent_run_id TEXT, depth INTEGER NOT NULL DEFAULT 0, component TEXT NOT NULL DEFAULT 'main' CHECK(component IN ('main','worker','planner','reviewer','improver')), component_version INTEGER NOT NULL DEFAULT 1, resources_snapshot TEXT NOT NULL DEFAULT '', worker_name TEXT NOT NULL DEFAULT '');
+CREATE TABLE runs (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, status TEXT NOT NULL CHECK(status IN ('running','completed','cancelled','failed','interrupted')), created_at TEXT NOT NULL, updated_at TEXT NOT NULL, error TEXT NOT NULL DEFAULT '', config_revision INTEGER NOT NULL DEFAULT 1, config_id TEXT NOT NULL DEFAULT '', config_snapshot TEXT NOT NULL DEFAULT '', parent_run_id TEXT, depth INTEGER NOT NULL DEFAULT 0, component TEXT NOT NULL DEFAULT 'main' CHECK(component IN ('main','worker','planner','reviewer','improver')), component_version INTEGER NOT NULL DEFAULT 1, resources_snapshot TEXT NOT NULL DEFAULT '', worker_name TEXT NOT NULL DEFAULT '', project_scope TEXT NOT NULL DEFAULT '' CHECK(project_scope='' OR json_valid(project_scope)));
 CREATE TABLE session_context_scopes(session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, scope TEXT NOT NULL, PRIMARY KEY(session_id,scope));
 CREATE TABLE session_plan_revisions(session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,revision INTEGER NOT NULL,plan TEXT NOT NULL CHECK(json_valid(plan)),created_at TEXT NOT NULL,PRIMARY KEY(session_id,revision));
 CREATE TABLE session_plans (
@@ -76,7 +76,7 @@ CREATE TRIGGER runs_parent_context BEFORE INSERT ON runs WHEN NEW.parent_run_id 
 CREATE TRIGGER runs_identity_immutable BEFORE UPDATE OF session_id,parent_run_id ON runs WHEN NEW.session_id IS NOT OLD.session_id OR NEW.parent_run_id IS NOT OLD.parent_run_id BEGIN SELECT RAISE(ABORT,'run ownership is immutable'); END;
 CREATE TRIGGER messages_run_session BEFORE INSERT ON messages WHEN NEW.run_id<>'' AND NOT EXISTS(SELECT 1 FROM runs WHERE id=NEW.run_id AND session_id=NEW.session_id) BEGIN SELECT RAISE(ABORT,'message run session mismatch'); END;
 CREATE TRIGGER messages_identity_immutable BEFORE UPDATE OF session_id,run_id ON messages WHEN NEW.session_id IS NOT OLD.session_id OR NEW.run_id IS NOT OLD.run_id BEGIN SELECT RAISE(ABORT,'message ownership is immutable'); END;
-PRAGMA user_version=29;`
+PRAGMA user_version=30;`
 
 func (s *Store) initialize() error {
 	var version int

@@ -79,7 +79,7 @@ func nativeSearchConversation(t *testing.T, m *nativeSearchMock, grant bool) (*S
 func TestConversationSearchFrozenOptionAndNativeRecords(t *testing.T) {
 	m := &nativeSearchMock{started: make(chan struct{}), release: make(chan struct{})}
 	s, c := nativeSearchConversation(t, m, true)
-	r, err := s.StartConversationTask(c.ID, "搜索资料")
+	r, err := s.StartConversationTask(c.ID, "搜索资料", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestConversationSearchFrozenOptionAndNativeRecords(t *testing.T) {
 	if err != nil || !containsTool(scopes, storage.ScopeUnknown) {
 		t.Fatal(scopes, err)
 	}
-	next, err := s.StartConversationTask(c.ID, "普通任务")
+	next, err := s.StartConversationTask(c.ID, "普通任务", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestConversationSearchExfilFailureAndCancellation(t *testing.T) {
 				m.release = make(chan struct{})
 			}
 			s, c := nativeSearchConversation(t, m, kind != "grant")
-			r, err := s.StartConversationTask(c.ID, "搜索资料")
+			r, err := s.StartConversationTask(c.ID, "搜索资料", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -162,7 +162,7 @@ func TestConversationSearchUnavailableAndMCPDiscoveryBoundary(t *testing.T) {
 	if _, err := s.SetConversationOptions(c.ID, storage.ConversationOptions{WebSearch: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.StartConversationTask(c.ID, "搜索"); err == nil {
+	if _, err := s.StartConversationTask(c.ID, "搜索", nil); err == nil {
 		t.Fatal("unavailable search accepted")
 	}
 	def := model.Tool{Type: "function"}
@@ -185,7 +185,7 @@ func TestConversationSearchUnavailableAndMCPDiscoveryBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r, ctx, profile, err := s.runs.StartPrepared(context.Background(), c.ID, s.config.Model, s.skills.Snapshot, s.configuredSearchTools()...)
+	r, ctx, profile, err := s.runs.StartPrepared(context.Background(), c.ID, s.config.Model, s.skills.Snapshot, "", s.configuredSearchTools()...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestConversationSearchUnavailableAndMCPDiscoveryBoundary(t *testing.T) {
 	if err := s.runs.Finish(r.ID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
-	next, ctx, profile, err := s.runs.StartPrepared(context.Background(), c.ID, s.config.Model, s.skills.Snapshot, s.configuredSearchTools()...)
+	next, ctx, profile, err := s.runs.StartPrepared(context.Background(), c.ID, s.config.Model, s.skills.Snapshot, "", s.configuredSearchTools()...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +278,7 @@ func TestConversationSearchMCPUsesExistingApprovalAndCitations(t *testing.T) {
 	if _, err := s.SetConversationOptions(c.ID, storage.ConversationOptions{WebSearch: true}); err != nil {
 		t.Fatal(err)
 	}
-	run, err := s.StartConversationTask(c.ID, "搜索")
+	run, err := s.StartConversationTask(c.ID, "搜索", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +342,7 @@ func TestConversationNativeSearchLoopbackDoesNotBypassGrant(t *testing.T) {
 	s.mu.Lock()
 	s.config.Model.BaseURL = "http://127.0.0.1:19291/v1"
 	s.mu.Unlock()
-	run, err := s.StartConversationTask(c.ID, "搜索")
+	run, err := s.StartConversationTask(c.ID, "搜索", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,7 +353,7 @@ func TestConversationNativeSearchLoopbackDoesNotBypassGrant(t *testing.T) {
 	if _, err := s.GrantExfil(c.ContextID, "http://127.0.0.1:19291", []string{storage.ScopePersonal, storage.ScopeUnknown}); err != nil {
 		t.Fatal(err)
 	}
-	next, err := s.StartConversationTask(c.ID, "搜索")
+	next, err := s.StartConversationTask(c.ID, "搜索", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

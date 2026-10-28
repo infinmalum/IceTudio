@@ -18,7 +18,7 @@ func (h *Hub) Configure(servers []config.MCPServer) error {
 	}
 	h.configured = map[string]config.MCPServer{}
 	for _, s := range servers {
-		if s.Name == "" || s.Name == "local" || strings.Contains(s.Name, "__") || s.Command == "" {
+		if s.Name == "" || s.Name == "local" || s.Name == "project" || strings.Contains(s.Name, "__") || s.Command == "" {
 			return fmt.Errorf("MCP 服务名称或命令无效")
 		}
 		if _, ok := h.configured[s.Name]; ok {
