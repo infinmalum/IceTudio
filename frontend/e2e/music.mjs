@@ -737,6 +737,15 @@ try{
  await send('Page.reload');await until('window.musicCloseRequest&&document.querySelector("[data-close-guard=ready]")');
  await ev(`musicCloseRequest('clean-exit')`);await until('musicClose.confirmed.includes("clean-exit")');
  await check('Clean editor exits without a discard prompt after checks initialize',`!document.querySelector('#dialog-title')&&document.querySelector('[data-close-guard]').hasAttribute('inert')`);
+ // 回归：busy 关闭弹窗必须始终提供真实退出路径（如本机数据不可读导致检查永不完成时）。
+ await send('Page.reload');await until('window.musicCloseRequest&&document.querySelector("[data-close-guard=ready]")');
+ await ev(`(async()=>{const p=(await musicCall('ListProjects')).find(v=>v.title==='浏览器真实事务');Array.from(document.querySelectorAll('.project-select')).find(x=>x.dataset.id===p.id)?.click()})()`);
+ await until('document.querySelector(".transport-title")?.textContent==="浏览器真实事务"');
+ await ev('window.musicHoldSave=true');await fill('[aria-label="片段起点（tick）"]','360');
+ await ev(`musicCloseRequest('busy-force-exit')`);await until('document.querySelector("#dialog-title")?.textContent==="工程操作尚未确认"');
+ await check('Busy close dialog offers 返回工程处理 and a real forced exit',`Array.from(document.querySelectorAll('dialog[open] button')).some(b=>b.textContent.trim()==='仍然退出')&&Array.from(document.querySelectorAll('dialog[open] button')).some(b=>b.textContent.trim()==='返回工程处理')`);
+ await click('仍然退出','dialog.app-dialog:not(.time-map-dialog)[open]');await until('musicClose.confirmed.includes("busy-force-exit")');
+ await check('Forced exit from a busy blocker confirms native close and freezes input',`document.querySelector('[data-close-guard]').hasAttribute('inert')`);
  const shot=await send('Page.captureScreenshot');writeFileSync(resolve(dir,'workspace.png'),Buffer.from(shot.data,'base64'));
  if(report.errors.length)throw Error('Browser errors: '+report.errors.join('\n'));
  console.log(JSON.stringify(report,null,2));

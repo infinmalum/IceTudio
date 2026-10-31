@@ -26,14 +26,14 @@ export function ProfileEditor(props: Props) {
   return (
     configDraft && (
       <section className="session-card" id="assistant-editor">
-        <div className="card-title">
-          助手「{configDraft.name}」{" "}
-          <span className="revision" hidden>
-            v{configDraft.revision}
+        <div className="card-title card-title-row">
+          <span>
+            助手「{configDraft.name}」{" "}
+            <span className="revision" hidden>
+              v{configDraft.revision}
+            </span>
           </span>
-        </div>
-        {configDraft.isDefault && (
-          <div className="model-actions">
+          {configDraft.isDefault && (
             <button
               type="button"
               className="secondary"
@@ -42,8 +42,8 @@ export function ProfileEditor(props: Props) {
             >
               恢复默认配置
             </button>
-          </div>
-        )}
+          )}
+        </div>
         <form className="model-form" onSubmit={saveConfig}>
           <label>
             助手名称

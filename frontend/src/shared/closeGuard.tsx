@@ -64,7 +64,22 @@ export function CloseGuardProvider({ children }: { children: ReactNode }) {
           const before = snapshot();
           const busy = before.filter(b => b.kind === "busy");
           if (busy.length) {
-            await ask.current({ title: "工程操作尚未确认", body: busy.map(b => b.message).join("；"), confirm: "返回工程处理", cancel: "继续留在应用" });
+            // Busy states are usually momentary, but a failed backend (unreadable
+            // storage) can hold a check open forever. Closing the app is the
+            // user's decision to make, so this dialog must always offer a real
+            // exit; native operations are transactional and their outcome can be
+            // reconciled after restart via recovery checks / 查询保存结果.
+            const force = await ask.current({
+              title: "工程操作尚未确认",
+              body: busy.map(b => b.message).join("；") + "。可以返回应用处理，也可以强制退出：已保存的工程与原数据目录不会被删除；刚才操作的最终结果，下次启动后可通过恢复检查或“查询保存结果”核对。",
+              confirm: "仍然退出",
+              cancel: "返回工程处理",
+              danger: true,
+            }) !== null;
+            if (force && mounted.current) {
+              await DesktopService.ConfirmClose(id);
+              confirmed = true;
+            }
           } else {
             const preserved = before.length > 0 && before.every(b => b.preserved);
             const allowExit = !before.length || await ask.current({ title: preserved ? "保留音乐编辑草稿并退出？" : "丢弃音乐编辑草稿并退出？", body: before.map(b => b.message).join("；") + (preserved ? "。草稿已持久保留，下次可恢复；不会自动应用到工程。" : "。已保存的工程不会删除；这些未应用输入不会自动保存。"), confirm: preserved ? "保留草稿并退出" : "丢弃草稿并退出", cancel: "继续编辑", danger: !preserved }) !== null;
