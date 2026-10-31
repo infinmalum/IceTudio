@@ -56,6 +56,7 @@ func usage(errDetail string) int {
   icetudio status                   查看宿主与模型状态
   icetudio skill-drafts generate <对话ID> <需求> [--source <Skill名称>] [--evidence <runID,runID>]
   icetudio skill-drafts list | show <ID> | edit <ID> <proposal.json> --revision N | apply|discard|withdraw <ID> --revision N
+  icetudio skills list | disable|enable <名称> | feedback <对话ID> | evaluations <名称> | evaluate <名称> <对话ID> <worked|partial|failed> [--run <runID>] [--note <备注>]
   icetudio conversations list | create [--reuse <对话ID>]
   icetudio conversations start <对话ID> <任务内容…> [--wait] | show <对话ID>
   icetudio conversations search <对话ID> [on|off|records]
@@ -66,7 +67,7 @@ func usage(errDetail string) int {
   icetudio projects edit <ID> --file <ops.json> --op-id <唯一ID> | undo|redo <ID> --op-id <唯一ID>
   icetudio projects transaction <ID> <opId> | history <ID> | import <MIDI文件> | export <ID> <MIDI文件>
   icetudio projects bind <对话ID> <工程ID|off>
-  icetudio approvals list [--context <contextID>] | approve <callID> | deny <callID> [原因]
+  icetudio approvals list [--context <contextID>] | approve <callID> | deny <callID> [原因] | reconcile-project <callID>
   icetudio logs [行数]`)
 	return code
 }
@@ -124,6 +125,8 @@ func dispatch(client *ipc.Client, args []string) int {
 		return cmdStatus(client)
 	case "skill-drafts":
 		return cmdSkillDrafts(client, args[1:])
+	case "skills":
+		return cmdSkills(client, args[1:])
 	case "tasks":
 		return cmdTasks(client, args[1:])
 	case "config":

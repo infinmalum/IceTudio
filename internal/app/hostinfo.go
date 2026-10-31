@@ -9,11 +9,13 @@ import (
 
 // SkillInfo is one installed skill's user-facing metadata: what the
 // capability pickers list so users select installed skills instead of typing
-// names. Managed marks skills published from AI drafts.
+// names. Managed marks skills published from AI drafts; Disabled is the
+// reversible off switch that keeps the install but skips new freezes.
 type SkillInfo struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Managed     bool   `json:"managed"`
+	Disabled    bool   `json:"disabled"`
 }
 
 // ListSkills returns the installed skill catalog, sorted by name.
@@ -25,7 +27,7 @@ func (s *Service) ListSkills() ([]SkillInfo, error) {
 	out := make([]SkillInfo, 0, len(items))
 	for _, item := range items {
 		_, managed := s.skills.ManagedSnapshot(item.Name)
-		out = append(out, SkillInfo{Name: item.Name, Description: item.Description, Managed: managed})
+		out = append(out, SkillInfo{Name: item.Name, Description: item.Description, Managed: managed, Disabled: s.skills.Disabled(item.Name)})
 	}
 	return out, nil
 }

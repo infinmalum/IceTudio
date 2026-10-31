@@ -22,7 +22,7 @@ import (
 
 // currentVersion is the schema version this binary writes. Opening a database
 // with a different version is refused; development releases do not migrate data.
-const currentVersion = 30
+const currentVersion = 31
 
 type Store struct {
 	db   *sql.DB

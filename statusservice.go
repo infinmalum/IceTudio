@@ -54,6 +54,10 @@ func (s *StatusService) ResolveToolCall(callID, state, result, note string) (sto
 	return s.svc.ResolveToolCall(callID, state, result, note)
 }
 
+func (s *StatusService) ReconcileProjectToolCall(callID string) (storage.ProjectCallRecovery, error) {
+	return s.svc.ReconcileProjectToolCall(callID)
+}
+
 // ApproveToolCall grants one pending tool call; the approval binds to that
 // exact call and its arguments.
 func (s *StatusService) ApproveToolCall(callID string) (storage.ToolCall, error) {
@@ -196,8 +200,26 @@ func (s *StatusService) CancelTask(id string) error {
 	return s.svc.CancelTask(id)
 }
 
-func (s *StatusService) StartSkillDraft(sessionID, sourceName, request string, evidenceIDs []string) (storage.Run, error) {
-	return s.svc.StartSkillDraft(sessionID, sourceName, request, evidenceIDs)
+func (s *StatusService) StartSkillDraft(sessionID, sourceName, request string, evidenceIDs, feedbackIDs []string) (storage.Run, error) {
+	return s.svc.StartSkillDraft(sessionID, sourceName, request, evidenceIDs, feedbackIDs)
+}
+func (s *StatusService) RecordFeedback(sessionID, messageID, note string) (storage.FeedbackNote, error) {
+	return s.svc.RecordFeedback(sessionID, messageID, note)
+}
+func (s *StatusService) ListFeedback(sessionID string) ([]storage.FeedbackNote, error) {
+	return s.svc.ListFeedback(sessionID)
+}
+func (s *StatusService) DismissFeedback(sessionID, noteID string) error {
+	return s.svc.DismissFeedback(sessionID, noteID)
+}
+func (s *StatusService) SetSkillDisabled(name string, disabled bool) error {
+	return s.svc.SetSkillDisabled(name, disabled)
+}
+func (s *StatusService) RecordSkillEvaluation(skillName, sessionID, runID, outcome, note string) (storage.SkillEvaluation, error) {
+	return s.svc.RecordSkillEvaluation(skillName, sessionID, runID, outcome, note)
+}
+func (s *StatusService) ListSkillEvaluations(skillName string) ([]storage.SkillEvaluation, error) {
+	return s.svc.ListSkillEvaluations(skillName)
 }
 func (s *StatusService) ListSkillDrafts() ([]storage.SkillDraft, error) {
 	return s.svc.ListSkillDrafts()

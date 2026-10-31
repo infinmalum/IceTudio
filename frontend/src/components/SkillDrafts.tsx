@@ -24,9 +24,19 @@ export function SkillDrafts({
   const header =
     proposal?.content.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n/)?.[0] ?? "";
   const [devDraft, setDevDraft] = useState<string | null>(null);
+  const [evaluationOutcome, setEvaluationOutcome] = useState("worked");
+  const [evaluationNote, setEvaluationNote] = useState("");
   useEffect(() => {
     setDevDraft(null);
+    setEvaluationNote("");
   }, [proposal]);
+  useEffect(() => {
+    setEvaluationOutcome("worked");
+    setEvaluationNote("");
+    void s.loadEvaluations(d?.published.name ?? "");
+  }, [d?.id, d?.state, d?.published?.name]);
+  const feedbackQuote = (text: string) =>
+    text.length > 80 ? text.slice(0, 80) + "…" : text;
   return (
     <section className="session-card">
       <h2>教助手一种工作方法</h2>
@@ -46,6 +56,42 @@ export function SkillDrafts({
         value={s.evidenceIDs}
         onChange={s.setEvidenceIDs}
       />
+      {!!s.feedback.length && (
+        <fieldset className="feedback-picker">
+          <legend>本对话的反馈记录（原话）</legend>
+          {s.feedback.map((n) => (
+            <div key={n.id} className="feedback-row">
+              {n.state === "recorded" ? (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={s.feedbackIDs.includes(n.id)}
+                    onChange={(e) =>
+                      s.setFeedbackIDs(
+                        e.target.checked
+                          ? [...s.feedbackIDs, n.id]
+                          : s.feedbackIDs.filter((id) => id !== n.id),
+                      )
+                    }
+                  />{" "}
+                  {feedbackQuote(n.quote)}
+                  {n.note && <span className="hint">（{n.note}）</span>}
+                </label>
+              ) : (
+                <span className="hint">已取消：{feedbackQuote(n.quote)}</span>
+              )}
+              {n.state === "recorded" && (
+                <button
+                  className="secondary"
+                  onClick={() => s.dismissFeedback(n.id)}
+                >
+                  取消记录
+                </button>
+              )}
+            </div>
+          ))}
+        </fieldset>
+      )}
       <button
         disabled={
           !hasConversation ||
@@ -77,7 +123,27 @@ export function SkillDrafts({
           ))}
         </select>
       </label>
-      {d && proposal && (
+      {d && proposal && d.state === "declined" && (
+        <>
+          <p>
+            一次性要求，未生成 Skill：{proposal.summary}
+          </p>
+          <ul>
+            {(proposal.reasons ?? []).map((reason, i) => (
+              <li key={i}>{reason}</li>
+            ))}
+          </ul>
+          <p className="hint">
+            原话保留在反馈记录里，可继续作为当前对话的具体要求使用。
+          </p>
+          {!!d.feedback?.length && (
+            <p className="hint">
+              依据反馈：{d.feedback.map((n) => feedbackQuote(n.quote)).join("；")}
+            </p>
+          )}
+        </>
+      )}
+      {d && proposal && d.state !== "declined" && (
         <>
           <p>{proposal.summary}</p>
           <label>
@@ -183,6 +249,56 @@ export function SkillDrafts({
               </>
             )}
           </div>
+          {d.state === "applied" && (
+            <fieldset className="evaluation-recorder">
+              <legend>音乐任务效果评估（由你实测后记录）</legend>
+              {!!s.evaluations.length && (
+                <p className="hint">
+                  最近评估：
+                  {
+                    s.evaluations[0].outcome === "worked"
+                      ? "有效"
+                      : s.evaluations[0].outcome === "partial"
+                        ? "部分有效"
+                        : "未达预期"
+                  }
+                  {s.evaluations[0].note ? ` · ${s.evaluations[0].note}` : ""}（共 {s.evaluations.length} 次）
+                </p>
+              )}
+              {!s.evaluations.length && (
+                <p className="hint">未验证：还没有评估记录；修改方法不代表质量已提升。</p>
+              )}
+              <div className="actions">
+                <select
+                  value={evaluationOutcome}
+                  onChange={(e) => setEvaluationOutcome(e.target.value)}
+                >
+                  <option value="worked">有效</option>
+                  <option value="partial">部分有效</option>
+                  <option value="failed">未达预期</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="评估备注（可选）"
+                  value={evaluationNote}
+                  onChange={(e) => setEvaluationNote(e.target.value)}
+                />
+                <button
+                  className="secondary"
+                  disabled={s.busy}
+                  onClick={() =>
+                    s.recordEvaluation(
+                      d.published.name,
+                      evaluationOutcome,
+                      evaluationNote,
+                    )
+                  }
+                >
+                  记录本次评估
+                </button>
+              </div>
+            </fieldset>
+          )}
         </>
       )}
       <ErrorNotice error={s.error} />

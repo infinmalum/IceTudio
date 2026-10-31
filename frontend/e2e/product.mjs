@@ -69,7 +69,7 @@ try {
   const backend = `
 const blank=()=>({schemaVersion:1,description:'',systemPrompt:'',persona:'',model:{provider:'',baseUrl:'',name:''},allMcpServers:true,enabledMcpServers:[],allowedTools:[],allSkills:false,enabledSkills:[],contextBudget:8192,planEnabled:false,delegation:{enabled:false,maxDepth:0,maxConcurrency:0,maxSeconds:0},execution:{workflow:'direct',stages:[],main:{},planner:{},reviewer:{},improver:{},worker:{},workerSources:[],budget:{},review:{mode:'off'},improverEnabled:true}});
 const config=(id,name)=>({id,name,isDefault:id==='default',revision:1,data:blank(),createdAt:'2026-10-17',updatedAt:'2026-10-17'});
-const state=window.__product={n:0,configs:[config('default','创作助手')],conversations:[],contexts:{},runs:{},messages:{},pending:[],grants:{},model:{provider:'ollama',baseUrl:'http://127.0.0.1:11434/v1',name:''},savedKey:false,approvals:[],skillDrafts:[],previewRemote:false,skills:[{name:'report-check',description:'检查报告结构',managed:false}],mcpConfig:[],projects:[],projectHistory:{},projectOps:{},projectResults:{},lastExport:null};
+const state=window.__product={n:0,configs:[config('default','创作助手')],conversations:[],contexts:{},runs:{},messages:{},pending:[],grants:{},model:{provider:'ollama',baseUrl:'http://127.0.0.1:11434/v1',name:''},savedKey:false,approvals:[],skillDrafts:[],previewRemote:false,skills:[{name:'report-check',description:'检查报告结构',managed:false,disabled:false}],mcpConfig:[],feedback:{},evaluations:{},projects:[],projectHistory:{},projectOps:{},projectResults:{},lastExport:null};
 const status=()=>({storageReady:true,runtimeReady:!!state.model.name,modelConnected:!!state.model.name,model:state.model,availableModels:['mock'],message:state.model.name?'已连接':'请连接模型'});
 export const DesktopService={Ready:async()=>{},CancelClose:async()=>{},ConfirmClose:async()=>{}};
 export const PlaybackService={Status:async()=>({available:false,ready:false,playing:false,settings:{version:2,driver:'pulseaudio',fonts:[],defaultFont:''},resolvedFont:'Basic Waves（内置基础波形）',resolvedKind:'basic',notice:'',error:'',engine:'UI mock',sampleRate:48000}),Stop:async()=>{},StopProject:async()=>{},Play:async()=>{},Seek:async()=>{},Configure:async()=>{},PickSoundFont:async()=>'',AddSoundFont:async()=>({id:'font_test',name:'local.sf2',path:'/test/local.sf2',priority:0,addedAt:''}),RemoveSoundFont:async()=>{},SetDefaultSoundFont:async()=>{},MoveSoundFont:async()=>{},ResetAudioSettings:async()=>{},Audition:async()=>{},StopAudition:async()=>{},SoundFonts:async()=>({bundled:{id:'bundled',name:'MuseScore_General.sf3',path:'',source:'bundled',exists:false,size:0,error:'',active:false,isDefault:true,priority:-1},basic:{id:'basic',name:'Basic Waves（内置基础波形）',path:'',source:'basic',exists:true,size:0,error:'',active:true,isDefault:false,priority:1073741824},fonts:[],defaultFont:'',notice:''})};
@@ -79,11 +79,18 @@ ListRuntimeConfigs:async()=>{if(state.failProfiles)throw Error('助手列表加�
 ListConversations:async()=>{if(state.failList)throw Error('列表刷新失败');return structuredClone(state.conversations)},GetConversation:async(id)=>structuredClone(state.conversations.find(c=>c.id===id)),CreateConversation:async(configId,reuse,title)=>{if(state.failCreate)throw Error('创建失败，请重试');if(state.delayCreate)await new Promise(r=>setTimeout(r,500));configId=configId||'default';const id='c'+(++state.n),contextId=reuse?state.conversations.find(c=>c.id===reuse).contextId:'ctx'+state.n,c={id,configId,contextId,title:title||'新对话',kind:'normal',configName:state.configs.find(p=>p.id===configId).name,configArchived:false,createdAt:'2026-10-17',projectId:'',options:{webSearch:false}};state.contexts[contextId]??={id:contextId,name:c.title,policy:{approvalMode:'semi',permissions:{unrestricted:false,workspacePaths:[],commands:[],networkHosts:[]}}};state.conversations.unshift(c);state.messages[id]=[];return structuredClone(c)},RenameConversation:async(id,title)=>{state.conversations.find(c=>c.id===id).title=title},DeleteConversation:async(id)=>{state.conversations=state.conversations.filter(c=>c.id!==id);delete state.messages[id]},
 GetLocalContext:async(id)=>structuredClone(state.contexts[id]),UpdateContextPolicy:async(id,policy)=>{state.contexts[id].policy=structuredClone(policy);return structuredClone(state.contexts[id])},ListExfilGrants:async(id)=>structuredClone(state.grants[id]??[]),GrantExfil:async(id,destination,scopes)=>{state.grants[id]=[{destination,scopes}]},RevokeExfil:async(id)=>{state.grants[id]=[]},PreviewSend:async(id)=>{const c=state.conversations.find(c=>c.id===id);return state.previewRemote&&!state.grants[c.contextId]?.length?[{provider:'openai',destination:'https://custom.example',scopes:['personal','unknown'],missing:['personal','unknown']}]:[]},
 ConversationSearchAvailability:async()=>({available:false,reason:'模拟能力不可用'}),ListConversationSearch:async()=>[],SetConversationOptions:async(id,options)=>{const c=state.conversations.find(c=>c.id===id);c.options=structuredClone(options);return structuredClone(c)},
-ListMessages:async(id)=>structuredClone(state.messages[id]??[]),ListChatMessages:async(id)=>({messages:structuredClone(state.messages[id]??[]).map((m,i)=>({...m,seq:i+1,sessionId:id})),beforeSeq:1,hasMore:false}),ListRuns:async(id)=>structuredClone(Object.values(state.runs).filter(r=>r.sessionId===id).reverse()),ListToolCalls:async()=>[],PendingApprovals:async()=>structuredClone(state.pending),GetSessionSummary:async()=>{throw Error('none')},GetSessionPlan:async()=>{throw Error('none')},ListChildRuns:async()=>[],GetTaskGraph:async()=>({tasks:[],attempts:[],artifacts:[],coordination:{state:'complete',rounds:0},continuations:[]}),ListTaskReviews:async()=>[],ListTaskRetrospectives:async()=>[],PendingStreamText:async()=>'',
+ListMessages:async(id)=>structuredClone(state.messages[id]??[]),ListChatMessages:async(id)=>({messages:structuredClone(state.messages[id]??[]).map((m,i)=>({...m,seq:i+1,sessionId:id})),beforeSeq:1,hasMore:false}),ListRuns:async(id)=>structuredClone(Object.values(state.runs).filter(r=>r.sessionId===id).reverse()),ListToolCalls:async()=>[],PendingApprovals:async()=>{if(state.failPendingOnce){state.failPendingOnce=false;throw Error('test pending refresh failed')}return structuredClone(state.pending)},GetSessionSummary:async()=>{throw Error('none')},GetSessionPlan:async()=>{throw Error('none')},ListChildRuns:async()=>[],GetTaskGraph:async()=>({tasks:[],attempts:[],artifacts:[],coordination:{state:'complete',rounds:0},continuations:[]}),ListTaskReviews:async()=>[],ListTaskRetrospectives:async()=>[],PendingStreamText:async()=>'',
 StartConversationTask:async(id,input,scope,uploads)=>{state.lastSend={id,input,scope,uploads};uploads=uploads??[];const c=state.conversations.find(c=>c.id===id),r={id:'r'+(++state.n),sessionId:id,contextId:c.contextId,profileId:c.configId,profileRevision:0,component:'main',status:'completed',createdAt:new Date().toISOString()};state.runs[r.id]=r;c.title=input.slice(0,32)||'附件分析';state.messages[id].push({id:r.id+'u',runId:r.id,role:'user',content:input,attachments:uploads.map(u=>({name:u.name,size:10,mediaType:u.name.endsWith('.png')?'image/png':'text/plain'}))},{id:r.id+'a',runId:r.id,role:'assistant',content:'# 回答\\n\\n- 已处理材料\\n\\n| 项目 | 状态 |\\n| --- | --- |\\n| 文件 | 完成 |\\n\\n\u0060\u0060\u0060js\\nconst answer = 42;\\n\u0060\u0060\u0060\\n\\n<script>window.__unsafe=true</script>'});return {...r,status:'running'}},GetRun:async(id)=>structuredClone(state.runs[id]),CancelTask:async(id)=>{state.runs[id].status='cancelled'},
 ApproveToolCall:async(id)=>{state.approvals.push(id);state.pending=state.pending.filter(c=>c.id!==id)},DenyToolCall:async(id)=>{state.denied=id;state.pending=state.pending.filter(c=>c.id!==id)},ResolveToolCall:async(id,status,result,note)=>{state.resolution={id,status,result,note};state.pending=state.pending.filter(c=>c.id!==id)},
+ReconcileProjectToolCall:async(id)=>{state.nativeQueryCount=(state.nativeQueryCount??0)+1;if(state.failNativeRecovery)throw Error('test native query failed');if(state.holdNativeRecovery)await new Promise(resolve=>{state.releaseNativeRecovery=resolve});const outcome=state.nativeRecoveryOutcome??'not_found',value={callId:id,projectId:'original-project',title:'原核对工程',outcome,runStatus:'interrupted',currentRevision:8,result:outcome==='committed'?{opId:'native-operation',revision:7,baseRevision:6,source:'agent:original-run',applied:2,summary:{'note.update':2}}:null};if(outcome==='committed'){state.pending=state.pending.filter(c=>c.id!==id);if(state.failNativeRefresh)state.failPendingOnce=true}state.nativeQueryReturned=(state.nativeQueryReturned??0)+1;return structuredClone(value)},
 PickFolder:async()=>'/home/mock/Documents',MessageAttachment:async()=>({name:'note.txt',mediaType:'text/plain',text:'原始附件内容'}),
 ListSkillDrafts:async()=>state.skillDrafts,
+ListFeedback:async(id)=>structuredClone(state.feedback[id]??[]),
+RecordFeedback:async(sessionId,messageId,note)=>{const m=(state.messages[sessionId]??[]).find(v=>v.id===messageId);if(!m||m.role!=='user')throw Error('只能记录本对话中自己发送的消息为反馈');const item={id:'f'+(++state.n),sessionId,messageId,quote:m.content,note:note||'',runId:'',projectId:'',state:'recorded',createdAt:'',updatedAt:''};(state.feedback[sessionId]??=[]).push(item);return structuredClone(item)},
+DismissFeedback:async(sessionId,noteId)=>{const n=(state.feedback[sessionId]??[]).find(v=>v.id===noteId);if(!n||n.state!=='recorded')throw Error('反馈不存在或已取消记录');n.state='dismissed'},
+SetSkillDisabled:async(name,disabled)=>{const s=state.skills.find(v=>v.name===name);if(!s)throw Error('Skill 未安装');s.disabled=disabled},
+RecordSkillEvaluation:async(skillName,sessionId,runId,outcome,note)=>{if(!state.skills.some(v=>v.name===skillName))throw Error('Skill 未安装');if(!['worked','partial','failed'].includes(outcome))throw Error('评估结论必须是 worked、partial 或 failed');const item={id:'e'+(++state.n),skillName,sessionId,runId:runId||'',outcome,note:note||'',createdAt:''};(state.evaluations[skillName]??=[]).push(item);return structuredClone(item)},
+ListSkillEvaluations:async(skillName)=>structuredClone(state.evaluations[skillName]??[]),
 ListSkills:async()=>structuredClone(state.skills),ListConfiguredMCPServers:async()=>structuredClone(state.mcpConfig),
 SaveMCPServer:async(s)=>{if(!s.name||!s.command)throw Error('MCP 服务名称或命令无效');if(s.name==='local'||s.name.includes('__'))throw Error('MCP 服务名称无效');state.mcpConfig=state.mcpConfig.filter(v=>v.name!==s.name);state.mcpConfig.push(structuredClone(s));return structuredClone(state.mcpConfig)},
 DeleteMCPServer:async(name)=>{if(!state.mcpConfig.some(v=>v.name===name))throw Error('未配置 MCP 服务 '+name);state.mcpConfig=state.mcpConfig.filter(v=>v.name!==name);return structuredClone(state.mcpConfig)},
@@ -399,6 +406,27 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
   await until(`document.body.innerText.includes('IceTudio 想写入文件')`);
   await click("允许这次操作");
   await until(`window.__product.approvals.includes('child-call')`);
+  await evaluate(`window.__product.pending=[{id:'search-call',runId:'child',toolName:'local__web_search',approvalDestination:'https://search.example.org',arguments:JSON.stringify({query:'jazz ii V voicing reference'}),state:'pending'}]`);
+  await fill('[aria-label="发送消息"]', "核对搜索查询");
+  await click("发送 ↑");
+  await until(`document.querySelector('.operation-target')?.textContent==='jazz ii V voicing reference' && document.body.innerText.includes('https://search.example.org') && document.body.innerText.includes('联网检索这段查询') && document.body.innerText.includes('不自动附带工程')`);
+  await click("拒绝");
+  await until(`document.querySelector('dialog[open]')?.innerText.includes('拒绝这次操作')`);
+  await clickIn("dialog[open]", "拒绝操作");
+  await until(`window.__product.denied==='search-call' && !window.__product.approvals.includes('search-call')`);
+  await evaluate(`delete window.__product.denied`);
+  await evaluate(`window.__product.pending=[{id:'material-send',runId:'child',toolName:'local__send_material',arguments:JSON.stringify({preparationId:'sealed-preparation'}),state:'pending',material:{title:'副歌伴奏',revision:7,destination:'music（MCP 进程：/usr/bin/music-helper）',tool:'music__analyze',summary:'1 轨 / 1 片段 / 12 音符',sha256:'snapshot-hash',arguments:JSON.stringify({score:'frozen-selected-clip',purpose:'voicing'})}}]`);
+  await fill('[aria-label="发送消息"]', "核对材料发送");
+  await click("发送 ↑");
+  await until(`document.body.innerText.includes('副歌伴奏') && document.body.innerText.includes('修订 7') && document.body.innerText.includes('music-helper') && document.body.innerText.includes('12 音符')`);
+  await evaluate(`Array.from(document.querySelectorAll('summary')).find(x=>x.textContent==='查看将发送的完整内容').click()`);
+  await until(`document.body.innerText.includes('frozen-selected-clip')`);
+  await click("允许这次操作");
+  await until(`window.__product.approvals.includes('material-send')`);
+  await evaluate(`window.__product.pending=[{id:'broken-material',runId:'child',toolName:'local__send_material',arguments:JSON.stringify({preparationId:'bad'}),state:'pending',materialError:'材料来源不匹配'}]`);
+  await fill('[aria-label="发送消息"]', "损坏材料不得批准");
+  await click("发送 ↑");
+  await until(`document.body.innerText.includes('材料来源不匹配') && Array.from(document.querySelectorAll('.approval-card button')).some(b=>b.textContent.trim()==='允许这次操作'&&b.disabled)`);
   await evaluate(
     `window.__product.pending=[{id:'command-call',runId:'child',toolName:'local__exec',arguments:JSON.stringify({executable:'/bin/echo',args:['hello'],cwd:'/home/mock'}),state:'pending'},{id:'unknown-call',runId:'child',toolName:'local__write_file',arguments:JSON.stringify({path:'/home/mock/report.md',content:'report'}),state:'execution_unknown'}]`,
   );
@@ -427,6 +455,30 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
   await fill("dialog[open] textarea", "我检查了目标文件，文件尚未生成。");
   await click("记录核对结论");
   await until(`window.__product.resolution?.status==='failed'`);
+  // Production hook: native positive evidence, retry, and late-response isolation.
+  await evaluate(`window.__product.pending=[{id:'native-unknown',runId:'child',toolName:'project__edit',arguments:JSON.stringify({projectId:'original-project',opId:'native-operation',baseRevision:6,ops:[{kind:'note.remove',clipId:'clip',noteIds:['note']}]}),state:'execution_unknown'}];window.__product.failNativeRecovery=true`);
+  await fill('[aria-label="发送消息"]',"同步原生核对卡片");await click("发送 ↑");
+  await until(`document.querySelector('.project-recovery-card')`);
+  await click("查询实际提交结果");await until(`document.body.innerText.includes('test native query failed')`);
+  await evaluate(`window.__product.failNativeRecovery=false`);await click("查询实际提交结果");
+  await until(`document.querySelector('.project-recovery-card')?.textContent.includes('不证明未执行')`);
+  await evaluate(`window.__product.nativeRecoveryOutcome='conflict'`);await click("查询实际提交结果");
+  await until(`document.querySelector('.project-recovery-card')?.textContent.includes('不匹配')`);
+  if(!await evaluate(`Array.from(document.querySelectorAll('.project-recovery-card button')).find(b=>b.textContent==='另有证据确认未完成')?.disabled`))throw Error('Conflicting native evidence offered an unexecuted conclusion');
+  await evaluate(`window.__product.nativeRecoveryOutcome='committed';window.__product.failNativeRefresh=true`);await click("查询实际提交结果");
+  await until(`document.querySelector('.project-recovery-result')?.textContent.includes('修订 7')&&document.body.innerText.includes('test pending refresh failed')`);
+  if(await evaluate(`!!document.querySelector('.project-recovery-card')`))throw Error('A failed approval refresh contradicted the verified commit');
+  await evaluate(`window.__product.failNativeRefresh=false`);
+  await evaluate(`window.__product.pending=[{id:'late-native-unknown',runId:'child',toolName:'project__edit',arguments:JSON.stringify({projectId:'original-project',opId:'late-native-operation',baseRevision:8,ops:[{kind:'project.rename',title:'x'}]}),state:'execution_unknown'}];window.__product.holdNativeRecovery=true`);
+  await fill('[aria-label="发送消息"]',"同步迟到核对卡片");await click("发送 ↑");await until(`document.querySelector('.project-recovery-card')`);
+  await click("查询实际提交结果");await until(`window.__product.releaseNativeRecovery`);
+  await evaluate(`window.__product.recoveryReturnBefore=window.__product.nativeQueryReturned`);
+  await click("新对话");await until(`!document.querySelector('.project-recovery-result')`);
+  await evaluate(`window.__product.holdNativeRecovery=false;window.__product.releaseNativeRecovery();delete window.__product.releaseNativeRecovery`);
+  await until(`window.__product.nativeQueryReturned>window.__product.recoveryReturnBefore`);
+  if(await evaluate(`!!document.querySelector('.project-recovery-result')`))throw Error('Late native recovery polluted a different conversation');
+  await evaluate(`document.querySelector('.session-link').click()`);
+  await until(`document.querySelector('.chat-page')&&!document.querySelector('.project-recovery-result')`);
   // 助手编辑：未保存修改跨页面保留；保存走 UpdateRuntimeConfig（修订 +1）。
   await click("管理助手");
   await until(`document.querySelector('#assistant-editor')`);
@@ -708,6 +760,35 @@ PickSaveMIDIFile:async(name)=>'/home/mock/exports/'+name,
     ),
   );
   console.log("PASS: theme toggle switches palettes in place.");
+  // P4 反馈记录与 Skill 停用：记录是用户显式动作，停用是可恢复开关。
+  await click("记录为反馈");
+  await until(`document.querySelector('dialog[open]')`);
+  await fill("dialog[open] input[type=text]", "编曲偏好");
+  await click("记录反馈");
+  await until(
+    `Array.from(document.querySelectorAll('.feedback-tag')).some(e=>e.textContent.includes('已记录反馈'))`,
+  );
+  if (
+    (await evaluate(
+      `Object.values(window.__product.feedback).flat().filter(n=>n.state==='recorded'&&n.note==='编曲偏好').length`,
+    )) !== 1
+  )
+    throw Error("feedback not recorded with note");
+  await click("⚙ 设置");
+  await click("技能与服务");
+  await until(`document.querySelector('.capability-list')`);
+  await click("停用");
+  await until(
+    `document.querySelector('.capability-list')?.innerText.includes('已停用')`,
+  );
+  if ((await evaluate(`window.__product.skills[0].disabled`)) !== true)
+    throw Error("skill disable not visible in state");
+  await click("恢复启用");
+  await until(
+    `!document.querySelector('.capability-list')?.innerText.includes('已停用')`,
+  );
+  await click("返回工程");
+  await until(`document.querySelector('.chat-page')`);
   if (errors.length) throw Error(errors.join("\n"));
   console.log(
     "PASS: workspace-first home with audition entry status, project sidebar (create/import/select/delete) and editor-only center (rename transaction/undo/redo/export), right agent dock with conversation list/send-creates-conversation/composer new-chat entry/search/manage-assistants, model entry and project binding, file upload/preview, Markdown/table/code and HTML safety, IME/Enter, search recovery, explicit endpoint consent, folder permission, child approval aggregation, conversation rename/search/delete, drag/paste thumbnails, guided unknown outcome and cancellable denial, narrow layout and single chat scroll.",

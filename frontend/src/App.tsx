@@ -223,14 +223,30 @@ function App() {
                       {app.skillCatalog.length ? (
                         <div className="capability-list">
                           {app.skillCatalog.map((skill) => (
-                            <div className="checkbox-label" key={skill.name}>
-                              {skill.name}
-                              {skill.managed && (
-                                <span className="memory-meta">（AI 生成）</span>
-                              )}
-                              <span className="memory-meta">
+                            <div
+                              className={`skill-entry${skill.disabled ? " disabled" : ""}`}
+                              key={skill.name}
+                            >
+                              <span className="skill-name">
+                                {skill.name}
+                                {skill.managed && (
+                                  <span className="memory-meta">（AI 生成）</span>
+                                )}
+                                {skill.disabled && (
+                                  <span className="memory-meta">（已停用）</span>
+                                )}
+                              </span>
+                              <span className="skill-desc">
                                 {skill.description}
                               </span>
+                              <button
+                                className="secondary"
+                                onClick={() =>
+                                  app.setSkillDisabled(skill.name, !skill.disabled)
+                                }
+                              >
+                                {skill.disabled ? "恢复启用" : "停用"}
+                              </button>
                             </div>
                           ))}
                         </div>
@@ -242,7 +258,7 @@ function App() {
                       )}
                       <p className="hint">
                         每个助手能用哪些 Skills
-                        和服务，在助手编辑页的「技能与扩展」里勾选。
+                        和服务，在助手编辑页的「技能与扩展」里勾选。停用是可恢复的开关：在途任务仍用其创建时冻结的版本，新任务不再附带。
                       </p>
                     </section>
                     <MCPServersPanel

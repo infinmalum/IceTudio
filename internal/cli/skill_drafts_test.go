@@ -16,7 +16,7 @@ type cliSkillModel struct{}
 func (cliSkillModel) Chat(_ context.Context, _ config.Model, messages []model.Message, _ []model.Tool) (model.ChatResponse, error) {
 	text := "原任务观察"
 	if strings.Contains(messages[0].Content, "improver Skill") {
-		p := storage.SkillProposal{Content: "---\nname: cli-skill\ndescription: Review CLI tasks.\n---\nCheck the task output and report unknown results.\n", Summary: "CLI Skill候选", ExpectedChecks: []string{"未知结果不当作成功"}, EvidenceRefs: []string{"request"}}
+		p := storage.SkillProposal{Outcome: "reusable", Content: "---\nname: cli-skill\ndescription: Review CLI tasks.\n---\nCheck the task output and report unknown results.\n", Summary: "CLI Skill候选", ExpectedChecks: []string{"未知结果不当作成功"}, EvidenceRefs: []string{"request"}}
 		raw, _ := json.Marshal(p)
 		text = string(raw)
 	}

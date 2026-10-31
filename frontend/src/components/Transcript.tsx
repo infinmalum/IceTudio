@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { ConversationState } from "../hooks/useConversation";
 import { StatusService } from "../../bindings/icetudio";
+import type { FeedbackNote } from "../../bindings/icetudio/internal/storage";
 import { Markdown } from "./Markdown";
 import { ErrorNotice } from "../shared/errors";
+import { useDialog } from "../shared/dialogs";
 import { downloadBase64, bytesToBase64 } from "../shared/download";
 export function Transcript({
   conversation: c,
@@ -17,6 +19,44 @@ export function Transcript({
     | "loadEarlier"
   >;
 }) {
+  const dialog = useDialog();
+  const sessionID = c.messages[0]?.sessionId ?? "";
+  const [feedback, setFeedback] = useState<FeedbackNote[]>([]);
+  useEffect(() => {
+    setFeedback([]);
+    if (!sessionID) return;
+    StatusService.ListFeedback(sessionID)
+      .then((items) => setFeedback(items ?? []))
+      .catch(() => {});
+  }, [sessionID]);
+  const feedbackByMessage = new Map<string, FeedbackNote>();
+  for (const n of feedback) feedbackByMessage.set(n.messageId, n);
+  async function recordFeedback(m: { id: string; content: string }) {
+    const note = await dialog.ask({
+      title: "记录为反馈",
+      body: "将按原话保存这条消息，用于之后“教助手一种工作方法”的提炼；只在本对话内可见。",
+      label: "范围备注（可选）",
+      singleLine: true,
+      confirm: "记录反馈",
+      cancel: "取消",
+    });
+    if (note === null) return;
+    try {
+      await StatusService.RecordFeedback(sessionID, m.id, note);
+      setFeedback((await StatusService.ListFeedback(sessionID)) ?? []);
+      setError("");
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+  async function dismissFeedback(noteId: string) {
+    try {
+      await StatusService.DismissFeedback(sessionID, noteId);
+      setFeedback((await StatusService.ListFeedback(sessionID)) ?? []);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
   useEffect(() => {
     follow.current = true;
     setAway(false);
@@ -183,6 +223,28 @@ export function Transcript({
                 {copied === m.id ? "已复制" : "复制回复"}
               </button>
             )}
+            {m.role === "user" &&
+              (feedbackByMessage.has(m.id) ? (
+                <span className="feedback-tag">
+                  已记录反馈
+                  <button
+                    className="icon-button"
+                    aria-label="取消记录这条反馈"
+                    onClick={() =>
+                      dismissFeedback(feedbackByMessage.get(m.id)!.id)
+                    }
+                  >
+                    ✕
+                  </button>
+                </span>
+              ) : (
+                <button
+                  className="message-copy"
+                  onClick={() => void recordFeedback(m)}
+                >
+                  记录为反馈
+                </button>
+              ))}
           </article>
         ))}
         {c.streamText && (

@@ -20,9 +20,10 @@ type Skill struct {
 }
 
 type Catalog struct {
-	mu      sync.RWMutex
-	items   map[string]Skill
-	managed map[string]Snapshot
+	mu       sync.RWMutex
+	items    map[string]Skill
+	managed  map[string]Snapshot
+	disabled map[string]bool
 }
 
 var validName = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -88,6 +89,9 @@ func parse(data []byte) (metadata, string, error) {
 func (c *Catalog) Summary() string {
 	var lines []string
 	for _, item := range c.Items() {
+		if c.Disabled(item.Name) {
+			continue
+		}
 		lines = append(lines, "- "+item.Name+": "+item.Description)
 	}
 	return strings.Join(lines, "\n")
@@ -99,12 +103,43 @@ func (c *Catalog) SummaryFor(enabled []string) string {
 	}
 	var lines []string
 	for _, name := range enabled {
-		if item := c.Item(name); item != nil {
+		if item := c.Item(name); item != nil && !c.Disabled(name) {
 			lines = append(lines, "- "+item.Name+": "+item.Description)
 		}
 	}
 	sort.Strings(lines)
 	return strings.Join(lines, "\n")
+}
+
+// SetDisabled is the reversible off switch for adopted or installed skills.
+// Disabling is a user decision recorded by the app layer; unknown names are
+// rejected so a stale row can never silently disable a future reinstall.
+func (c *Catalog) SetDisabled(name string, disabled bool) error {
+	if c == nil || c.Item(name) == nil {
+		return fmt.Errorf("未知 Skill %q", name)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.disabled == nil {
+		c.disabled = map[string]bool{}
+	}
+	if disabled {
+		c.disabled[name] = true
+	} else {
+		delete(c.disabled, name)
+	}
+	return nil
+}
+
+// Disabled reports the overlay state; frozen run snapshots are unaffected by
+// it because they were persisted at run creation.
+func (c *Catalog) Disabled(name string) bool {
+	if c == nil {
+		return false
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.disabled[name]
 }
 
 // Installed reports whether a skill with that name exists in the catalog;

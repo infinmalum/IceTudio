@@ -56,6 +56,17 @@ export function useApp() {
   useEffect(() => {
     void refreshCapabilities();
   }, []);
+  // Reversible off switch: the install stays, new freezes skip the skill and
+  // in-flight runs keep their frozen versions.
+  async function setSkillDisabled(name: string, disabled: boolean) {
+    try {
+      await StatusService.SetSkillDisabled(name, disabled);
+      await refreshCapabilities();
+      setCatalogError("");
+    } catch (reason) {
+      setCatalogError(String(reason));
+    }
+  }
   // Every post-commit host event reaches the webview already; keep a rolling
   // activity view so "what is the host doing" is visible without the CLI.
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
@@ -100,6 +111,7 @@ export function useApp() {
     mcpCatalog,
     catalogError,
     refreshCapabilities,
+    setSkillDisabled,
     activity,
   };
 }

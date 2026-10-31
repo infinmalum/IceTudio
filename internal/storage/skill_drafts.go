@@ -10,6 +10,7 @@ import (
 )
 
 type SkillProposal struct {
+	Outcome        string   `json:"outcome"`
 	EvidenceRefs   []string `json:"evidenceRefs"`
 	Content        string   `json:"content"`
 	Summary        string   `json:"summary"`
@@ -18,9 +19,12 @@ type SkillProposal struct {
 	ExpectedChecks []string `json:"expectedChecks"`
 }
 
-func (p SkillProposal) Validate() error {
-	if _, err := skills.ParseSnapshot(p.Content); err != nil {
-		return err
+// Outcome "one_off" records a deliberate refusal to generalize: the request
+// stays as conversation feedback and no SKILL.md is produced. "reusable" is
+// the classic candidate path.
+func (p SkillProposal) validateShared() error {
+	if p.Outcome != "reusable" && p.Outcome != "one_off" {
+		return errors.New("Skill草案必须声明 outcome 为 reusable 或 one_off")
 	}
 	if strings.TrimSpace(p.Summary) == "" || len(p.Summary) > 16000 {
 		return errors.New("Skill草案说明无效")
@@ -34,6 +38,37 @@ func (p SkillProposal) Validate() error {
 				return errors.New("Skill草案说明为空或过长")
 			}
 		}
+	}
+	return nil
+}
+
+func (p SkillProposal) Validate() error {
+	if err := p.validateShared(); err != nil {
+		return err
+	}
+	if p.Outcome != "reusable" {
+		return errors.New("可复用草案的 outcome 必须是 reusable")
+	}
+	if _, err := skills.ParseSnapshot(p.Content); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ValidateDeclined applies to one_off outcomes: nothing publishable is
+// stored, but the refusal must explain itself.
+func (p SkillProposal) ValidateDeclined() error {
+	if err := p.validateShared(); err != nil {
+		return err
+	}
+	if p.Outcome != "one_off" {
+		return errors.New("declined 草案的 outcome 必须是 one_off")
+	}
+	if strings.TrimSpace(p.Content) != "" {
+		return errors.New("一次性要求不能携带 SKILL.md 内容")
+	}
+	if len(p.Reasons) == 0 {
+		return errors.New("一次性结论必须说明判断依据")
 	}
 	return nil
 }
@@ -57,6 +92,8 @@ type SkillDraft struct {
 	Revision        int               `json:"revision"`
 	State           string            `json:"state"`
 	Published       skills.Snapshot   `json:"published"`
+	FeedbackIDs     []string          `json:"feedbackIds"`
+	Feedback        []FeedbackNote    `json:"feedback"`
 	Evidence        []DraftEvidence   `json:"evidence"`
 	Impact          []ConfigReference `json:"impact"`
 	AllSkillsImpact []ConfigReference `json:"allSkillsImpact"`
@@ -64,18 +101,18 @@ type SkillDraft struct {
 	UpdatedAt       string            `json:"updatedAt"`
 }
 
-const skillDraftColumns = `id,run_id,source,scopes,request,proposal,revision,state,published,created_at,updated_at`
+const skillDraftColumns = `id,run_id,source,scopes,request,proposal,revision,state,published,feedback_ids,created_at,updated_at`
 
 func scanSkillDraft(row interface{ Scan(...any) error }) (SkillDraft, error) {
 	var d SkillDraft
-	var source, proposal, published, scopes string
-	if err := row.Scan(&d.ID, &d.RunID, &source, &scopes, &d.Request, &proposal, &d.Revision, &d.State, &published, &d.CreatedAt, &d.UpdatedAt); err != nil {
+	var source, proposal, published, scopes, feedbackIDs string
+	if err := row.Scan(&d.ID, &d.RunID, &source, &scopes, &d.Request, &proposal, &d.Revision, &d.State, &published, &feedbackIDs, &d.CreatedAt, &d.UpdatedAt); err != nil {
 		return d, err
 	}
 	for _, item := range []struct {
 		raw  string
 		dest any
-	}{{source, &d.Source}, {scopes, &d.Scopes}, {proposal, &d.Proposal}, {published, &d.Published}} {
+	}{{source, &d.Source}, {scopes, &d.Scopes}, {proposal, &d.Proposal}, {published, &d.Published}, {feedbackIDs, &d.FeedbackIDs}} {
 		if err := json.Unmarshal([]byte(item.raw), item.dest); err != nil {
 			return d, err
 		}
@@ -83,7 +120,17 @@ func scanSkillDraft(row interface{ Scan(...any) error }) (SkillDraft, error) {
 	return d, nil
 }
 func (s *Store) GetSkillDraft(ctx context.Context, id string) (SkillDraft, error) {
-	return scanSkillDraft(s.db.QueryRowContext(ctx, `SELECT `+skillDraftColumns+` FROM skill_drafts WHERE id=?`, id))
+	d, err := scanSkillDraft(s.db.QueryRowContext(ctx, `SELECT `+skillDraftColumns+` FROM skill_drafts WHERE id=?`, id))
+	if err != nil {
+		return d, err
+	}
+	if len(d.FeedbackIDs) > 0 {
+		d.Feedback, err = s.feedbackNotesByIDs(ctx, d.FeedbackIDs)
+		if err != nil {
+			return d, err
+		}
+	}
+	return d, nil
 }
 func (s *Store) ListSkillDrafts(ctx context.Context) ([]SkillDraft, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT `+skillDraftColumns+` FROM skill_drafts ORDER BY created_at DESC,id`)
@@ -110,41 +157,96 @@ func (s *Store) ListSkillDrafts(ctx context.Context) ([]SkillDraft, error) {
 		if err != nil {
 			return nil, err
 		}
+		if len(out[i].FeedbackIDs) > 0 {
+			out[i].Feedback, err = s.feedbackNotesByIDs(ctx, out[i].FeedbackIDs)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 	return out, nil
 }
-func (s *Store) SaveSkillDraft(ctx context.Context, run string, source skills.Snapshot, request string, proposal SkillProposal) (SkillDraft, error) {
-	if err := proposal.Validate(); err != nil {
-		return SkillDraft{}, err
+
+// feedbackNotesByIDs returns notes in stable record order regardless of
+// selection order, so a draft's evidence view is reproducible.
+func (s *Store) feedbackNotesByIDs(ctx context.Context, ids []string) ([]FeedbackNote, error) {
+	out := []FeedbackNote{}
+	for _, id := range ids {
+		n, err := scanFeedbackNote(s.db.QueryRowContext(ctx, `SELECT `+feedbackNoteColumns+` FROM feedback_notes WHERE id=?`, id))
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
 	}
+	return out, nil
+}
+
+// saveSkillDraftInTx is the shared insert path for reusable and declined
+// proposals. Both require the improver run, ref validation and evidence
+// binding; only the proposal validation differs.
+func saveSkillDraftInTx(ctx context.Context, tx *sql.Tx, run string, state string, source skills.Snapshot, request string, proposal SkillProposal, validate func(SkillProposal) error, feedbackIDs []string) (string, error) {
+	if err := validate(proposal); err != nil {
+		return "", err
+	}
+	var count int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM runs WHERE id=? AND component='improver' AND parent_run_id IS NULL AND status='running'`, run).Scan(&count); err != nil {
+		return "", err
+	}
+	if count != 1 {
+		return "", errors.New("Skill草案生成运行无效")
+	}
+	var sessionID string
+	if err := tx.QueryRowContext(ctx, `SELECT session_id FROM runs WHERE id=?`, run).Scan(&sessionID); err != nil {
+		return "", err
+	}
+	ids, err := validateFeedbackIDsInTx(ctx, tx, sessionID, feedbackIDs)
+	if err != nil {
+		return "", err
+	}
+	if err = validateDraftRefsInTx(ctx, tx, run, proposal.EvidenceRefs); err != nil {
+		return "", err
+	}
+	if err = validateDraftEvidenceInTx(ctx, tx, run); err != nil {
+		return "", err
+	}
+	scopes, err := runScopesInTx(ctx, tx, run)
+	if err != nil {
+		return "", err
+	}
+	scopeJSON, _ := json.Marshal(scopes)
+	feedbackJSON, _ := json.Marshal(ids)
+	base, _ := json.Marshal(source)
+	raw, _ := json.Marshal(proposal)
 	id, err := newID()
+	if err != nil {
+		return "", err
+	}
+	created := now()
+	_, err = tx.ExecContext(ctx, `INSERT INTO skill_drafts(id,run_id,source,scopes,request,proposal,feedback_ids,state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)`, id, run, string(base), string(scopeJSON), request, string(raw), string(feedbackJSON), state, created, created)
+	return id, err
+}
+
+func (s *Store) SaveSkillDraft(ctx context.Context, run string, source skills.Snapshot, request string, proposal SkillProposal, feedbackIDs []string) (SkillDraft, error) {
+	var id string
+	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		var e error
+		id, e = saveSkillDraftInTx(ctx, tx, run, "draft", source, request, proposal, SkillProposal.Validate, feedbackIDs)
+		return e
+	})
 	if err != nil {
 		return SkillDraft{}, err
 	}
-	raw, _ := json.Marshal(proposal)
-	base, _ := json.Marshal(source)
-	created := now()
-	err = s.withTx(ctx, func(tx *sql.Tx) error {
-		var count int
-		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM runs WHERE id=? AND component='improver' AND parent_run_id IS NULL AND status='running'`, run).Scan(&count); err != nil {
-			return err
-		}
-		if count != 1 {
-			return errors.New("Skill草案生成运行无效")
-		}
-		if err := validateDraftRefsInTx(ctx, tx, run, proposal.EvidenceRefs); err != nil {
-			return err
-		}
-		if err := validateDraftEvidenceInTx(ctx, tx, run); err != nil {
-			return err
-		}
-		scopes, err := runScopesInTx(ctx, tx, run)
-		if err != nil {
-			return err
-		}
-		scopeJSON, _ := json.Marshal(scopes)
-		_, err = tx.ExecContext(ctx, `INSERT INTO skill_drafts(id,run_id,source,scopes,request,proposal,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)`, id, run, string(base), string(scopeJSON), request, string(raw), created, created)
-		return err
+	return s.GetSkillDraft(ctx, id)
+}
+
+// SaveDeclinedSkillDraft records a deliberate one_off outcome so the improver
+// run completes with its required review row, without publishing anything.
+func (s *Store) SaveDeclinedSkillDraft(ctx context.Context, run string, source skills.Snapshot, request string, proposal SkillProposal, feedbackIDs []string) (SkillDraft, error) {
+	var id string
+	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		var e error
+		id, e = saveSkillDraftInTx(ctx, tx, run, "declined", source, request, proposal, SkillProposal.ValidateDeclined, feedbackIDs)
+		return e
 	})
 	if err != nil {
 		return SkillDraft{}, err

@@ -255,6 +255,8 @@ func (s *Server) dispatch(ctx context.Context, request Request) (any, error) {
 	switch request.Method {
 	case "skillDrafts.start", "skillDrafts.list", "skillDrafts.edit", "skillDrafts.apply", "skillDrafts.discard", "skillDrafts.withdraw":
 		return s.dispatchSkillDraft(request)
+	case "feedback.record", "feedback.list", "feedback.dismiss", "skills.list", "skills.setDisabled", "skillEvaluations.record", "skillEvaluations.list":
+		return s.dispatchSkillEvolution(request)
 	case "conversations.options", "conversations.searchAvailability", "conversations.searchRecords", "conversations.list", "conversations.get", "conversations.create", "conversations.start", "contexts.get", "contexts.update", "components.list":
 		return s.dispatchConversation(request)
 	case "projects.list", "projects.get", "projects.query", "projects.create", "projects.delete", "projects.edit", "projects.undo", "projects.redo", "projects.transaction", "projects.history", "projects.import", "projects.export", "projects.bind":

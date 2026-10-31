@@ -47,17 +47,17 @@ func TestSkillDraftRejectsInvalidTaskEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.StartSkillDraft(other.ID, "", "跨上下文", []string{target.ID}); err == nil {
+	if _, err = s.StartSkillDraft(other.ID, "", "跨上下文", []string{target.ID}, nil); err == nil {
 		t.Fatal("cross context evidence allowed")
 	}
-	if _, err = s.StartSkillDraft(c.ID, "", "重复", []string{target.ID, target.ID}); err == nil {
+	if _, err = s.StartSkillDraft(c.ID, "", "重复", []string{target.ID, target.ID}, nil); err == nil {
 		t.Fatal("duplicate evidence allowed")
 	}
 	r, _, _, err := s.runs.StartPrepared(ctx, c.ID, s.config.Model, s.skills.Snapshot, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.StartSkillDraft(c.ID, "", "运行中", []string{r.ID}); err == nil {
+	if _, err = s.StartSkillDraft(c.ID, "", "运行中", []string{r.ID}, nil); err == nil {
 		t.Fatal("active evidence allowed")
 	}
 	_ = s.runs.Finish(r.ID, "failed", "fixture")
@@ -75,7 +75,7 @@ func TestManagedSkillCarriesSourceScopesAcrossReuse(t *testing.T) {
 		t.Fatal(err)
 	}
 	target, _ := evidenceTarget(t, s, c)
-	r, err := s.StartSkillDraft(c.ID, "", "从选定任务提取方法", []string{target.ID})
+	r, err := s.StartSkillDraft(c.ID, "", "从选定任务提取方法", []string{target.ID}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

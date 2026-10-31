@@ -28,6 +28,9 @@ func (c *Catalog) Snapshot(all bool, names []string) ([]Snapshot, error) {
 	if all {
 		names = nil
 		for _, item := range c.Items() {
+			if c.Disabled(item.Name) {
+				continue
+			}
 			names = append(names, item.Name)
 		}
 	}
@@ -39,6 +42,11 @@ func (c *Catalog) Snapshot(all bool, names []string) ([]Snapshot, error) {
 			continue
 		}
 		seen[name] = true
+		// A disabled skill is deliberately off: skipped for new freezes on
+		// both the blanket and explicit paths instead of failing the run.
+		if c.Disabled(name) {
+			continue
+		}
 		item := c.Item(name)
 		if item == nil {
 			return nil, fmt.Errorf("缺少 Skill %q", name)

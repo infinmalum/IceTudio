@@ -6,6 +6,8 @@ import type {
   SkillDraft,
   SkillProposal,
   Run,
+  FeedbackNote,
+  SkillEvaluation,
 } from "../../bindings/icetudio/internal/storage";
 
 export function useSkillDrafts(sessionID: string | null) {
@@ -15,7 +17,10 @@ export function useSkillDrafts(sessionID: string | null) {
   const [request, setRequest] = useState("");
   const [source, setSource] = useState("");
   const [evidenceIDs, setEvidenceIDs] = useState("");
+  const [feedback, setFeedback] = useState<FeedbackNote[]>([]);
+  const [feedbackIDs, setFeedbackIDs] = useState<string[]>([]);
   const [selected, chooseSelected] = useState("");
+  const [evaluations, setEvaluations] = useState<SkillEvaluation[]>([]);
   // The proposal is edited as a typed object; raw JSON is only an advanced
   // view. This keeps broken JSON from silently disabling the friendly fields.
   const [proposal, setProposal] = useState<SkillProposal | null>(null);
@@ -48,7 +53,23 @@ export function useSkillDrafts(sessionID: string | null) {
   }, []);
   useEffect(() => {
     setEvidenceIDs("");
+    setFeedbackIDs([]);
+    setEvaluations([]);
   }, [sessionID]);
+  useEffect(() => {
+    if (!sessionID) {
+      setFeedback([]);
+      return;
+    }
+    StatusService.ListFeedback(sessionID)
+      .then((items) => setFeedback(items ?? []))
+      .catch((e) => setError(String(e)));
+  }, [sessionID]);
+  // Dismissed notes stay in the list for audit but leave refinement selection.
+  const recordedFeedback = feedback.filter((n) => n.state === "recorded");
+  useEffect(() => {
+    setFeedbackIDs((ids) => ids.filter((id) => recordedFeedback.some((n) => n.id === id)));
+  }, [feedback]);
   useEffect(() => {
     setProposal(draft ? structuredClone(draft.proposal) : null);
   }, [draft?.id, draft?.revision]);
@@ -93,12 +114,45 @@ export function useSkillDrafts(sessionID: string | null) {
           source.trim(),
           request,
           evidenceIDs.split(/[\s,]+/).filter(Boolean),
+          feedbackIDs,
         ),
       );
     } catch (e) {
       setError(String(e));
     } finally {
       setBusy(false);
+    }
+  }
+  async function dismissFeedback(id: string) {
+    if (!sessionID) return;
+    try {
+      await StatusService.DismissFeedback(sessionID, id);
+      const items = await StatusService.ListFeedback(sessionID);
+      setFeedback(items ?? []);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+  // Evaluations are user-recorded music-task outcomes for the selected skill;
+  // they never gate anything automatically.
+  async function loadEvaluations(skillName: string) {
+    if (!skillName) {
+      setEvaluations([]);
+      return;
+    }
+    try {
+      setEvaluations((await StatusService.ListSkillEvaluations(skillName)) ?? []);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+  async function recordEvaluation(skillName: string, outcome: string, note: string) {
+    if (!sessionID || !skillName) return;
+    try {
+      await StatusService.RecordSkillEvaluation(skillName, sessionID, "", outcome, note);
+      await loadEvaluations(skillName);
+    } catch (e) {
+      setError(String(e));
     }
   }
   async function act(action: "save" | "apply" | "discard" | "withdraw") {
@@ -144,6 +198,14 @@ export function useSkillDrafts(sessionID: string | null) {
     setSource,
     evidenceIDs,
     setEvidenceIDs,
+    feedback,
+    recordedFeedback,
+    feedbackIDs,
+    setFeedbackIDs,
+    dismissFeedback,
+    evaluations,
+    loadEvaluations,
+    recordEvaluation,
     selected,
     setSelected,
     proposal,

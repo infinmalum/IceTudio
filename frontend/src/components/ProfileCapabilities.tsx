@@ -137,6 +137,9 @@ export function ProfileCapabilities({
               {skill.managed && (
                 <span className="memory-meta">（AI 生成）</span>
               )}
+              {skill.disabled && (
+                <span className="memory-meta sensitive">（已停用，运行不会附带）</span>
+              )}
               <span className="memory-meta"> {skill.description}</span>
             </label>
           ))}

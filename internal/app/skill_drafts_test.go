@@ -30,7 +30,7 @@ func (m *skillDraftModel) Chat(_ context.Context, _ config.Model, messages []mod
 	if strings.Contains(messages[1].Content, "UNRELATED_HISTORY_SECRET") {
 		panic("implicit history sent")
 	}
-	p := storage.SkillProposal{Content: testSkillContent, Summary: "加入分步解释", Reasons: []string{"用户需求"}, Limitations: []string{"未验收，请检查私人信息"}, ExpectedChecks: []string{"回答包含一个相关示例"}, EvidenceRefs: []string{"request"}}
+	p := storage.SkillProposal{Outcome: "reusable", Content: testSkillContent, Summary: "加入分步解释", Reasons: []string{"用户需求"}, Limitations: []string{"未验收，请检查私人信息"}, ExpectedChecks: []string{"回答包含一个相关示例"}, EvidenceRefs: []string{"request"}}
 	if m.bad == "yaml" {
 		p.Content = "not a SKILL.md"
 	}
@@ -86,7 +86,7 @@ func TestSkillDraftCopyPublicationFrozenContentRestart(t *testing.T) {
 	if err = s.runs.Finish(oldRoot.ID, "failed", "fixture ended"); err != nil {
 		t.Fatal(err)
 	}
-	r, err := s.StartSkillDraft(c.ID, "explain-steps", "改进解释方法", nil)
+	r, err := s.StartSkillDraft(c.ID, "explain-steps", "改进解释方法", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestSkillDraftInvalidOutputAndSourceConflict(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			r, err := s.StartSkillDraft(c.ID, "", "新建", nil)
+			r, err := s.StartSkillDraft(c.ID, "", "新建", nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -198,7 +198,7 @@ func TestSkillDraftSourceChangeAndWithdrawal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := s.StartSkillDraft(c.ID, "explain-steps", "改善", nil)
+	r, err := s.StartSkillDraft(c.ID, "explain-steps", "改善", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestSkillDraftSourceChangeAndWithdrawal(t *testing.T) {
 	if err = s.DiscardSkillDraft(d.ID, d.Revision); err != nil {
 		t.Fatal(err)
 	}
-	r, err = s.StartSkillDraft(c.ID, "", "新建", nil)
+	r, err = s.StartSkillDraft(c.ID, "", "新建", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

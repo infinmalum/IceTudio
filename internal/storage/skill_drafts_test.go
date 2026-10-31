@@ -32,8 +32,8 @@ func TestSkillDraftAtomicPublicationPersistenceAndSingleAdoption(t *testing.T) {
 	if err = s.SaveDraftEvidence(ctx, r.ID, []DraftEvidence{}); err != nil {
 		t.Fatal(err)
 	}
-	proposal := SkillProposal{Content: "---\nname: review-notes\ndescription: Review notes on request.\n---\nRead the notes and list missing facts.\n", Summary: "笔记复核", EvidenceRefs: []string{"request"}}
-	d, err := s.SaveSkillDraft(ctx, r.ID, skills.Snapshot{}, "复核笔记", proposal)
+	proposal := SkillProposal{Outcome: "reusable", Content: "---\nname: review-notes\ndescription: Review notes on request.\n---\nRead the notes and list missing facts.\n", Summary: "笔记复核", EvidenceRefs: []string{"request"}}
+	d, err := s.SaveSkillDraft(ctx, r.ID, skills.Snapshot{}, "复核笔记", proposal, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
