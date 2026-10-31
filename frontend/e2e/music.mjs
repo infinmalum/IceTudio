@@ -92,7 +92,7 @@ try{
  // 新布局默认只显示编排；切换到拆分视图让钢琴卷帘与编排同屏（等价旧常驻布局）。
  await click('拆分','.transport-bar');await until('document.querySelector(".editor-center[data-view=split]")');
  await click('添加音轨');await until('document.querySelector("gsui-pianoroll .gsui-row")');
- await ev(`(async()=>{window.getMusic=async()=>{const ps=await musicCall('ListProjects');return musicCall('GetProject',ps.find(p=>p.title==='浏览器真实事务').id)}; window.base=await getMusic()})()`);
+ await ev(`(async()=>{window.musicProjectID=(await musicCall('ListProjects')).find(p=>p.title==='浏览器真实事务').id;window.getMusic=()=>musicCall('GetProject',musicProjectID);window.base=await getMusic()})()`);
  // Seed through the actual service, keeping control and raw events in the same clip.
  await ev(`musicCall('SubmitProjectOps',base.id,'seed','cli',base.revision,[{kind:'note.add',trackId:base.state.tracks[0].id,clipId:base.state.tracks[0].clips[0].id,notes:[{id:'n_seed',start:480,duration:480,pitch:60,velocity:100,channel:0}]},{kind:'control.add',trackId:base.state.tracks[0].id,clipId:base.state.tracks[0].clips[0].id,events:[{kind:'cc',tick:0,channel:0,controller:64,value:127}]}])`);
  await until('document.querySelector("[data-id=n_seed]")');
@@ -307,7 +307,7 @@ try{
  await ev(`(async()=>{window.previewBefore=await getMusic();window.previewClip=previewBefore.state.tracks[0].clips[0].id;window.previewCall=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(previewCall)})()`);
  await until('document.querySelector(".music-edit-approval")');
  await check('Music adoption is disabled until a valid preview is inspected',`Array.from(document.querySelectorAll('.music-edit-approval button')).find(b=>b.textContent==='采用这次修改').disabled`);
- await click('查看音符差异','.music-edit-approval');await until('document.querySelector(".note-diff-table tbody tr")');
+ await click('查看修改差异','.music-edit-approval');await until('document.querySelector(".note-diff-table tbody tr")');
  await check('Candidate preview reads real pending Agent parameters without changing project revision',`(await getMusic()).revision===previewBefore.revision&&document.querySelector('.note-diff-table').textContent.includes('力度')`);
  await click('在卷帘查看','.music-edit-approval');await until('document.querySelector(".piano-ghost-after")');
  await check('Ghosts are read-only and excluded from vendor note count',`getComputedStyle(document.querySelector('.piano-ghost')).pointerEvents==='none'&&Array.from(document.querySelectorAll('.piano-ghost')).every(e=>!e.dataset.id)&&(await getMusic()).state.tracks[0].clips[0].notes.length===3`);
@@ -318,17 +318,17 @@ try{
  await click('撤销','.transport-bar');await until('(await getMusic()).revision===previewBefore.revision+2');
  await check('Agent candidate uses the same GUI undo history',`JSON.stringify((await getMusic()).state.tracks[0].clips[0].notes)===JSON.stringify(previewBefore.state.tracks[0].clips[0].notes)`);
  await ev(`(async()=>{window.discardBefore=(await getMusic()).revision;window.previewCall=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(previewCall)})()`);
- await click('查看音符差异','.music-edit-approval');await until('document.querySelector(".note-diff-table tbody tr")');await click('在卷帘查看','.music-edit-approval');
+ await click('查看修改差异','.music-edit-approval');await until('document.querySelector(".note-diff-table tbody tr")');await click('在卷帘查看','.music-edit-approval');
  await click('丢弃候选','.music-edit-approval');await until('!document.querySelector(".music-edit-approval")&&!document.querySelector(".piano-ghost")');
  await check('Discarding a pending candidate leaves music untouched',`(await getMusic()).revision===discardBefore`);
  await ev(`(async()=>{window.previewCall=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(previewCall)})()`);
- await click('查看音符差异','.music-edit-approval');await until('document.querySelector(".note-diff-table tbody tr")');await click('在卷帘查看','.music-edit-approval');
+ await click('查看修改差异','.music-edit-approval');await until('document.querySelector(".note-diff-table tbody tr")');await click('在卷帘查看','.music-edit-approval');
  await ev(`(async()=>{const p=await getMusic();await musicCall('SubmitProjectOps',p.id,'preview-user-edit','external',p.revision,[{kind:'project.rename',title:p.title}])})()`);
  await until('document.querySelector(".music-edit-approval [role=alert]")?.textContent.includes("过时")&&!document.querySelector(".piano-ghost")');
  await check('User edit invalidates candidate projection and disables adoption',`Array.from(document.querySelectorAll('.music-edit-approval button')).find(b=>b.textContent==='采用这次修改').disabled`);
  await click('丢弃候选','.music-edit-approval');await until('!document.querySelector(".music-edit-approval")');
  await ev(`(async()=>{window.previewCall=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(previewCall);window.musicPreviewHold=true})()`);
- await click('查看音符差异','.music-edit-approval');await until('window.musicPreviewRelease');
+ await click('查看修改差异','.music-edit-approval');await until('window.musicPreviewRelease');
  await ev(`(async()=>{const p=await getMusic();await musicCall('SubmitProjectOps',p.id,'preview-inflight-user-edit','external',p.revision,[{kind:'project.rename',title:p.title}])})()`);
  await until('document.querySelector(".music-edit-approval [role=alert]")?.textContent.includes("过时")');
  await ev(`(()=>{window.musicPreviewHold=false;musicPreviewRelease();delete window.musicPreviewRelease})()`);
@@ -336,7 +336,7 @@ try{
  await click('丢弃候选','.music-edit-approval');await until('!document.querySelector(".music-edit-approval")');
  for(const retire of ['stop','unmount']) {
    await ev(`(async()=>{window.previewCall=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(previewCall)})()`);
-   await click('查看音符差异','.music-edit-approval');await until('document.querySelector(".note-diff-table tbody tr")');
+   await click('查看修改差异','.music-edit-approval');await until('document.querySelector(".note-diff-table tbody tr")');
    await ev(`(()=>{window.musicPreviewPlayHold=true;window.previewPlayBefore=window.musicPreviewPlayCompleted??0})()`);
    await click('试听候选','.music-edit-approval');await until('window.musicPreviewPlayRelease');
    if(retire==='stop')await click('停止候选试听','.music-edit-approval');
@@ -347,10 +347,39 @@ try{
    await ev(`(async()=>{await musicCall('DenyToolCall',previewCall.id,'结束迟到试听');musicShowPreview(null)})()`);
  }
  await ev(`(async()=>{window.lateA=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(lateA);window.musicPreviewHold=true})()`);
- await click('查看音符差异','.music-edit-approval');await until('window.musicPreviewRelease');
+ await click('查看修改差异','.music-edit-approval');await until('window.musicPreviewRelease');
  await ev(`(async()=>{window.musicPreviewHold=false;window.lateB=await musicCall('SeedProjectPreview',previewBefore.id,previewClip);musicShowPreview(lateB);musicPreviewRelease();delete window.musicPreviewRelease})()`);
  await sleep(100);await check('Unmounted candidate response cannot replace a newer candidate view',`!document.querySelector('.note-diff-table')&&!document.querySelector('.piano-ghost')`);
  await ev(`(async()=>{await musicCall('DenyToolCall',lateA.id,'结束旧候选');await musicCall('DenyToolCall',lateB.id,'结束新候选');musicShowPreview(null)})()`);
+ // Mixed edits use actual pending project__edit calls from the same Engine.
+ await ev(`(async()=>{window.mixedBefore=await getMusic();window.previewCall=await musicCall('SeedProjectPreview',mixedBefore.id,previewClip,'mixed');musicShowPreview(previewCall)})()`);
+ await until('document.querySelector(".music-edit-approval")');
+ await click('查看修改差异','.music-edit-approval');await until('document.querySelector(".object-diff-table tbody tr")');
+ await check('Mixed candidate shows actual tempo, instrument, clip and control changes',`document.querySelector('.object-diff-table').textContent.includes('80.000 BPM')&&document.querySelector('.object-diff-table').textContent.includes('Violin')&&document.querySelector('.object-diff-table').textContent.includes('片段绝对起点')&&document.querySelector('.object-diff-table').textContent.includes('CC7 = 50')&&(await getMusic()).revision===mixedBefore.revision`);
+ await check('Mixed edits explain full-score audition and do not offer misleading ghosts',`!document.querySelector('.piano-ghost')&&!Array.from(document.querySelectorAll('.music-edit-approval button')).some(b=>b.textContent==='在卷帘查看')&&document.querySelector('.music-edit-approval').textContent.includes('从头循环整份工程')`);
+ await click('试听候选','.music-edit-approval');await until('musicTransport.previewVariant==="candidate"');
+ await click('采用这次修改','.music-edit-approval');await until('(await getMusic()).revision===mixedBefore.revision+1&&!document.querySelector(".music-edit-approval")');
+ await check('Mixed adoption commits the original batch once',`(await getMusic()).state.tracks[0].program===40&&(await getMusic()).state.tracks[0].clips[0].start===mixedBefore.state.tracks[0].clips[0].start+120&&(await getMusic()).state.tempo[0].usPerQuarter===750000`);
+ await click('撤销','.transport-bar');await until('(await getMusic()).revision===mixedBefore.revision+2');
+ await check('Mixed adoption shares GUI undo including metadata and controller events',`JSON.stringify((await getMusic()).state)===JSON.stringify(mixedBefore.state)`);
+ await ev(`(async()=>{window.previewCall=await musicCall('SeedProjectPreview',mixedBefore.id,previewClip,'mixed');musicShowPreview(previewCall)})()`);
+ await click('查看修改差异','.music-edit-approval');await until('document.querySelector(".object-diff-table tbody tr")');
+ await click('丢弃候选','.music-edit-approval');await until('!document.querySelector(".music-edit-approval")');
+ await check('Mixed discard preserves the full project',`(await getMusic()).revision===mixedBefore.revision+2&&JSON.stringify((await getMusic()).state)===JSON.stringify(mixedBefore.state)`);
+ // Persisted native call with a lost result: the actual transform committed,
+ // but the tool row is still unknown. Querying must not dispatch it again.
+ await ev(`(async()=>{window.recoveryBefore=await getMusic();window.recoveryCall=await musicCall('SeedProjectUnknown',recoveryBefore.id,previewClip,'committed');musicShowUnknown(recoveryCall)})()`);
+ await until('document.querySelector(".project-recovery-card")');
+ await check('Native unknown result offers an authoritative query instead of invented success output',`!Array.from(document.querySelectorAll('.project-recovery-card button')).some(b=>b.textContent==='已核实完成')&&(await getMusic()).revision===recoveryBefore.revision+1`);
+ await click('查询实际提交结果','.project-recovery-card');await until('document.querySelector(".project-recovery-result")');
+ await check('Native result query records the actual commit without another edit',`document.querySelector('.project-recovery-result').textContent.includes('没有重复执行')&&(await getMusic()).revision===recoveryBefore.revision+1&&!document.querySelector('.project-recovery-card')`);
+ await click('撤销','.transport-bar');await until('(await getMusic()).revision===recoveryBefore.revision+2');
+ await check('Recovered Agent operation stays in shared GUI undo',`JSON.stringify((await getMusic()).state)===JSON.stringify(recoveryBefore.state)`);
+ await ev(`(async()=>{window.recoveryCall=await musicCall('SeedProjectUnknown',recoveryBefore.id,previewClip,'not_found');musicShowUnknown(recoveryCall)})()`);
+ await click('查询实际提交结果','.project-recovery-card');await until('document.querySelector(".project-recovery-card [role=status]")');
+ await click('暂不确定','.project-recovery-card');
+ await check('Missing native result remains unknown and does not replay music',`document.querySelector('.project-recovery-card').textContent.includes('不证明未执行')&&(await getMusic()).revision===recoveryBefore.revision+2`);
+ await ev(`musicShowUnknown(null)`);
  // Keyboard edits use the same batch path; IME input in numeric controls
  // must not trigger note operations.
  await click('全选本页');

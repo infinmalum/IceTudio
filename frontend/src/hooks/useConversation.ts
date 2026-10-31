@@ -12,6 +12,7 @@ import type {
   SessionSummary,
   ToolCall,
   WorkerTrace,
+  ProjectCallRecovery,
 } from "../../bindings/icetudio/internal/storage";
 import type {
   SearchAvailability,
@@ -45,6 +46,8 @@ export function useConversation(
     new Map<string, { prompt: string; attachments: File[] }>(),
   );
   const [messages, setMessages] = useState<Message[]>([]);
+  const [projectRecoveryReceipts,setProjectRecoveryReceipts]=useState<{sessionID:string;contextID:string;value:ProjectCallRecovery}[]>([]);
+  const recoveryGeneration=useRef(0);
   const [hasEarlier, setHasEarlier] = useState(false);
   const [loadingEarlier, setLoadingEarlier] = useState(false);
   const earliestLoaded = useRef(0);
@@ -92,6 +95,7 @@ export function useConversation(
   const [workerBusy, setWorkerBusy] = useState(false);
   const [traceError, setTraceError] = useState("");
   const [approvalBusy, setApprovalBusy] = useState(false);
+  useEffect(()=>{recoveryGeneration.current++;setProjectRecoveryReceipts([]);setApprovalBusy(false)},[selected,contextID]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [activeRun, setActiveRun] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -498,7 +502,7 @@ export function useConversation(
   async function resolveUnknown(call: ToolCall, asSuccess: boolean) {
     const note = await dialog.ask({
       title: asSuccess ? "记录已核实的结果" : "记录未完成的操作",
-      body: "只记录你已实际核实的情况。无法确认时选择“暂不确定”，助手将保持暂停，不会重做可能已经生效的操作。",
+      body: "只记录你已实际核实的情况；查不到记录本身不证明未执行。无法确认时选择“暂不确定”，助手将保持暂停，不会重做可能已经生效的操作。",
       label: "你核对到了什么？",
       confirm: "记录核对结论",
       cancel: "暂不确定",
@@ -535,6 +539,22 @@ export function useConversation(
     } finally {
       setApprovalBusy(false);
     }
+  }
+  async function reconcileProjectCall(call: ToolCall) {
+    const id=selected,ctx=contextID,generation=recoveryGeneration.current;
+    if(!id)return;
+    const current=()=>activeSessionID.current===id&&activeContextID.current===ctx&&recoveryGeneration.current===generation;
+    setApprovalBusy(true);
+    try {
+      const value=await StatusService.ReconcileProjectToolCall(call.id);
+      if(!current())return;
+      setProjectRecoveryReceipts(items=>[...items.filter(item=>item.value.callId!==call.id),{sessionID:id,contextID:ctx,value}]);
+      setTaskError("");
+      await refreshCalls();
+      const [page,calls]=await Promise.all([StatusService.ListChatMessages(id,0,80),StatusService.ListToolCalls(id)]);
+      if(current()){mergeMessages(page.messages??[]);setToolHistory(calls??[])}
+    } catch(reason){if(current())setTaskError(String(reason))}
+    finally{if(current())setApprovalBusy(false)}
   }
   async function clearPlan() {
     if (!selected) return;
@@ -803,6 +823,8 @@ export function useConversation(
     approveCall,
     denyCall,
     resolveUnknown,
+    reconcileProjectCall,
+    projectRecoveries:projectRecoveryReceipts.filter(item=>item.sessionID===selected&&item.contextID===contextID).map(item=>item.value),
     clearPlan,
     openChildSession,
     sendTask,

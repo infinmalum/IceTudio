@@ -2,6 +2,7 @@ package playback
 
 import (
 	"encoding/json"
+	"icetudio/internal/project"
 	"testing"
 )
 
@@ -59,6 +60,63 @@ func TestPreviewUsesTemporaryScoreAndIsolatesOrdinaryPlayback(t *testing.T) {
 	m.mu.Unlock()
 	if energy(data) > .000001 {
 		t.Fatal("preview/ordinary switch leaked sustained notes after stop")
+	}
+}
+
+func TestPreviewStructuralChangesUseVariantLengthTempoAndControls(t *testing.T) {
+	for _, mode := range []string{"tempo", "control", "mute", "remove"} {
+		t.Run(mode, func(t *testing.T) {
+			original := managerSnapshot()
+			raw, _ := json.Marshal(original)
+			var candidate Snapshot
+			if err := json.Unmarshal(raw, &candidate); err != nil {
+				t.Fatal(err)
+			}
+			cl := &candidate.State.Tracks[0].Clips[0]
+			cl.Length = 960
+			cl.Notes[0].Duration = 480
+			switch mode {
+			case "tempo":
+				candidate.State.Tempo = []project.TempoPoint{{Tick: 0, USPerQuarter: 1000000}}
+			case "control":
+				cl.Controls = []project.ControlEvent{{ID: "volume", Kind: project.KindCC, Controller: 7, Value: 0}}
+			case "mute":
+				candidate.State.Tracks[0].Muted = true
+			case "remove":
+				candidate.State.Tracks = nil
+			}
+			end := int64(960)
+			if mode == "remove" {
+				end = 1920
+			}
+			m := offlineManager(t, func(string) (Snapshot, error) { return original, nil })
+			if err := m.PlayPreview(Request{ProjectID: original.ID, Revision: 1, Loop: true, LoopEnd: end}, candidate, "structural", "candidate"); err != nil {
+				t.Fatal(err)
+			}
+			m.mu.Lock()
+			pcm, _ := m.engine.render(12000)
+			m.mu.Unlock()
+			s := m.Status()
+			if s.EndTick != end || s.LoopEnd != end || s.PreviewVariant != "candidate" {
+				t.Fatalf("wrong variant length: %+v", s)
+			}
+			if mode == "tempo" {
+				if s.Tick != 120 || energy(pcm) < .00001 {
+					t.Fatalf("candidate tempo/PCM not installed: %+v energy=%g", s, energy(pcm))
+				}
+			} else if energy(pcm) > .000001 {
+				t.Fatalf("candidate %s not silent: %g", mode, energy(pcm))
+			}
+			if err := m.PlayPreview(Request{ProjectID: original.ID, Revision: 1, Loop: true, LoopEnd: 1920}, original, "structural", "original"); err != nil {
+				t.Fatal(err)
+			}
+			m.mu.Lock()
+			pcm, _ = m.engine.render(12000)
+			m.mu.Unlock()
+			if m.Status().Tick != 240 || energy(pcm) < .00001 {
+				t.Fatal("original score did not replace candidate")
+			}
+		})
 	}
 }
 

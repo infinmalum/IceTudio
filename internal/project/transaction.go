@@ -105,7 +105,7 @@ func applyTransaction(st *State, ops []Op, priorIDs map[string]bool, fresh bool)
 	}
 	summary := map[string]int{}
 	for _, op := range ops {
-		if fresh && (len(op.InvClips) != 0 || len(op.InvNotes) != 0 || len(op.InvControls) != 0 || len(op.InvRaw) != 0) {
+		if fresh && (op.InvTrackIndex != nil || len(op.InvClips) != 0 || len(op.InvNotes) != 0 || len(op.InvControls) != 0 || len(op.InvRaw) != 0) {
 			return nil, nil, Result{}, opError(op.Kind, "普通编辑不能携带内部恢复载荷；恢复原对象请使用撤销/重做")
 		}
 		inv, created, err := applyOp(working, ids, op)

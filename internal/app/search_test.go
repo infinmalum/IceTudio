@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -243,59 +244,75 @@ func TestConversationSearchUnavailableAndMCPDiscoveryBoundary(t *testing.T) {
 }
 
 func TestConversationSearchMCPUsesExistingApprovalAndCitations(t *testing.T) {
-	def := model.Tool{Type: "function"}
-	def.Function.Name = "web__lookup"
-	def.Function.Parameters = []byte(`{"type":"object","properties":{}}`)
-	tools := &scriptTools{defs: []model.Tool{def}, respond: func(string, string) (string, error) {
-		return `{"results":[{"url":"https://example.org/source","title":"来源"},{"url":"javascript:unsafe","title":"坏链接"}]}`, nil
-	}}
-	script := &scriptModel{steps: []func([]model.Message) (model.ChatResponse, error){
-		func([]model.Message) (model.ChatResponse, error) {
-			call := model.ToolCall{ID: "s1", Type: "function"}
-			call.Function.Name = "web__lookup"
-			call.Function.Arguments = "{}"
-			return model.ChatResponse{Message: model.Message{Role: "assistant", ToolCalls: []model.ToolCall{call}}, Usage: model.Usage{TotalTokens: 10}}, nil
-		},
-		func([]model.Message) (model.ChatResponse, error) {
-			return model.ChatResponse{Message: model.Message{Role: "assistant", Content: "搜索完成"}, Usage: model.Usage{TotalTokens: 10}}, nil
-		},
-	}}
-	s, _ := newTestService(t, script, tools)
-	s.mu.Lock()
-	s.config.MCPServers = []config.MCPServer{{Name: "web", Command: "mock", WebSearchTools: []string{"lookup"}}}
-	s.mu.Unlock()
-	data := storage.DefaultRuntimeConfig()
-	data.AllMCPServers = false
-	data.EnabledMCPServers = []string{"local", "web"}
-	p, err := s.configureDefault(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := s.CreateConversation(p.ID, "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.SetConversationOptions(c.ID, storage.ConversationOptions{WebSearch: true}); err != nil {
-		t.Fatal(err)
-	}
-	run, err := s.StartConversationTask(c.ID, "搜索", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pending := waitForCallState(t, s, c.ID, storage.CallPending)
-	if pending.ToolName != "web__lookup" {
-		t.Fatal(pending)
-	}
-	if _, err := s.ApproveToolCall(pending.ID); err != nil {
-		t.Fatal(err)
-	}
-	waitForRun(t, s, run.ID, "completed")
-	records, err := s.ListConversationSearch(c.ID)
-	if err != nil || len(records) != 1 || records[0].Provider != "web__lookup" || records[0].State != "succeeded" || len(records[0].Report.Citations) != 1 {
-		t.Fatal(records, err)
-	}
-	if records[0].Report.Citations[0].URL != "https://example.org/source" {
-		t.Fatal(records)
+	for _, bound := range []bool{false, true} {
+		t.Run(fmt.Sprintf("project=%t", bound), func(t *testing.T) {
+			def := model.Tool{Type: "function"}
+			def.Function.Name = "web__lookup"
+			def.Function.Parameters = []byte(`{"type":"object","properties":{}}`)
+			tools := &scriptTools{defs: []model.Tool{def}, respond: func(string, string) (string, error) {
+				return `{"results":[{"url":"https://example.org/source","title":"来源"},{"url":"javascript:unsafe","title":"坏链接"}]}`, nil
+			}}
+			script := &scriptModel{steps: []func([]model.Message) (model.ChatResponse, error){
+				func([]model.Message) (model.ChatResponse, error) {
+					call := model.ToolCall{ID: "s1", Type: "function"}
+					call.Function.Name = "web__lookup"
+					call.Function.Arguments = "{}"
+					return model.ChatResponse{Message: model.Message{Role: "assistant", ToolCalls: []model.ToolCall{call}}, Usage: model.Usage{TotalTokens: 10}}, nil
+				},
+				func(messages []model.Message) (model.ChatResponse, error) {
+					if bound && !strings.Contains(messages[len(messages)-1].Content, `"materialType":"external_mcp"`) {
+						return model.ChatResponse{}, errors.New("missing MCP material boundary")
+					}
+					return model.ChatResponse{Message: model.Message{Role: "assistant", Content: "搜索完成"}, Usage: model.Usage{TotalTokens: 10}}, nil
+				},
+			}}
+			s, _ := newTestService(t, script, tools)
+			s.mu.Lock()
+			s.config.MCPServers = []config.MCPServer{{Name: "web", Command: "mock", WebSearchTools: []string{"lookup"}}}
+			s.mu.Unlock()
+			data := storage.DefaultRuntimeConfig()
+			data.AllMCPServers = false
+			data.EnabledMCPServers = []string{"local", "web"}
+			p, err := s.configureDefault(data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c, err := s.CreateConversation(p.ID, "", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.SetConversationOptions(c.ID, storage.ConversationOptions{WebSearch: true}); err != nil {
+				t.Fatal(err)
+			}
+			if bound {
+				project, err := s.CreateProject("MCP材料", 480)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = s.SetConversationProject(c.ID, project.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			run, err := s.StartConversationTask(c.ID, "搜索", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pending := waitForCallState(t, s, c.ID, storage.CallPending)
+			if pending.ToolName != "web__lookup" {
+				t.Fatal(pending)
+			}
+			if _, err := s.ApproveToolCall(pending.ID); err != nil {
+				t.Fatal(err)
+			}
+			waitForRun(t, s, run.ID, "completed")
+			records, err := s.ListConversationSearch(c.ID)
+			if err != nil || len(records) != 1 || records[0].Provider != "web__lookup" || records[0].State != "succeeded" || len(records[0].Report.Citations) != 1 {
+				t.Fatal(records, err)
+			}
+			if records[0].Report.Citations[0].URL != "https://example.org/source" {
+				t.Fatal(records)
+			}
+		})
 	}
 }
 
@@ -313,6 +330,13 @@ func TestConversationSearchDoesNotWidenReadWorker(t *testing.T) {
 	if _, err := s.UpdateRuntimeConfig(p); err != nil {
 		t.Fatal(err)
 	}
+	project, err := s.CreateProject("只读搜索范围", 480)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.SetConversationProject(c.ID, project.ID); err != nil {
+		t.Fatal(err)
+	}
 	root, _, err := s.store.CreateRunWithOptions(ctx, c.ID, storage.CreateRunOptions{DefaultModel: s.config.Model})
 	if err != nil {
 		t.Fatal(err)
@@ -325,7 +349,7 @@ func TestConversationSearchDoesNotWidenReadWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	child, _, err := s.store.CreateRunWithOptions(ctx, session.ID, storage.CreateRunOptions{ParentRunID: root.ID, Depth: 1, WorkerName: "reader", TaskSpec: &spec})
+	child, childProfile, err := s.store.CreateRunWithOptions(ctx, session.ID, storage.CreateRunOptions{ParentRunID: root.ID, Depth: 1, WorkerName: "reader", TaskSpec: &spec})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,6 +357,22 @@ func TestConversationSearchDoesNotWidenReadWorker(t *testing.T) {
 	_, _, enabled, err := g.searchContext(ctx, s.config.Model)
 	if err != nil || enabled {
 		t.Fatal("readonly worker gained external search", enabled, err)
+	}
+	tools := bookkeepingTools{svc: s, inner: emptyTools{}, profile: childProfile, runID: child.ID, sessionID: session.ID, delegated: true}
+	defs, err := tools.Definitions(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, def := range defs {
+		if def.Function.Name == "local__web_search" || def.Function.Name == "local__send_material" || def.Function.Name == "project__prepare_material" {
+			t.Fatal("read worker discovered external search")
+		}
+	}
+	if err := tools.projectSearchLimit(ctx, `{"query":"voicing"}`); err == nil {
+		t.Fatal("read worker forced external search")
+	}
+	if err := tools.materialRole(ctx); err == nil {
+		t.Fatal("read worker forced material transfer")
 	}
 }
 

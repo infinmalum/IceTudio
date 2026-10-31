@@ -126,7 +126,7 @@ func joinArgs(parts []string) string {
 
 func cmdApprovals(client *ipc.Client, args []string) int {
 	if len(args) == 0 {
-		return usage("approvals 需要子命令 list|approve|deny")
+		return usage("approvals 需要子命令 list|approve|deny|reconcile-project")
 	}
 	switch args[0] {
 	case "list":
@@ -151,6 +151,24 @@ func cmdApprovals(client *ipc.Client, args []string) int {
 			return fail("calls.approve", err)
 		}
 		fmt.Printf("已批准 %s（%s）\n", call.ToolName, call.ID)
+		return 0
+	case "reconcile-project":
+		parsed, err := parseCLI(args[1:])
+		if err == nil {
+			err = parsed.allowValues()
+		}
+		if err != nil || len(parsed.positional) != 1 || parsed.arg(0) == "" {
+			return usage("用法: approvals reconcile-project <callID>")
+		}
+		var result storage.ProjectCallRecovery
+		if err = client.Call("calls.reconcileProject", map[string]any{"callId": parsed.arg(0)}, &result); err != nil {
+			return fail("calls.reconcileProject", err)
+		}
+		if result.Outcome == "committed" && result.Result != nil {
+			fmt.Printf("工程「%s」已于修订 %d 提交 %d 个操作；已记录真实结果，未重放。查询时修订 %d，后续撤销可能已改变音乐。\n", result.Title, result.Result.Revision, result.Result.Applied, result.CurrentRevision)
+		} else {
+			fmt.Printf("核对状态：%s；仍保留未知结果，不自动重放。\n", result.Outcome)
+		}
 		return 0
 	case "deny":
 		parsed, err := parseCLI(args[1:])

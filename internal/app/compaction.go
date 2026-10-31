@@ -151,6 +151,16 @@ func (t bookkeepingTools) definitionsWith(ctx context.Context, definitions []mod
 				definitions = append(definitions, d)
 			}
 		}
+		if t.projectSearchAvailable(ctx) {
+			definitions = append(definitions, projectSearchDefinition())
+		}
+		if t.materialRole(ctx) == nil {
+			for _, def := range materialTransferDefinitions() {
+				if t.profile.AllowsTool(def.Function.Name) {
+					definitions = append(definitions, def)
+				}
+			}
+		}
 	}
 	if t.profile.ResourcesFrozen && len(t.profile.FrozenSkills) > 0 && t.profile.AllowsTool("local__load_skill") {
 		definition := model.Tool{Type: "function"}
@@ -208,6 +218,12 @@ func (t bookkeepingTools) definitionsWith(ctx context.Context, definitions []mod
 
 func (t bookkeepingTools) Call(ctx context.Context, name, arguments string) (string, error) {
 	switch name {
+	case "project__prepare_material":
+		return t.prepareProjectMaterial(ctx, arguments)
+	case "local__send_material":
+		return t.sendProjectMaterial(ctx, arguments)
+	case "local__web_search":
+		return t.projectSearchCall(ctx, arguments)
 	case "local__write_file", "local__edit_file", "local__exec":
 		return t.basicCall(ctx, name, arguments)
 	case "project__query", "project__select", "project__edit", "project__transform":
@@ -230,7 +246,15 @@ func (t bookkeepingTools) Call(ctx context.Context, name, arguments string) (str
 		}
 		for _, item := range t.profile.FrozenSkills {
 			if item.Name == args.Name {
-				return item.ReadResource(args.Path)
+				bound, err := t.hasProjectMaterials(ctx)
+				if err != nil {
+					return "", err
+				}
+				content, err := item.ReadResource(args.Path)
+				if err != nil || !bound {
+					return content, err
+				}
+				return materialEnvelope("skill_method", args.Name, args.Path, content)
 			}
 		}
 		return "", errors.New("Skill 不在任务起始快照中")
@@ -267,7 +291,15 @@ func (t bookkeepingTools) Call(ctx context.Context, name, arguments string) (str
 	case "local__delegate_task":
 		return t.svc.executeDelegation(ctx, t.profile, t.sessionID, t.runID, arguments)
 	default:
-		return t.inner.Call(ctx, name, arguments)
+		bound, err := t.hasProjectMaterials(ctx)
+		if err != nil {
+			return "", err
+		}
+		content, err := t.inner.Call(ctx, name, arguments)
+		if err != nil || !bound || serverOf(name) == "local" {
+			return content, err
+		}
+		return materialEnvelope("external_mcp", name, "", content)
 	}
 }
 

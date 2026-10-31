@@ -148,6 +148,9 @@ func (s *Service) runDelegatedSubtask(parentCtx context.Context, ctx context.Con
 	}
 	structured := (resources.Root.Data.Execution.Workflow == "dynamic" || resources.Root.Data.Execution.Workflow == "fixed") && childRun.WorkerName != ""
 	history := []model.Message{{Role: "system", Content: s.delegationSystemPrompt(parentProfile, childProfile)}}
+	if childRun.ProjectScope != "" {
+		history[0].Content += "\n" + projectMaterialInstruction
+	}
 	if structured {
 		history[0].Content += "\n\n" + workerOutcomeContract
 	}

@@ -396,7 +396,7 @@ func TestProjectEditSchemaOmitsInverseOnlyFields(t *testing.T) {
 	leaked := []string{}
 	walkKeys(schema, func(key string) bool {
 		switch key {
-		case "invClips", "invNotes", "invControls", "invRaw":
+		case "invClips", "invNotes", "invControls", "invRaw", "invTrackIndex":
 			leaked = append(leaked, key)
 			return true
 		}
@@ -410,7 +410,7 @@ func TestProjectEditSchemaOmitsInverseOnlyFields(t *testing.T) {
 	for _, kind := range contract.kinds {
 		for _, field := range contract.fields[kind] {
 			switch field {
-			case "invClips", "invNotes", "invControls", "invRaw":
+			case "invClips", "invNotes", "invControls", "invRaw", "invTrackIndex":
 				t.Fatalf("%s 白名单含 inverse-only 字段 %q", kind, field)
 			}
 		}
@@ -578,6 +578,7 @@ func TestProjectEditSchemaAndBoundaryRejections(t *testing.T) {
 	cases := []rejection{
 		{"错字段名 note", fmt.Sprintf(`{"projectId":%q,"opId":"neg-1","baseRevision":%d,"ops":[{"kind":"note.add","clipId":%q,"note":[%s]}]}`, proj.ID, base, clipID, oneNote(60, 100, 0)), false, "未声明字段", "不支持字段"},
 		{"inverse-only 字段 invNotes", fmt.Sprintf(`{"projectId":%q,"opId":"neg-2","baseRevision":%d,"ops":[{"kind":"clip.add","clip":{"trackId":%q,"start":0,"length":10},"invNotes":[%s]}]}`, proj.ID, base, trackID, oneNote(60, 100, 0)), false, "未声明字段", "不支持字段"},
+		{"inverse-only 字段 invTrackIndex 即使为零也拒绝", fmt.Sprintf(`{"projectId":%q,"opId":"neg-index","baseRevision":%d,"ops":[{"kind":"track.add","track":{"channel":0,"program":0},"invTrackIndex":0}]}`, proj.ID, base), false, "未声明字段", "不支持字段"},
 		{"未知 kind", fmt.Sprintf(`{"projectId":%q,"opId":"neg-3","baseRevision":%d,"ops":[{"kind":"note.move","clipId":%q}]}`, proj.ID, base, clipID), false, "oneOf", "不支持的操作类型"},
 		{"缺少 kind", fmt.Sprintf(`{"projectId":%q,"opId":"neg-4","baseRevision":%d,"ops":[{"clipId":%q}]}`, proj.ID, base, clipID), false, "oneOf", "缺少 kind"},
 		{"pitch 越界", fmt.Sprintf(`{"projectId":%q,"opId":"neg-5","baseRevision":%d,"ops":[{"kind":"note.add","clipId":%q,"notes":[%s]}]}`, proj.ID, base, clipID, oneNote(128, 100, 0)), false, "超出上限", ""},

@@ -92,6 +92,18 @@ func (s *Service) ListConversationSearch(id string) ([]storage.SearchRequest, er
 	}
 	resources := map[string]storage.RunResources{}
 	for _, call := range calls {
+		searchTool := call.ToolName
+		if call.ToolName == "local__send_material" {
+			run, err := s.store.GetRun(ctx, call.RunID)
+			if err != nil {
+				return nil, err
+			}
+			p, err := (bookkeepingTools{svc: s, runID: call.RunID, sessionID: run.SessionID}).resolveProjectMaterial(ctx, call.Arguments)
+			if err != nil {
+				continue
+			}
+			searchTool = p.Tool
+		}
 		r, ok := resources[call.RunID]
 		if !ok {
 			r, err = s.store.RunResources(ctx, call.RunID)
@@ -100,14 +112,25 @@ func (s *Service) ListConversationSearch(id string) ([]storage.SearchRequest, er
 			}
 			resources[call.RunID] = r
 		}
-		if !containsTool(r.SearchTools, call.ToolName) {
+		if !containsTool(r.SearchTools, searchTool) {
 			continue
 		}
 		report := model.SearchReport{Text: call.Result, Events: []model.SearchEvent{{Type: "mcp_tool_call", ID: call.ID, Status: call.State}}}
 		if call.State == storage.CallSucceeded {
-			report.Citations = mcpSearchCitations(call.Result)
+			// Project runs label successful MCP output without altering its
+			// original text. Search display and citation extraction use that text.
+			var material struct {
+				Kind          string `json:"materialType"`
+				Source        string `json:"source"`
+				Authorization string `json:"authorization"`
+				Content       string `json:"content"`
+			}
+			if json.Unmarshal([]byte(call.Result), &material) == nil && material.Kind == "external_mcp" && material.Source == searchTool && material.Authorization == "none" {
+				report.Text = material.Content
+			}
+			report.Citations = mcpSearchCitations(report.Text)
 		}
-		items = append(items, storage.SearchRequest{ID: call.ID, RunID: call.RunID, SessionID: id, StepID: call.StepID, Provider: call.ToolName, State: call.State, Reserved: 1, Report: report, Error: call.Error, CreatedAt: call.CreatedAt})
+		items = append(items, storage.SearchRequest{ID: call.ID, RunID: call.RunID, SessionID: id, StepID: call.StepID, Provider: searchTool, State: call.State, Reserved: 1, Report: report, Error: call.Error, CreatedAt: call.CreatedAt})
 	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].CreatedAt < items[j].CreatedAt })
 	return items, nil
@@ -197,6 +220,11 @@ func (g guardedChat) searchContext(ctx context.Context, source config.Model) (st
 		return resources, run, false, errors.New(route.Reason)
 	}
 	native := route.Route == "native"
+	// Engineering tasks use an explicit isolated-query tool. Never enable a
+	// provider's search on a request carrying the full creative conversation.
+	if native && run.ProjectScope != "" && ctx.Value(explicitProjectSearchKey{}) != true {
+		return resources, run, false, nil
+	}
 	if native {
 		if _, ok := g.inner.(model.SearchChatModel); !ok {
 			return resources, run, false, errors.New("当前模型客户端未实现原生搜索接口")

@@ -26,6 +26,19 @@ type SearchRequest struct {
 // Search reservations share the root's tool budget with all components. Unknown
 // execution keeps the reservation; successful responses refund unused slots.
 func (s *Store) BeginNativeSearch(ctx context.Context, run, provider string) (SearchRequest, error) {
+	return s.beginNativeSearch(ctx, run, provider, "")
+}
+
+// BeginNativeSearchForCall binds an isolated search to its approved tool step.
+// Its dispatch budget remains separate from actual provider search usage.
+func (s *Store) BeginNativeSearchForCall(ctx context.Context, run, provider, callID string) (SearchRequest, error) {
+	if callID == "" {
+		return SearchRequest{}, errors.New("缺少搜索调用")
+	}
+	return s.beginNativeSearch(ctx, run, provider, callID)
+}
+
+func (s *Store) beginNativeSearch(ctx context.Context, run, provider, callID string) (SearchRequest, error) {
 	id, err := newID()
 	if err != nil {
 		return SearchRequest{}, err
@@ -60,8 +73,26 @@ func (s *Store) BeginNativeSearch(ctx context.Context, run, provider string) (Se
 		if status != "running" || rootStatus != "running" {
 			return errors.New("任务已结束")
 		}
-		if err := tx.QueryRowContext(ctx, `SELECT id FROM steps WHERE run_id=? AND kind='model' AND status='running' ORDER BY seq DESC LIMIT 1`, run).Scan(&item.StepID); err != nil {
-			return err
+		if callID == "" {
+			if err := tx.QueryRowContext(ctx, `SELECT id FROM steps WHERE run_id=? AND kind='model' AND status='running' ORDER BY seq DESC LIMIT 1`, run).Scan(&item.StepID); err != nil {
+				return err
+			}
+		} else {
+			call, err := scanToolCall(tx.QueryRowContext(ctx, `SELECT `+toolCallColumns+` FROM tool_calls WHERE id=? AND run_id=?`, callID, run))
+			if err != nil {
+				return err
+			}
+			if call.ToolName != "local__web_search" || call.State != CallExecuting || call.ApprovalSource != ApprovalUser || call.ArgsHash != hashArgs(call.Arguments) {
+				return errors.New("搜索需要原调用的有效用户批准与执行状态")
+			}
+			var prior int
+			if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM search_requests WHERE step_id=?`, call.StepID).Scan(&prior); err != nil {
+				return err
+			}
+			if prior > 0 {
+				return errors.New("搜索已经分派，不自动重放；请核对原结果")
+			}
+			item.StepID = call.StepID
 		}
 		maximum := 3
 		if provider == "gemini" {
@@ -132,6 +163,14 @@ func (s *Store) FinishNativeSearch(ctx context.Context, id string, report model.
 		}
 		if len(report.Events) == 0 {
 			report.Events = earlier.Events
+		} else {
+			// Adapters may return their complete event list as well as streaming
+			// it. Keep the host's approved query without duplicating that list.
+			for _, event := range earlier.Events {
+				if event.Type == "host_query" {
+					report.Events = append([]model.SearchEvent{event}, report.Events...)
+				}
+			}
 		}
 		refund := 0
 		used := report.Calls

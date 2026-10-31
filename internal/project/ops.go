@@ -31,12 +31,14 @@ type Op struct {
 	EventIDs   []string    `json:"eventIds,omitempty"`   // control.remove
 
 	// Inverse-only payloads, filled when applyOp builds the inverse of a
-	// remove. ApplyNewTransaction rejects nonempty client payloads; trusted
-	// history execution passes them to applyOp to restore nested objects.
-	InvClips    []Clip         `json:"invClips,omitempty"`
-	InvNotes    []Note         `json:"invNotes,omitempty"`
-	InvControls []ControlEvent `json:"invControls,omitempty"`
-	InvRaw      []RawEvent     `json:"invRaw,omitempty"`
+	// remove. ApplyNewTransaction rejects supplied positions (including zero)
+	// and nonempty restoration slices; trusted history execution uses them
+	// to restore nested objects and the original track order.
+	InvClips      []Clip         `json:"invClips,omitempty"`
+	InvNotes      []Note         `json:"invNotes,omitempty"`
+	InvControls   []ControlEvent `json:"invControls,omitempty"`
+	InvRaw        []RawEvent     `json:"invRaw,omitempty"`
+	InvTrackIndex *int           `json:"invTrackIndex,omitempty"`
 }
 
 type TrackSpec struct {
@@ -408,7 +410,15 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 		for _, c := range track.Clips {
 			registerClipIDs(ids, c)
 		}
-		st.Tracks = append(st.Tracks, track)
+		if op.InvTrackIndex != nil {
+			i := *op.InvTrackIndex
+			if i < 0 || i > len(st.Tracks) {
+				return inv, nil, opError(op.Kind, "内部音轨恢复位置越界")
+			}
+			st.Tracks = slices.Insert(st.Tracks, i, track)
+		} else {
+			st.Tracks = append(st.Tracks, track)
+		}
 		return Op{Kind: "track.remove", TrackID: id}, []string{id}, nil
 
 	case "track.update":
@@ -483,7 +493,7 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 		inv = Op{Kind: "track.add", Track: &TrackSpec{
 			ID: removed.ID, Name: removed.Name, Color: removed.Color, Channel: removed.Channel,
 			Program: removed.Program, Muted: removed.Muted, Solo: removed.Solo,
-		}, InvClips: removed.Clips}
+		}, InvClips: removed.Clips, InvTrackIndex: &i}
 		return inv, nil, nil
 
 	case "clip.add":

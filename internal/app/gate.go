@@ -71,6 +71,16 @@ func (g toolGate) Gate(ctx context.Context, req agent.ToolRequest) agent.Decisio
 	if deny := g.hardLimits(ctx, profile, req); deny != "" {
 		return agent.Decision{Deny: deny}
 	}
+	if req.Tool == "local__send_material" {
+		return agent.Decision{Confirm: "请核对原工程材料、修订和 MCP 进程；此批准仅适用于这一份材料和目标"}
+	}
+	if req.Tool == "local__web_search" {
+		origin, _, err := endpointOrigin(profile.Model.EffectiveBaseURL())
+		if err != nil {
+			return agent.Decision{Deny: err.Error()}
+		}
+		return agent.Decision{Confirm: "将通过 " + origin + " 搜索这段查询；不自动附带工程或对话，请核对具体内容"}
+	}
 	effect, sensitivity := g.svc.classifierFor(profile).Classify(req.Tool, req.Arguments)
 	// A changed binary or tool schema suspends automatic execution based on
 	// the old registration, in every approval mode.
@@ -132,6 +142,26 @@ func (g toolGate) Recheck(ctx context.Context, req agent.ToolRequest) agent.Deci
 // stay inside the workspace boundary when one is configured. A user
 // confirmation can never override these.
 func (g toolGate) hardLimits(ctx context.Context, profile storage.RunConfigSnapshot, req agent.ToolRequest) string {
+	if req.Tool == "local__send_material" {
+		run, err := g.svc.store.GetRun(ctx, g.runID)
+		if err != nil {
+			return err.Error()
+		}
+		tools := bookkeepingTools{svc: g.svc, inner: g.svc.tools, profile: profile, runID: g.runID, sessionID: run.SessionID}
+		if _, err = tools.validateMaterialSend(ctx, req.Arguments); err != nil {
+			return err.Error()
+		}
+	}
+	if req.Tool == "local__web_search" {
+		run, err := g.svc.store.GetRun(ctx, g.runID)
+		if err != nil {
+			return err.Error()
+		}
+		t := bookkeepingTools{svc: g.svc, profile: profile, runID: g.runID, sessionID: run.SessionID}
+		if err = t.projectSearchLimit(ctx, req.Arguments); err != nil {
+			return err.Error()
+		}
+	}
 	if mcptools.IsProjectTool(req.Tool) {
 		run, err := g.svc.store.GetRun(ctx, g.runID)
 		if err != nil {

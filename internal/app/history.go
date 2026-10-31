@@ -24,7 +24,7 @@ type sessionWindow struct {
 // buildRunContext assembles what a run sends to the model: the persisted
 // history minus the compacted prefix, plus the session's resumable plan.
 // Nothing here modifies persisted records.
-func (s *Service) buildRunContext(sessionID string, profile storage.RunConfigSnapshot) (sessionWindow, error) {
+func (s *Service) buildRunContext(sessionID string, profile storage.RunConfigSnapshot, runIDs ...string) (sessionWindow, error) {
 	ctx := context.Background()
 	entries, err := s.store.HistoryEntries(ctx, sessionID)
 	if err != nil {
@@ -73,8 +73,23 @@ func (s *Service) buildRunContext(sessionID string, profile storage.RunConfigSna
 		}
 	}
 	s.injectPlan(ctx, sessionID, profile, &window)
+	projectBound := false
+	if len(runIDs) > 0 {
+		bound, err := (bookkeepingTools{svc: s, runID: runIDs[0], sessionID: sessionID}).hasProjectMaterials(ctx)
+		if err != nil {
+			return sessionWindow{}, err
+		}
+		if bound {
+			projectBound = true
+			window.history[0].Content += "\n" + projectMaterialInstruction
+		}
+	}
 	if profile.Resources != nil && profile.Resources.Options.WebSearch {
-		window.history[0].Content += "\n" + searchInstruction(model.NativeSearchSupported(profile.Model) && allowsNativeSearch(profile.RuntimeConfigData))
+		if projectBound && model.NativeSearchSupported(profile.Model) && allowsNativeSearch(profile.RuntimeConfigData) {
+			window.history[0].Content += "\n联网搜索已开启；需要原生检索时调用 local__web_search，请求批准具体短查询；普通创作请求不自动启动搜索。"
+		} else {
+			window.history[0].Content += "\n" + searchInstruction(model.NativeSearchSupported(profile.Model) && allowsNativeSearch(profile.RuntimeConfigData))
+		}
 	}
 	return window, nil
 }

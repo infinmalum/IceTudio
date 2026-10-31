@@ -44,6 +44,9 @@ func (r runRecorder) ModelRequest(ctx context.Context, source config.Model, mess
 		route := searchRoute(source, p, resources.SearchTools)
 		if route.Available {
 			searchPath = route.Route
+			if run.ProjectScope != "" && route.Route == "native" {
+				searchPath = "explicit_native_tool"
+			}
 		}
 		if run.Component == "worker" {
 			spec, found, err := r.svc.store.RunTaskSpec(ctx, r.runID)

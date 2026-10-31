@@ -22,8 +22,8 @@ const (
 )
 
 // toolTransitions guards the tool call lifecycle. execution_unknown is
-// terminal only through ResolveToolCall, which records an explicit user
-// disposition; it can never flip back to a succeeded result implicitly.
+// terminal only through explicit user disposition or an explicit native
+// project-result reconciliation; late engine responses never resolve it.
 // approved can still fail (the final guard may reject a call whose policy or
 // parameters no longer match) but never silently back to pending.
 var toolTransitions = map[string][]string{
@@ -68,22 +68,38 @@ type Step struct {
 // recorded on the row; source_scope tags the sensitivity of a successful
 // result so the session's data-exfiltration scope can be reconstructed.
 type ToolCall struct {
-	ID             string `json:"id"`
-	RunID          string `json:"runId"`
-	StepID         string `json:"stepId"`
-	MessageID      string `json:"messageId"`
-	CallID         string `json:"callId"`
-	ToolName       string `json:"toolName"`
-	Arguments      string `json:"arguments"`
-	State          string `json:"state"`
-	Result         string `json:"result"`
-	Error          string `json:"error"`
-	ApprovalSource string `json:"approvalSource,omitempty"`
-	ApprovedAt     string `json:"approvedAt,omitempty"`
-	ArgsHash       string `json:"argsHash,omitempty"`
-	SourceScope    string `json:"sourceScope,omitempty"`
-	CreatedAt      string `json:"createdAt"`
-	UpdatedAt      string `json:"updatedAt"`
+	Material      *MaterialApproval `json:"material,omitempty"`
+	MaterialError string            `json:"materialError,omitempty"`
+	// Derived by the app for pending isolated search approvals, never persisted
+	// or accepted as authority from model arguments.
+	ApprovalDestination string `json:"approvalDestination,omitempty"`
+	ID                  string `json:"id"`
+	RunID               string `json:"runId"`
+	StepID              string `json:"stepId"`
+	MessageID           string `json:"messageId"`
+	CallID              string `json:"callId"`
+	ToolName            string `json:"toolName"`
+	Arguments           string `json:"arguments"`
+	State               string `json:"state"`
+	Result              string `json:"result"`
+	Error               string `json:"error"`
+	ApprovalSource      string `json:"approvalSource,omitempty"`
+	ApprovedAt          string `json:"approvedAt,omitempty"`
+	ArgsHash            string `json:"argsHash,omitempty"`
+	SourceScope         string `json:"sourceScope,omitempty"`
+	CreatedAt           string `json:"createdAt"`
+	UpdatedAt           string `json:"updatedAt"`
+}
+
+// MaterialApproval is a derived view of a host-sealed preparation, not a grant.
+type MaterialApproval struct {
+	Title       string `json:"title"`
+	Revision    int64  `json:"revision"`
+	Destination string `json:"destination"`
+	Tool        string `json:"tool"`
+	Summary     string `json:"summary"`
+	SHA256      string `json:"sha256"`
+	Arguments   string `json:"arguments"`
 }
 
 const toolCallColumns = `id, run_id, step_id, message_id, call_id, tool_name, arguments, state, result, error, approval_source, approved_at, args_hash, source_scope, created_at, updated_at`
@@ -354,19 +370,32 @@ func (s *Store) ResolveToolCall(ctx context.Context, id, state, result, note str
 	default:
 		return fmt.Errorf("无效的处置状态 %q", state)
 	}
-	if note == "" {
+	if strings.TrimSpace(note) == "" {
 		return errors.New("处置结果未知调用时必须说明依据")
 	}
 	if state == CallSucceeded && result == "" {
 		return errors.New("处置为成功时必须提供经核对的结果")
 	}
 	return s.withTx(ctx, func(tx *sql.Tx) error {
-		var current string
-		if err := tx.QueryRowContext(ctx, `SELECT state FROM tool_calls WHERE id = ?`, id).Scan(&current); err != nil {
+		call, err := scanToolCall(tx.QueryRowContext(ctx, `SELECT `+toolCallColumns+` FROM tool_calls WHERE id = ?`, id))
+		if err != nil {
 			return err
 		}
+		current := call.State
 		if current != CallExecutionUnknown && current != CallPending {
 			return fmt.Errorf("工具调用状态 %q 无需处置", current)
+		}
+		if IsNativeProjectWrite(call) {
+			if state == CallSucceeded {
+				return errors.New("原生工程成功结果必须查询实际提交记录，不能手工填写")
+			}
+			out, err := projectCallOutcomeTx(ctx, tx, call)
+			if err != nil {
+				return err
+			}
+			if out.Outcome == "committed" || out.Outcome == "conflict" {
+				return errors.New("该操作已有提交记录，不能记录为未生效；请查询实际提交结果")
+			}
 		}
 		errText := "用户处置：" + note
 		if state == CallFailed {

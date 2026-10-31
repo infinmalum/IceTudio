@@ -96,7 +96,7 @@ func TestProjectPreviewIsReadOnlyAndAdoptionUsesOriginalCall(t *testing.T) {
 }
 
 func TestProjectPreviewRefusalsDoNotChangeMusic(t *testing.T) {
-	for _, scenario := range []string{"read", "outside", "stale", "finished", "discarded", "unsupported", "invalid"} {
+	for _, scenario := range []string{"read", "outside", "stale", "finished", "discarded", "project-level-outside", "invalid"} {
 		t.Run(scenario, func(t *testing.T) {
 			mode := "write"
 			if scenario == "read" {
@@ -108,7 +108,7 @@ func TestProjectPreviewRefusalsDoNotChangeMusic(t *testing.T) {
 					clip = ids.C2
 				}
 				op := fmt.Sprintf(`{"kind":"note.add","clipId":%q,"notes":[{"start":0,"duration":10,"pitch":72,"velocity":80,"channel":0}]}`, clip)
-				if scenario == "unsupported" {
+				if scenario == "project-level-outside" {
 					op = `{"kind":"project.rename","title":"still supported by normal approval"}`
 				}
 				if scenario == "invalid" {
@@ -144,12 +144,12 @@ func TestProjectPreviewRefusalsDoNotChangeMusic(t *testing.T) {
 			if !reflect.DeepEqual(before, after) {
 				t.Fatal("rejected preview changed music")
 			}
-			if scenario == "unsupported" {
+			if scenario == "project-level-outside" {
 				if _, err := s.ApproveToolCall(call.ID); err != nil {
-					t.Fatal("generic approval was removed", err)
+					t.Fatal("generic approval unexpectedly failed", err)
 				}
 				if _, err := tools.Call(context.Background(), call.ToolName, call.Arguments); err == nil { // clip-scoped project.rename should still be rejected by the existing scope.
-					t.Fatal("preview absence bypassed frozen scope")
+					t.Fatal("generic approval bypassed frozen scope")
 				}
 			}
 		})

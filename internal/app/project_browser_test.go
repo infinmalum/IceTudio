@@ -72,7 +72,7 @@ func TestMusicEditorBrowser(t *testing.T) {
 	for _, name := range []string{"GetTimeMapDraft", "SaveTimeMapDraft", "ClearTimeMapDraft"} {
 		methods[name] = name
 	}
-	for _, name := range []string{"PreviewProjectEdit", "ApproveProjectEditPreview", "DenyToolCall"} {
+	for _, name := range []string{"PreviewProjectEdit", "ApproveProjectEditPreview", "DenyToolCall", "ReconcileProjectToolCall"} {
 		methods[name] = name
 	}
 	var mu sync.Mutex
@@ -133,19 +133,75 @@ func TestMusicEditorBrowser(t *testing.T) {
 			return
 		}
 		name, ok := methods[req.Method]
+		if req.Method == "SeedProjectUnknown" {
+			var projectID, clipID, mode string
+			if len(req.Args) != 3 || json.Unmarshal(req.Args[0], &projectID) != nil || json.Unmarshal(req.Args[1], &clipID) != nil || json.Unmarshal(req.Args[2], &mode) != nil {
+				http.Error(w, "invalid recovery fixture", 400)
+				return
+			}
+			conv, err := svc.CreateConversation(storage.DefaultConfigID, "", "中断核对")
+			if err == nil {
+				err = svc.SetConversationProject(conv.ID, projectID)
+			}
+			var run storage.Run
+			var snapshot storage.RunConfigSnapshot
+			if err == nil {
+				run, snapshot, err = store.CreateRun(context.Background(), conv.ID)
+			}
+			p, e := svc.GetProject(projectID)
+			if err == nil {
+				err = e
+			}
+			args := transformPayload(projectID, p.Revision, project.NewID("op"), fmt.Sprintf(`{"clipIds":[%q]}`, clipID), `{"transpose":{"semitones":1}}`, false)
+			var calls []storage.ToolCall
+			if err == nil {
+				_, calls, err = store.AddAssistantMessage(context.Background(), conv.ID, run.ID, "", []storage.MessageToolCall{{ID: "lost-result", Name: "project__transform", Arguments: args}}, nil)
+			}
+			if err == nil {
+				err = store.BeginToolCall(context.Background(), calls[0].ID)
+			}
+			if err == nil && mode == "committed" {
+				_, err = (bookkeepingTools{svc: svc, profile: snapshot, sessionID: conv.ID, runID: run.ID}).Call(context.Background(), "project__transform", args)
+			}
+			if err == nil {
+				err = store.SetRunStatus(context.Background(), run.ID, "interrupted", "浏览器模拟提交应答中断")
+			}
+			if err != nil {
+				http.Error(w, err.Error(), 409)
+				return
+			}
+			call, err := store.GetToolCall(context.Background(), calls[0].ID)
+			if err != nil {
+				http.Error(w, err.Error(), 409)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(call)
+			return
+		}
 		if req.Method == "SeedProjectPreview" {
-			var projectID, clipID string
-			if len(req.Args) != 2 || json.Unmarshal(req.Args[0], &projectID) != nil || json.Unmarshal(req.Args[1], &clipID) != nil {
+			var projectID, clipID, mode string
+			if (len(req.Args) != 2 && len(req.Args) != 3) || json.Unmarshal(req.Args[0], &projectID) != nil || json.Unmarshal(req.Args[1], &clipID) != nil {
 				http.Error(w, "invalid seed args", 400)
 				return
+			}
+			if len(req.Args) == 3 {
+				if err := json.Unmarshal(req.Args[2], &mode); err != nil {
+					http.Error(w, "invalid mode", 400)
+					return
+				}
 			}
 			conv, err := svc.CreateConversation(storage.DefaultConfigID, "", "浏览器候选")
 			if err == nil {
 				err = svc.SetConversationProject(conv.ID, projectID)
 			}
-			input, _ := json.Marshal(map[string]string{"projectId": projectID, "clipId": clipID})
+			input, _ := json.Marshal(map[string]string{"projectId": projectID, "clipId": clipID, "mode": mode})
+			selection := &ProjectScopeSelection{Clips: []string{clipID}}
+			if mode == "mixed" {
+				selection = nil
+			}
 			if err == nil {
-				_, err = svc.StartConversationTask(conv.ID, string(input), &ProjectScopeSelection{Clips: []string{clipID}})
+				_, err = svc.StartConversationTask(conv.ID, string(input), selection)
 			}
 			if err != nil {
 				http.Error(w, err.Error(), 409)
@@ -159,7 +215,7 @@ func TestMusicEditorBrowser(t *testing.T) {
 					return
 				}
 				for _, call := range calls {
-					if call.ToolName == "project__transform" && call.State == storage.CallPending {
+					if (call.ToolName == "project__transform" || call.ToolName == "project__edit") && call.State == storage.CallPending {
 						w.Header().Set("Content-Type", "application/json")
 						_ = json.NewEncoder(w).Encode(call)
 						return
@@ -259,6 +315,27 @@ func (browserPreviewChat) Chat(_ context.Context, _ config.Model, messages []mod
 			return model.ChatResponse{}, fmt.Errorf("no clip in frozen scope")
 		}
 		raw := transformPayload(q.ProjectID, q.Revision, project.NewID("op"), fmt.Sprintf(`{"clipIds":[%q]}`, q.State.Tracks[0].Clips[0].ID), `{"transpose":{"semitones":1}}`, false)
+		for _, message := range messages {
+			var input struct {
+				Mode string `json:"mode"`
+			}
+			if message.Role != "user" || json.Unmarshal([]byte(message.Content), &input) != nil || input.Mode != "mixed" {
+				continue
+			}
+			tr, cl := q.State.Tracks[0], q.State.Tracks[0].Clips[0]
+			program, start := 40, cl.Start+120
+			payload, err := json.Marshal(projectEditArgs{ProjectID: q.ProjectID, OpID: project.NewID("op"), BaseRevision: &q.Revision, Ops: []project.Op{
+				{Kind: "project.rename", Title: q.State.Title + " 候选"},
+				{Kind: "track.update", TrackID: tr.ID, TrackPatch: &project.TrackPatch{Program: &program}},
+				{Kind: "clip.update", ClipID: cl.ID, ClipPatch: &project.ClipPatch{Start: &start}},
+				{Kind: "tempo.set", Tempo: []project.TempoPoint{{Tick: 0, USPerQuarter: 750000}}},
+				{Kind: "control.add", ClipID: cl.ID, Events: []project.EventSpec{{Kind: project.KindCC, Controller: 7, Value: 50}}},
+			}})
+			if err != nil {
+				return model.ChatResponse{}, err
+			}
+			return model.ChatResponse{Message: model.Message{Role: "assistant", ToolCalls: []model.ToolCall{extToolCall("preview-mixed", "project__edit", string(payload))}}}, nil
+		}
 		return model.ChatResponse{Message: model.Message{Role: "assistant", ToolCalls: []model.ToolCall{extToolCall("preview-transform", "project__transform", raw)}}}, nil
 	}
 	return model.ChatResponse{Message: model.Message{Role: "assistant", Content: "按实际工具结果完成，不重放。"}}, nil

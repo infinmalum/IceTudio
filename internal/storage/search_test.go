@@ -191,3 +191,83 @@ func TestGeminiSearchBudgetUsesHostRequestsAndKeepsUnknownInternalCounts(t *test
 		}
 	}
 }
+
+func TestExplicitNativeSearchRequiresOriginalApprovedCallAndNoReplay(t *testing.T) {
+	for _, scenario := range []string{"approved", "automatic", "pending", "changed_args", "wrong_tool", "wrong_run", "exhausted"} {
+		t.Run(scenario, func(t *testing.T) {
+			s, c, run := searchRoot(t, 8)
+			ctx := context.Background()
+			// The creative request is over: binding must use the tool step.
+			var stepID string
+			if err := s.db.QueryRow(`SELECT id FROM steps WHERE run_id=? AND kind='model'`, run.ID).Scan(&stepID); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.CompleteModelStep(ctx, stepID, nil); err != nil {
+				t.Fatal(err)
+			}
+			name := "local__web_search"
+			if scenario == "wrong_tool" {
+				name = "external__search"
+			}
+			_, calls, err := s.AddAssistantMessage(ctx, c.ID, run.ID, "", []MessageToolCall{{ID: "search", Name: name, Arguments: `{"query":"voicing"}`}}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			call := calls[0]
+			if scenario != "pending" {
+				source := ApprovalUser
+				if scenario == "automatic" {
+					source = ApprovalAuto
+				}
+				if err = s.ApproveToolCall(ctx, call.ID, source); err != nil {
+					t.Fatal(err)
+				}
+				if err = s.BeginToolCall(ctx, call.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if scenario == "changed_args" {
+				if _, err = s.db.Exec(`UPDATE tool_calls SET arguments='{"query":"different"}' WHERE id=?`, call.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if scenario == "exhausted" {
+				if _, err = s.db.Exec(`UPDATE root_budgets SET tool_calls=8 WHERE root_run_id=?`, run.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			id := run.ID
+			if scenario == "wrong_run" {
+				id = "missing-run"
+			}
+			item, err := s.BeginNativeSearchForCall(ctx, id, "openai", call.ID)
+			if scenario != "approved" {
+				if err == nil {
+					t.Fatal("dispatched without valid approval/run/budget")
+				}
+				records, e := s.ListConversationSearch(ctx, c.ID)
+				if e != nil || len(records) != 0 {
+					t.Fatal("rejected dispatch left search record", records, e)
+				}
+				return
+			}
+			if err != nil || item.StepID != call.StepID || item.Reserved != 3 {
+				t.Fatal(item, err)
+			}
+			if _, err = s.BeginNativeSearchForCall(ctx, run.ID, "openai", call.ID); err == nil {
+				t.Fatal("replayed in-flight search")
+			}
+			one := 1
+			if err = s.FinishNativeSearch(ctx, item.ID, model.SearchReport{Calls: &one}, nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = s.BeginNativeSearchForCall(ctx, run.ID, "openai", call.ID); err == nil {
+				t.Fatal("replayed completed search")
+			}
+			graph, err := s.GetTaskGraph(ctx, run.ID)
+			if err != nil || graph.Budget.ToolCalls != 2 {
+				t.Fatal("dispatch and native usage must both count", graph.Budget, err)
+			}
+		})
+	}
+}

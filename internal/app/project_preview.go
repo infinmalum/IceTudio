@@ -15,14 +15,18 @@ import (
 )
 
 type ProjectEditPreview struct {
-	CallID        string           `json:"callId"`
-	ArgumentsHash string           `json:"argumentsHash"`
-	ProjectID     string           `json:"projectId"`
-	Title         string           `json:"title"`
-	BaseRevision  int64            `json:"baseRevision"`
-	StartTick     int64            `json:"startTick"`
-	EndTick       int64            `json:"endTick"`
-	Diff          project.NoteDiff `json:"diff"`
+	CallID           string             `json:"callId"`
+	ArgumentsHash    string             `json:"argumentsHash"`
+	ProjectID        string             `json:"projectId"`
+	Title            string             `json:"title"`
+	BaseRevision     int64              `json:"baseRevision"`
+	StartTick        int64              `json:"startTick"`
+	EndTick          int64              `json:"endTick"`
+	Diff             project.NoteDiff   `json:"diff"`
+	Objects          project.ObjectDiff `json:"objects"`
+	NotesOnly        bool               `json:"notesOnly"`
+	OriginalEndTick  int64              `json:"originalEndTick"`
+	CandidateEndTick int64              `json:"candidateEndTick"`
 }
 
 type preparedProjectPreview struct {
@@ -70,6 +74,7 @@ func (s *Service) prepareProjectPreview(callID string) (preparedProjectPreview, 
 	var projectID string
 	var opID string
 	var base *int64
+	notesOnly := true
 	switch call.ToolName {
 	case "project__edit":
 		if err := checkProjectOpFields(call.Arguments); err != nil {
@@ -83,7 +88,7 @@ func (s *Service) prepareProjectPreview(callID string) (preparedProjectPreview, 
 		opID = a.OpID
 		for _, op := range ops {
 			if op.Kind != "note.add" && op.Kind != "note.update" && op.Kind != "note.remove" {
-				return out, errors.New("本批候选预览仅支持音符增删改；轨道、时间图和控制事件请使用原通用审批")
+				notesOnly = false
 			}
 		}
 		if a.OpID == "" {
@@ -149,10 +154,40 @@ func (s *Service) prepareProjectPreview(callID string) (preparedProjectPreview, 
 	}
 	b := project.ScopeRegion(&out.before, scope.Tracks, scope.Clips)
 	a := project.ScopeRegion(&out.after, scope.Tracks, scope.Clips)
+	// Query projections drop parents left without a selected clip. For an
+	// object diff that would falsely report track deletion. Keep the original
+	// selected parents, but never include their out-of-scope clip contents.
+	if len(scope.Clips) > 0 {
+		parents := make([]string, 0, len(b.Tracks))
+		for _, tr := range b.Tracks {
+			parents = append(parents, tr.ID)
+		}
+		if len(parents) > 0 {
+			a = project.ScopeRegion(&out.after, parents, nil)
+			for i := range a.Tracks {
+				var kept []project.Clip
+				for _, c := range a.Tracks[i].Clips {
+					if containsID(scope.Clips, c.ID) {
+						kept = append(kept, c)
+					}
+				}
+				a.Tracks[i].Clips = kept
+			}
+		}
+	}
 	hash := sha256.Sum256([]byte(call.Arguments))
-	out.view = ProjectEditPreview{CallID: callID, ArgumentsHash: hex.EncodeToString(hash[:]), ProjectID: target, Title: item.Title, BaseRevision: item.Revision, Diff: project.DiffNotes(b, a, 2000)}
-	if out.view.Diff.Total == 0 {
-		return out, errors.New("候选没有实际音符变化；可丢弃这次调用")
+	out.view = ProjectEditPreview{CallID: callID, ArgumentsHash: hex.EncodeToString(hash[:]), ProjectID: target, Title: item.Title, BaseRevision: item.Revision, Diff: project.DiffNotes(b, a, 2000), Objects: project.DiffObjects(b, a, 2000), NotesOnly: notesOnly}
+	if out.view.Diff.Total == 0 && out.view.Objects.Total == 0 {
+		return out, errors.New("候选没有实际变化；可丢弃这次调用")
+	}
+	if !notesOnly {
+		// Structural/global changes need the complete musical context. Each
+		// variant owns its end: removing or shortening the last clip must not
+		// request a loop beyond that variant's compiled score.
+		out.view.OriginalEndTick = previewScoreEnd(&out.before)
+		out.view.CandidateEndTick = previewScoreEnd(&out.after)
+		out.view.EndTick = max(out.view.OriginalEndTick, out.view.CandidateEndTick)
+		return out, nil
 	}
 	// All affected clips, including changes beyond the transported row cap.
 	clipIDs := map[string]bool{}
@@ -169,6 +204,19 @@ func (s *Service) prepareProjectPreview(callID string) (preparedProjectPreview, 
 		}
 	}
 	return out, nil
+}
+
+func previewScoreEnd(st *project.State) int64 {
+	var end int64
+	for _, t := range st.Tracks {
+		for _, c := range t.Clips {
+			end = max(end, c.Start+c.Length)
+		}
+	}
+	if end == 0 {
+		end = int64(st.PPQ) * 4
+	}
+	return end
 }
 
 func (s *Service) PreviewProjectEdit(callID string) (ProjectEditPreview, error) {
@@ -203,6 +251,12 @@ func (s *Service) PlayProjectEditPreview(callID, variant string) error {
 		state = p.after
 	}
 	req := playback.Request{ProjectID: p.view.ProjectID, Revision: p.view.BaseRevision, Tick: p.view.StartTick, Loop: true, LoopStart: p.view.StartTick, LoopEnd: p.view.EndTick}
+	if !p.view.NotesOnly {
+		req.LoopEnd = p.view.OriginalEndTick
+		if variant == "candidate" {
+			req.LoopEnd = p.view.CandidateEndTick
+		}
+	}
 	if err := s.playback.PlayPreview(req, playback.Snapshot{ID: p.view.ProjectID, Revision: p.view.BaseRevision, State: state}, callID, variant); err != nil {
 		return err
 	}

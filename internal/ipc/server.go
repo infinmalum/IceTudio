@@ -405,6 +405,14 @@ func (s *Server) dispatch(ctx context.Context, request Request) (any, error) {
 			return nil, err
 		}
 		return s.svc.PendingApprovals(params.ContextID)
+	case "calls.reconcileProject":
+		var params struct {
+			CallID string `json:"callId"`
+		}
+		if err := decodeParams(request.Params, &params); err != nil {
+			return nil, err
+		}
+		return s.svc.ReconcileProjectToolCall(params.CallID)
 	case "calls.resolve":
 		var params struct {
 			CallID string `json:"callId"`

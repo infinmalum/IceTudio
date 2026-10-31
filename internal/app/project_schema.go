@@ -17,7 +17,7 @@ import (
 // authority for cross-object rules the schema cannot express (clip fit,
 // tick-0 anchors, batch-wide ID uniqueness, resource ceilings).
 //
-// Inverse-only payloads (Op.InvClips/InvNotes/InvControls/InvRaw) are filled
+// Inverse-only payloads (Op.InvClips/InvNotes/InvControls/InvRaw/InvTrackIndex) are filled
 // only by the transaction engine and rejected from clients (P1 §10); they are
 // deliberately absent from the schema AND from the decode whitelist below.
 //

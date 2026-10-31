@@ -6,13 +6,25 @@ import type { Note } from "../../bindings/icetudio/internal/project/models";
 import type { ToolCall } from "../../bindings/icetudio/internal/storage/models";
 import type { ConversationState } from "../hooks/useConversation";
 import type { useProjects } from "../hooks/useProjects";
+import { GM_INSTRUMENT_NAMES } from "../music/gm";
 
 export type PreviewWorkspace = Pick<ReturnType<typeof useProjects>,"activeID"|"showPreview"|"clearPreview">;
-export function supportsNotePreview(call: ToolCall) {
+export function supportsProjectPreview(call: ToolCall) {
   try {
     const a=JSON.parse(call.arguments);
-    return call.toolName==="project__transform" ? !a.dryRun : call.toolName==="project__edit" && Array.isArray(a.ops) && a.ops.length>0 && a.ops.every((op:{kind:string})=>["note.add","note.update","note.remove"].includes(op.kind));
+    return call.toolName==="project__transform" ? !a.dryRun : call.toolName==="project__edit";
   } catch { return false }
+}
+function objectValue(field: string, value: string) {
+  if(field==="GM 音色") {
+    const program=Number.parseInt(value,10)-1;
+    return `${GM_INSTRUMENT_NAMES[program]??""} · ${value}`;
+  }
+  if(field==="控制事件" && value.startsWith("GM 音色 ")) {
+    const program=Number.parseInt(value.slice("GM 音色 ".length),10)-1;
+    return `${GM_INSTRUMENT_NAMES[program]??""} · ${value}`;
+  }
+  return value || "未设置";
 }
 function noteLabel(n?: Note | null) {
   if(!n)return "无";
@@ -30,6 +42,7 @@ export function ProjectEditApproval({call,conversation:c,projects:p}:{
   const [audio,setAudio]=useState("");
   const [busy,setBusy]=useState(false);
   const [page,setPage]=useState(0);
+  const [objectPage,setObjectPage]=useState(0);
   const seq=useRef(0);
   const clearPreview=p?.clearPreview;
   useEffect(()=>()=>{seq.current++;clearPreview?.(call.id);void ProjectService.StopProjectEditPreview(call.id).catch(()=>{})},[call.id,clearPreview]);
@@ -50,7 +63,7 @@ export function ProjectEditApproval({call,conversation:c,projects:p}:{
   }),[call.arguments,call.id,clearPreview]);
   async function load() {
     const request=++seq.current;setBusy(true);setError("");
-    try{const value=await ProjectService.PreviewProjectEdit(call.id);if(request===seq.current){setPreview(value);setPage(0)}}
+    try{const value=await ProjectService.PreviewProjectEdit(call.id);if(request===seq.current){setPreview(value);setPage(0);setObjectPage(0)}}
     catch(e){if(request===seq.current)setError(String(e))}
     finally{if(request===seq.current)setBusy(false)}
   }
@@ -72,25 +85,35 @@ export function ProjectEditApproval({call,conversation:c,projects:p}:{
   const valid=!!preview&&!error;
   const changes=preview?.diff.changes??[];
   const rows=changes.slice(page*50,(page+1)*50);
+  const objectChanges=preview?.objects.changes??[];
   return <section className="approval-card music-edit-approval" aria-label="音乐修改候选">
     <strong>检查音乐修改候选</strong>
-    <p>先查看音符差异，再试听或采用。尚未写入工程；采用后仍可用共同撤销恢复。</p>
-    <button className="secondary" disabled={disabled} onClick={()=>void load()}>查看音符差异</button>
+    <p>先查看实际差异，再试听或采用。尚未写入工程；采用会授权原任务提交，提交成功后可共同撤销。</p>
+    <button className="secondary" disabled={disabled} onClick={()=>void load()}>查看修改差异</button>
     {error&&<p role="alert">{error}</p>}
     {preview&&<>
       <p className="operation-target">工程「{preview.title}」 · 基础修订 {preview.baseRevision}</p>
       <p>新增 {preview.diff.added} · 修改 {preview.diff.updated} · 删除 {preview.diff.removed} 个音符</p>
+      {preview.objects.total>0&&<>
+        <p>另有 {preview.objects.total} 项工程、轨道、片段或控制变化</p>
+        {preview.objects.total>objectChanges.length&&<p>对象变化共 {preview.objects.total} 项，仅展示前 {objectChanges.length} 项；试听与采用处理整批。</p>}
+        <div className="note-diff-table object-diff-table"><table><thead><tr><th>对象 / 内容</th><th>原值</th><th>候选值</th></tr></thead><tbody>
+          {objectChanges.slice(objectPage*50,(objectPage+1)*50).map((change,i)=><tr key={objectPage*50+i}><td>{[change.trackName,change.clipName,change.field].filter(Boolean).join(" / ")}</td><td>{objectValue(change.field,change.before)}</td><td>{objectValue(change.field,change.after)}</td></tr>)}
+        </tbody></table></div>
+        {objectChanges.length>50&&<div className="actions"><button className="secondary" disabled={objectPage===0} onClick={()=>setObjectPage(objectPage-1)}>上一组对象变化</button><span>第 {objectPage+1} 组</span><button className="secondary" disabled={(objectPage+1)*50>=objectChanges.length} onClick={()=>setObjectPage(objectPage+1)}>下一组对象变化</button></div>}
+      </>}
       {preview.diff.total>changes.length&&<p>共 {preview.diff.total} 项变化，仅展示前 {changes.length} 项；试听与采用处理整批。</p>}
-      <div className="note-diff-table"><table><thead><tr><th>音轨 / 片段</th><th>原值</th><th>候选值</th></tr></thead><tbody>
+      {preview.diff.total>0&&<><p className="hint">音符起点为片段内位置；片段移动见对象差异中的绝对起点。</p><div className="note-diff-table"><table><thead><tr><th>音轨 / 片段</th><th>原值</th><th>候选值</th></tr></thead><tbody>
         {rows.map((change,i)=><tr key={page*50+i}><td>{change.trackName||"未命名音轨"} / {change.clipName||"片段"}</td><td>{noteLabel(change.before)}</td><td>{noteLabel(change.after)}</td></tr>)}
-      </tbody></table></div>
+      </tbody></table></div></>}
       {changes.length>50&&<div className="actions"><button className="secondary" disabled={page===0} onClick={()=>setPage(page-1)}>上一组差异</button><span>第 {page+1} 组</span><button className="secondary" disabled={(page+1)*50>=changes.length} onClick={()=>setPage(page+1)}>下一组差异</button></div>}
       <div className="actions">
-        {p&&<button className="secondary" disabled={disabled||!valid} onClick={()=>p.showPreview(preview)}>在卷帘查看</button>}
+        {p&&preview.notesOnly&&<button className="secondary" disabled={disabled||!valid} onClick={()=>p.showPreview(preview)}>在卷帘查看</button>}
         <button className="secondary" disabled={disabled||!valid} onClick={()=>void play("original")}>试听原版</button>
         <button className="secondary" disabled={disabled||!valid} onClick={()=>void play("candidate")}>试听候选</button>
         <button className="secondary" onClick={stop}>停止候选试听</button>
       </div>
+      {!preview.notesOnly&&<p className="hint">此批包含非音符修改，请以上表核对，不显示卷帘叠加预览。试听从头循环整份工程：原版到 {preview.originalEndTick} tick，候选到 {preview.candidateEndTick} tick。名称、颜色与拍号可能不改变声音。</p>}
       {audio&&<p role="status">{audio} · 临时快照，未采用；音频状态以播放栏为准</p>}
       {audioError&&<p role="alert">{audioError}</p>}
     </>}

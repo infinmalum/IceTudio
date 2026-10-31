@@ -368,6 +368,31 @@ func (s *Service) PendingApprovals(contextID string) ([]storage.ToolCall, error)
 		}
 		for _, call := range calls {
 			if call.State == storage.CallPending || call.State == storage.CallExecutionUnknown {
+				if call.ToolName == "local__send_material" {
+					p, _, err := s.store.ProfileSnapshot(ctx, call.RunID)
+					if err != nil {
+						call.MaterialError = err.Error()
+					} else {
+						tools := bookkeepingTools{svc: s, profile: storage.RunConfigSnapshot{RuntimeConfigData: p}, runID: call.RunID, sessionID: session.ID}
+						prepared, e := tools.resolveProjectMaterial(ctx, call.Arguments)
+						if e != nil {
+							call.MaterialError = e.Error()
+						} else {
+							call.Material = materialApproval(prepared)
+						}
+					}
+				}
+				if call.ToolName == "local__web_search" {
+					profile, _, err := s.store.ProfileSnapshot(ctx, call.RunID)
+					if err != nil {
+						return nil, err
+					}
+					origin, _, err := endpointOrigin(profile.Model.EffectiveBaseURL())
+					if err != nil {
+						return nil, err
+					}
+					call.ApprovalDestination = origin
+				}
 				pending = append(pending, call)
 			}
 		}
@@ -391,6 +416,16 @@ func (s *Service) ResolveToolCall(callID, state, result, note string) (storage.T
 	}
 	if err := s.checkSessionExists(run.SessionID); err != nil {
 		return storage.ToolCall{}, err
+	}
+	if storage.IsNativeProjectWrite(call) && state == storage.CallSucceeded {
+		out, err := s.ReconcileProjectToolCall(callID)
+		if err != nil {
+			return storage.ToolCall{}, err
+		}
+		if out.Outcome != "committed" {
+			return storage.ToolCall{}, errors.New("尚无匹配的原生提交证据，不能记录为成功；请保留待核对")
+		}
+		return s.store.GetToolCall(context.Background(), callID)
 	}
 	if err := s.store.ResolveToolCall(context.Background(), callID, state, result, note); err != nil {
 		return storage.ToolCall{}, err
@@ -517,7 +552,7 @@ func (s *Service) executeTask(ctx context.Context, runID, sessionID string, sour
 		s.taskMu.Unlock()
 		s.clearStream(runID)
 	}()
-	history, err := s.buildRunContext(sessionID, profile)
+	history, err := s.buildRunContext(sessionID, profile, runID)
 	if err != nil {
 		_ = s.runs.Finish(runID, "failed", err.Error())
 		return
@@ -529,7 +564,7 @@ func (s *Service) executeTask(ctx context.Context, runID, sessionID string, sour
 				if err := s.store.NotifyCoordination(ctx, runID, "review.rework"); err != nil {
 					return err
 				}
-				updated, err := s.buildRunContext(sessionID, profile)
+				updated, err := s.buildRunContext(sessionID, profile, runID)
 				if err != nil {
 					return err
 				}
@@ -633,7 +668,7 @@ func (s *Service) executeTask(ctx context.Context, runID, sessionID string, sour
 		return
 	}
 	if err := s.requireDeliveryReview(ctx, runID, sessionID, profile, func(_ reworkRequest) error {
-		updated, err := s.buildRunContext(sessionID, profile)
+		updated, err := s.buildRunContext(sessionID, profile, runID)
 		if err != nil {
 			return err
 		}

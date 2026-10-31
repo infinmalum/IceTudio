@@ -50,7 +50,7 @@ func (c Classifier) Classify(name, arguments string) (Effect, Sensitivity) {
 	// These exact native names are not external MCP calls. Classify before
 	// the generic namespace rule, including for read-only worker filtering.
 	switch name {
-	case "project__query", "project__select":
+	case "project__query", "project__select", "project__prepare_material":
 		return EffectRead, SensWorkspace
 	case "project__edit", "project__transform":
 		return EffectWrite, SensUnknown
@@ -59,6 +59,8 @@ func (c Classifier) Classify(name, arguments string) (Effect, Sensitivity) {
 		return EffectExternal, SensUnknown
 	}
 	switch name {
+	case "local__web_search", "local__send_material":
+		return EffectExternal, SensUnknown
 	case "local__exec":
 		return EffectExecute, SensUnknown
 	case "local__tool_search":
@@ -112,7 +114,7 @@ func (c Classifier) Classify(name, arguments string) (Effect, Sensitivity) {
 // tools using the reserved namespace.
 func IsProjectTool(name string) bool {
 	switch name {
-	case "project__query", "project__select", "project__edit", "project__transform":
+	case "project__query", "project__select", "project__edit", "project__transform", "project__prepare_material":
 		return true
 	}
 	return false
