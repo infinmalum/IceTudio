@@ -9,6 +9,7 @@ import { loadPaneWidth, paneStyle, PaneResizer } from "./shared/panes";
 import { ProfileAdvanced } from "./components/ProfileAdvanced";
 import { ProfileEditor } from "./components/ProfileEditor";
 import { ModelSettings } from "./components/ModelSettings";
+import { AppearanceSettings } from "./components/AppearanceSettings";
 import { PrivacySettings } from "./components/PrivacySettings";
 import { ContextPolicyPanel } from "./components/ContextPolicyPanel";
 import { ExfilPanel } from "./components/ExfilPanel";
@@ -133,8 +134,8 @@ function ThemedApp() {
               label="调整对话栏宽度"
               targetSelector=".agent-dock"
               grow={-1}
-              min={320}
-              max={640}
+              min={280}
+              max={760}
               onWidth={setDockWidth}
             />
             <aside
@@ -227,6 +228,7 @@ function ThemedApp() {
                     ["model", "模型连接"],
                     ["extensions", "技能与服务"],
                     ["privacy", "权限"],
+                    ["appearance", "外观"],
                     ["developer", "开发者设置"],
                   ].map(([id, label]) => (
                     <button
@@ -307,6 +309,8 @@ function ThemedApp() {
                       searchAvailability={app.conversation.searchAvailability}
                     />
                   </>
+                ) : app.settingsTab === "appearance" ? (
+                  <AppearanceSettings />
                 ) : (
                   <>
                     <p>集中管理助手的执行配置与本机高级选项。</p>
