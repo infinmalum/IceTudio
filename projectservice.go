@@ -152,3 +152,8 @@ func (s *ProjectService) PickSaveMIDIFile(defaultName string) (string, error) {
 		AddFilter("MIDI 文件", "*.mid").
 		PromptForSingleSelection()
 }
+
+// PrepareNoteTransform compiles selected notes without writing music.
+func (s *ProjectService) PrepareNoteTransform(projectID string, baseRevision int64, clipID string, noteIDs []string, spec project.TransformSpec) ([]project.Op, error) {
+	return s.svc.PrepareNoteTransform(projectID, baseRevision, clipID, noteIDs, spec)
+}

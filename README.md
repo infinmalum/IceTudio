@@ -1,5 +1,7 @@
 # IceTudio
 
+> 2026-11-01 新增：[完整 DAW 扩展路线与 UI 设计](docs/daw-expansion/README.md)，覆盖 FL Studio 官网展示的能力类别。该路线是待实施目标，不表示下述当前版本已经具备录音、混音或插件宿主。
+
 IceTudio 的目标是 **AI native 音乐创作软件**：MIDI 编辑是原生能力，Agent 是与用户操作同一音乐工程的原生编辑者。用户可以在钢琴卷帘和编曲视图中手工创作，也可以让 Agent 修改选定音轨或片段；两者共享编辑事务、试听和撤销。
 
 **当前处于转型执行阶段：P0 减法已完成（模板/Profile 库/分享/独立长期记忆已删，RuntimeConfig 就位，名称与构建产物统一为 IceTudio）；P1 工程模型与统一编辑事务已实现（[阶段设计](docs/p1-project-model.md)）：工程独立于对话保存，GUI（左栏工程管理、中间纯编辑器、右栏 Agent 栏）、CLI `icetudio projects` 与 Agent 工具（`project__query`/`project__edit`）经同一命令服务提交整组事务——修订冲突拒绝、操作 ID 幂等、撤销/重做、中断后可查询真实结果，MIDI 导入导出严格校验。P2 已接入钢琴卷帘、多轨片段编排画布与 Linux 原生播放，支持鼠标/键盘音符编辑、片段移动/末端拉伸、共享撤销、定位/循环、播放中更新，以及全部速度/拍号点与变拍小节尺。真实 PCM/PulseAudio 回调已测；2026-10-24 原生 Wails/WebKit 完整流程已有 13 项验证记录（范围与限制见下文）。设备异常、干净系统安装、物理音频延迟和听感仍待验收。** P2 及完整音乐产品尚未交付；RPM 版本约束与 AppImage 音色打包仍有实现缺口，见[安装契约](docs/p2-installation.md)。P3 已推进范围冻结、确定性变换及 main/worker 统一编辑网关，脚本模型通过真实执行引擎与 SQLite 验证局部编辑、审批拒绝、取消、冲突及共同撤销；音符候选差异、ghost 与临时原版/候选试听已接入并通过分层自动化测试；2026-10-29 非音符/混合差异与试听策略也已接入并通过服务、真实工程浏览器和离线 PCM 验证；原生编辑中断结果查询已接入对话与 CLI，按原调用的持久提交证据核对，不重放；查无记录或工程已删时继续保留未知。2026-10-30 补齐显式工程材料引用、逐次发送审批、MCP 身份复核与防重放，P3 功能接入及限定自动化已收尾；真实模型和原生窗口闭环由维护者自行验收，当前未有通过记录。2026-10-31 完成 P4 反馈驱动 Skill 自进化的功能接入与限定自动化（反馈记录、一次性/可复用提炼、停用/回退、显式启用、效果评估）。
@@ -44,7 +46,7 @@ GridSound 的固定源码子集已接入，通过真实 React→Go 服务→SQLi
 
 技术栈为 Go/Wails/React/SQLite。module、前端包、绑定和产物已统一为 `icetudio`。以下命令运行当前转型中的音乐工作区，已实现范围和验收缺口见上文。
 
-需要 Go 1.25+、Node.js/npm、Wails 3 CLI 和本机 Wails 桌面依赖。Linux+cgo 另需标准路径中的 FluidSynth 开发头文件/动态库（Debian `libfluidsynth-dev`，Arch `fluidsynth`），运行需要 `libfluidsynth.so.3` 及可用的系统音频服务；本机使用 PipeWire 的 PulseAudio 兼容服务。其他平台的音频门面明确返回不可用，整个平台尚未验收。`CGO_ENABLED=0` 仅能验证纯播放包的不可用路径，现有 SQLite 驱动也需要 cgo，不能据此运行完整编辑器。项目根目录执行：
+需要 Go 1.26.10+、Node.js/npm、Wails 3.0.0 CLI（Go 模块和前端 runtime 均固定为 3.0.0）和本机 Wails 桌面依赖。Linux+cgo 另需标准路径中的 FluidSynth 开发头文件/动态库（Debian `libfluidsynth-dev`，Arch `fluidsynth`），运行需要 `libfluidsynth.so.3` 及可用的系统音频服务；本机使用 PipeWire 的 PulseAudio 兼容服务。其他平台的音频门面明确返回不可用，整个平台尚未验收。`CGO_ENABLED=0` 仅能验证纯播放包的不可用路径，现有 SQLite 驱动也需要 cgo，不能据此运行完整编辑器。项目根目录执行：
 
 ```sh
 wails3 dev

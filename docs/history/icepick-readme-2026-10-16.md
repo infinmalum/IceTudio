@@ -83,9 +83,9 @@ bin/icepick logs 100         # 查看宿主日志
 bin/icepick help             # 完整命令列表
 ```
 
-配置草案的使用说明和限制见[Profile/Skill 草案指南](../profile-drafts.md)。任务证据必须明确选择，Skill 采用发布独立副本；分享派生配置前需人工检查内容，CLI 使用 `--reviewed` 保存经核对的分享包。
+配置草案的使用说明和限制见[Profile/Skill 草案指南](../daw-expansion/documentation-cleanup.md)。任务证据必须明确选择，Skill 采用发布独立副本；分享派生配置前需人工检查内容，CLI 使用 `--reviewed` 保存经核对的分享包。
 
-四个模板的使用说明、案例与验收范围见[默认场景指南](../scenarios.md)。开发任务可使用内置读写编辑/exec，无需另装 MCP；CLI 用 `conversations permissions <conversationID> --command <可执行文件>` 设置命令权限，该选项替换当前命令列表。
+四个模板的使用说明、案例与验收范围见[默认场景指南](../daw-expansion/documentation-cleanup.md)。开发任务可使用内置读写编辑/exec，无需另装 MCP；CLI 用 `conversations permissions <conversationID> --command <可执行文件>` 设置命令权限，该选项替换当前命令列表。
 
 无交互执行遇到审批请求时只报告、绝不默认放行；可在桌面端或用 `approvals approve/deny` 处理。
 

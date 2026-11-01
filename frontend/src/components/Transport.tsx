@@ -8,7 +8,7 @@ import { meterIndex, positionLabel } from "../music/timeMap";
 type Projects = ReturnType<typeof useProjects>;
 export type EditorView = "arrange" | "split" | "roll";
 
-const VIEWS: [EditorView, string][] = [["arrange", "编排"], ["split", "拆分"], ["roll", "琴键"]];
+const VIEWS: [EditorView, string][] = [["arrange", "编排"], ["split", "编排 + 卷帘"], ["roll", "钢琴卷帘"]];
 
 // 顶部走带条：单行紧凑 + 细进度条 + 精确位置/循环行（P2 工作区契约 §1.1）。
 // 暂停 = 现有停止路径并保留位置；停止 = 停止并回开头；不引入第二套时钟。
@@ -66,7 +66,7 @@ export function Transport({ project, projects: p, snap, setSnap, view, setView }
       <span className="transport-readout bpm">{bpm === "—" ? "BPM —" : `${bpm}`} <b>{shown.meter}</b></span>
       <label className="transport-snap" title="吸附网格（编排与钢琴卷帘共用）">吸附
         <select aria-label="编排吸附" disabled={inputDisabled} value={snap} onChange={e => setSnap(Number(e.target.value))}>
-          {[0.25, 0.5, 1, 2, 4].map(n => <option key={n} value={n}>{n} 四分拍</option>)}
+          {[[0.25, "1/16 音符"], [0.5, "1/8 音符"], [1, "1/4 音符"], [2, "1/2 音符"], [4, "全音符"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select></label>
       <span className="transport-spacer"/>
       <div className="view-switch" role="group" aria-label="工作区视图">

@@ -68,7 +68,7 @@ func TestMusicEditorBrowser(t *testing.T) {
 		t.Fatal(err)
 	}
 	token := hex.EncodeToString(tokenBytes)
-	methods := map[string]string{"GetPendingProjectEdit": "GetPendingProjectEdit", "BeginProjectEdit": "BeginProjectEdit", "ClearPendingProjectEdit": "ClearPendingProjectEdit", "ListProjects": "ListProjects", "GetProject": "GetProject", "CreateProject": "CreateProject", "DeleteProject": "DeleteProject", "SubmitProjectOps": "SubmitProjectOps", "UndoProject": "UndoProject", "RedoProject": "RedoProject", "GetProjectTransaction": "GetProjectTransaction", "ProjectHistory": "ProjectHistory"}
+	methods := map[string]string{"PrepareNoteTransform": "PrepareNoteTransform", "GetPendingProjectEdit": "GetPendingProjectEdit", "BeginProjectEdit": "BeginProjectEdit", "ClearPendingProjectEdit": "ClearPendingProjectEdit", "ListProjects": "ListProjects", "GetProject": "GetProject", "CreateProject": "CreateProject", "DeleteProject": "DeleteProject", "SubmitProjectOps": "SubmitProjectOps", "UndoProject": "UndoProject", "RedoProject": "RedoProject", "GetProjectTransaction": "GetProjectTransaction", "ProjectHistory": "ProjectHistory"}
 	for _, name := range []string{"GetTimeMapDraft", "SaveTimeMapDraft", "ClearTimeMapDraft"} {
 		methods[name] = name
 	}

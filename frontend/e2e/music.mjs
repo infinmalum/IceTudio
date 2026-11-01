@@ -65,7 +65,9 @@ try{
  const check=async(name,expression)=>{if(!await ev(expression))throw Error(name);report.checks.push(name)};
  const click=async(text,scope='body')=>{const expr=`Array.from(document.querySelector(${JSON.stringify(scope)}).querySelectorAll('button')).find(b=>b.textContent.trim()===${JSON.stringify(text)}&&!b.disabled)`;await until(expr);await ev(`(${expr}).click()`);await sleep(80)};
  const fill=async(selector,value)=>ev(`(async()=>{const e=document.querySelector(${JSON.stringify(selector)});e.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));await new Promise(requestAnimationFrame)})()`);
- const rect=async selector=>ev(`(async()=>{const e=document.querySelector(${JSON.stringify(selector)});e.scrollIntoView({block:'center',inline:'center',behavior:'instant'});await new Promise(r=>setTimeout(r,120));const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2,w:r.width,h:r.height}})()`);
+ // Keep targets within the nearest nested editor viewport; centering the
+ // vendor ruler can scroll its absolute-positioned slot out of the clip.
+ const rect=async selector=>ev(`(async()=>{const e=document.querySelector(${JSON.stringify(selector)});e.scrollIntoView({block:${JSON.stringify(selector.includes('.music-ruler') ? 'nearest' : 'center')},inline:'center',behavior:'instant'});await new Promise(r=>setTimeout(r,120));const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2,w:r.width,h:r.height}})()`);
  const mouse=async(type,x,y,extra={})=>send('Input.dispatchMouseEvent',{type,x,y,button:'left',...extra});
  const drag=async(selector,dx,dy=0,during)=>{const r=await rect(selector);await mouse('mouseMoved',r.x,r.y);await mouse('mousePressed',r.x,r.y,{clickCount:1});for(let i=1;i<=5;i++)await mouse('mouseMoved',r.x+dx*i/5,r.y+dy*i/5,{buttons:1});if(during)await during();await mouse('mouseReleased',r.x+dx,r.y+dy,{clickCount:1});await sleep(200)};
  const keyboard=async(key,code,modifiers=0)=>{await send('Input.dispatchKeyEvent',{type:'keyDown',key,code,modifiers});await send('Input.dispatchKeyEvent',{type:'keyUp',key,code,modifiers})};
@@ -90,8 +92,16 @@ try{
  await click('创建','dialog[open]');
  await until('document.querySelector(".music-editor")');
  // 新布局默认只显示编排；切换到拆分视图让钢琴卷帘与编排同屏（等价旧常驻布局）。
- await click('拆分','.transport-bar');await until('document.querySelector(".editor-center[data-view=split]")');
+ await click('编排 + 卷帘','.transport-bar');await until('document.querySelector(".editor-center[data-view=split]")');
  await click('添加音轨');await until('document.querySelector("gsui-pianoroll .gsui-row")');
+ await check('Split view uses a three-row grid with scrollable editors',`(()=>{const p=document.querySelector('.editor-panes');return getComputedStyle(p).display==='grid'&&getComputedStyle(p).gridTemplateRows.split(' ').length===3&&getComputedStyle(p.querySelector('.piano-editor')).overflowY==='auto'})()`);
+ await check('Snap uses musical note values with the same tick ratio',`document.querySelector('[aria-label="编排吸附"]').selectedOptions[0].textContent==='1/4 音符'&&document.querySelector('[aria-label="编排吸附"]').value==='1'`);
+ await ev(`document.querySelector('[aria-label="编排区域比例"]').focus()`);
+ for(let i=0;i<5;i++) await keyboard('ArrowLeft','ArrowLeft');
+ await until(`localStorage.getItem('icetudio.editor-split-percent')==='35'`);
+ await check('Split ratio updates layout and persists a view preference',`document.querySelector('[aria-label="编排区域比例"]').getAttribute('aria-valuetext')==='编排 35%，钢琴卷帘 65%'&&document.querySelector('.editor-panes').style.gridTemplateRows.includes('35fr')`);
+ await click('重置比例');await until(`localStorage.getItem('icetudio.editor-split-percent')==='60'`);
+
  await ev(`(async()=>{window.musicProjectID=(await musicCall('ListProjects')).find(p=>p.title==='浏览器真实事务').id;window.getMusic=()=>musicCall('GetProject',musicProjectID);window.base=await getMusic()})()`);
  // Seed through the actual service, keeping control and raw events in the same clip.
  await ev(`musicCall('SubmitProjectOps',base.id,'seed','cli',base.revision,[{kind:'note.add',trackId:base.state.tracks[0].id,clipId:base.state.tracks[0].clips[0].id,notes:[{id:'n_seed',start:480,duration:480,pitch:60,velocity:100,channel:0}]},{kind:'control.add',trackId:base.state.tracks[0].id,clipId:base.state.tracks[0].clips[0].id,events:[{kind:'cc',tick:0,channel:0,controller:64,value:127}]}])`);
@@ -737,8 +747,22 @@ try{
  await send('Page.reload');await until('window.musicCloseRequest&&document.querySelector("[data-close-guard=ready]")');
  await ev(`musicCloseRequest('clean-exit')`);await until('musicClose.confirmed.includes("clean-exit")');
  await check('Clean editor exits without a discard prompt after checks initialize',`!document.querySelector('#dialog-title')&&document.querySelector('[data-close-guard]').hasAttribute('inert')`);
+ // Dedicated offline GUI transform flow after close-guard regressions.
+ await send('Page.reload');await until('document.querySelector("[data-close-guard=ready]")');
+ await click('＋ 新建工程','.browser');await fill('dialog[open] input','选中音符变换');await click('创建','dialog[open]');
+ await until('document.querySelector(".transport-title")?.textContent==="选中音符变换"');
+ await click('添加音轨');await until('document.querySelector("gsui-pianoroll .gsui-row")');
+ await ev(`(async()=>{window.transformProject=(await musicCall('ListProjects')).find(p=>p.title==='选中音符变换').id;const p=await musicCall('GetProject',transformProject);await musicCall('SubmitProjectOps',p.id,'gui-transform-seed','cli',p.revision,[{kind:'note.add',clipId:p.state.tracks[0].clips[0].id,notes:[{id:'n_transform',start:130,duration:120,pitch:60,velocity:90,channel:0}]}]);window.getTransform=()=>musicCall('GetProject',transformProject)})()`);
+ await until('document.querySelector("[data-id=n_transform]")');
+ await check('Transform actions require an explicit note selection',`Array.from(document.querySelectorAll('[aria-label="选中音符变换"] button')).every(b=>b.disabled)`);
+ await click('全选本页');await click('+1 半音');await until('(await getTransform()).state.tracks[0].clips[0].notes[0].pitch===61');
+ await check('Offline GUI transpose uses the authoritative saved project',`(await getTransform()).state.tracks[0].clips[0].notes[0].velocity===90&&(await musicCall('GetPendingProjectEdit'))===null`);
+ await click('量化选中音符');await until('(await getTransform()).state.tracks[0].clips[0].notes[0].start===120');
+ await click('撤销','.transport-bar');await until('(await getTransform()).state.tracks[0].clips[0].notes[0].start===130');
+ await click('撤销','.transport-bar');await until('(await getTransform()).state.tracks[0].clips[0].notes[0].pitch===60');
+ await check('Quantize and transpose share project undo without changing note duration',`(await getTransform()).state.tracks[0].clips[0].notes[0].duration===120`);
  // 回归：busy 关闭弹窗必须始终提供真实退出路径（如本机数据不可读导致检查永不完成时）。
- await send('Page.reload');await until('window.musicCloseRequest&&document.querySelector("[data-close-guard=ready]")');
+ // The transform flow above already reopened a ready editor.
  await ev(`(async()=>{const p=(await musicCall('ListProjects')).find(v=>v.title==='浏览器真实事务');Array.from(document.querySelectorAll('.project-select')).find(x=>x.dataset.id===p.id)?.click()})()`);
  await until('document.querySelector(".transport-title")?.textContent==="浏览器真实事务"');
  await ev('window.musicHoldSave=true');await fill('[aria-label="片段起点（tick）"]','360');

@@ -31,3 +31,9 @@ This project has no actual users yet. Until the maintainer explicitly announces 
 - Use readable Markdown, appropriate scrolling, keyboard/input-method support, clear material handling and native file/folder selection. Normal flows must not require JSON editing, runtime IDs or browser prompt/confirm dialogs. Disabled actions must explain a usable next step.
 - Keep the AGPL-3.0-only project direction and third-party obligations. Do not bundle unverified GridSound assets or unlicensed soundfonts/samples. Code licensing does not establish rights to input music, samples or private conversation material.
 - Distinguish planned work, isolated experiments and shipped features. Validate offline editing, model connection, actual Agent edits, audition, permissions, undo, interruption recovery and project persistence. Browser mocks and passing builds alone do not establish native usability, audio timing or musical quality.
+
+# DAW expansion planning authority
+
+- The 2026-11-01 user-requested DAW expansion is specified in `docs/daw-expansion/README.md`, its feature matrix, UI design, architecture, implementation plan and acceptance matrix. E0–E8 extend the original MIDI-first scope; they are targets, not shipped capabilities.
+- Existing P0–P4 preservation, authorization, persistence and recovery contracts remain binding. A planned replacement is not deletion authorization; inventory actual callers and verify equivalent reachable behavior before removing its carrier.
+- FL Studio reference images are documentation research material only, with provenance in the reference manifest; do not package them as product assets or infer permission to redistribute them under AGPL.

@@ -1993,9 +1993,12 @@ fieldset.feedback-picker {
 .transport .transport-position { display: block; margin: 7px 1px 6px; }
 .editor-panes { display: flex; flex-direction: column; min-height: 0; }
 .editor-panes > section { flex: 0 0 auto; }
-.editor-panes[data-view=split] { display: grid; grid-template-rows: minmax(240px, 1fr) minmax(240px, 1fr); }
+.editor-panes[data-view=split] { display: grid; height: clamp(520px, 68vh, 960px); gap: 0; }
 .editor-panes[data-view=split] > section { min-height: 0; overflow: auto; }
-.editor-panes[data-view=split] > .pane-hint { display: none; }
+.editor-panes[data-view=split] > .pane-hint { margin: 0; overflow: auto; }
+.editor-split-control { display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: var(--panel-soft); border-block: 1px solid var(--line); font-size: 12px; }
+.editor-split-control input { flex: 1; min-width: 60px; accent-color: var(--accent); }
+.editor-split-control button { font-size: 12px; padding: 4px 8px; }
 .pane-hint { padding: 18px 8px; }
 .inspector-dock > summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .editor-panes[data-view=roll] > section[aria-label=片段编排] { display: none; }

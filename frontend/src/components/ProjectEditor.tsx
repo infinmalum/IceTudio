@@ -43,9 +43,11 @@ function NumberEdit({ label, value, min, max, disabled, target, title, trackID, 
     }}/>{!valid && <span role="alert">请输入 {min}–{max} 的整数；输入已保留，Escape 丢弃</span>}</label>;
 }
 
+const SPLIT_KEY = "icetudio.editor-split-percent";
 const VIEW_KEY = "icetudio.editor-view", INSPECTOR_KEY = "icetudio.inspector-open";
 function loadView(): EditorView {
-  const saved = localStorage.getItem(VIEW_KEY);
+  let saved: string | null = null;
+  try { saved = localStorage.getItem(VIEW_KEY); } catch { /* Use the default when storage is unavailable. */ }
   return saved === "arrange" || saved === "split" || saved === "roll" ? saved : "arrange";
 }
 
@@ -54,10 +56,22 @@ export function ProjectEditor({ project, projects: p }: { project: Project; proj
   const tracks = project.state.tracks ?? [];
   const [trackID, setTrackID] = useState("");
   const [clipID, setClipID] = useState("");
-  // 吸附在编排与钢琴卷帘间共享（顶部 Transport 只读显示）；视图与检查器状态持久化。
+  // 吸附在编排与钢琴卷帘间共享（顶部 Transport 调整）；视图与检查器状态持久化。
   const [snap, setSnap] = useState(1);
   const [view, setView] = useState<EditorView>(loadView);
-  const [inspectorOpen, setInspectorOpen] = useState(() => localStorage.getItem(INSPECTOR_KEY) !== "0");
+  const [splitPercent, setSplitPercent] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem(SPLIT_KEY));
+      return Number.isFinite(saved) && saved >= 25 && saved <= 75 ? saved : 60;
+    } catch { return 60; }
+  });
+  const changeSplit = (value: number) => {
+    setSplitPercent(value);
+    try { localStorage.setItem(SPLIT_KEY, String(value)); } catch { /* Keep the current session usable. */ }
+  };
+  const [inspectorOpen, setInspectorOpen] = useState(() => {
+    try { return localStorage.getItem(INSPECTOR_KEY) !== "0"; } catch { return true; }
+  });
   const changeView = (next: EditorView) => { setView(next); try { localStorage.setItem(VIEW_KEY, next); } catch {} };
   const toggleInspector = (open: boolean) => { setInspectorOpen(open); try { localStorage.setItem(INSPECTOR_KEY, open ? "1" : "0"); } catch {} };
   const openClip = () => { if (view === "arrange") changeView("split"); };
@@ -130,9 +144,16 @@ export function ProjectEditor({ project, projects: p }: { project: Project; proj
     <Transport key={project.id} project={project} projects={p} snap={snap} setSnap={setSnap} view={view} setView={changeView}/>
     <TimeMapEditor project={project} projects={p}/>
     <div className="editor-center" data-view={view}>
-      <div className="editor-panes">
+      <div className="editor-panes" data-view={view} style={view === "split" ? { gridTemplateRows: `minmax(160px, ${splitPercent}fr) auto minmax(160px, ${100 - splitPercent}fr)` } : undefined}>
         {view !== "roll" && <Arrangement project={project} trackID={track?.id} clipID={clip?.id} busy={p.busy} edit={p.edit} reportError={p.reportError} addTrack={addTrack} snap={snap} openClip={openClip}
           select={(tid, cid) => { setTrackID(tid); setClipID(cid); }}/>}
+        {view === "split" && <div className="editor-split-control">
+          <label htmlFor="editor-split-ratio">编排 / 钢琴卷帘</label>
+          <input id="editor-split-ratio" aria-label="编排区域比例" type="range" min={25} max={75} step={5}
+            value={splitPercent} aria-valuetext={`编排 ${splitPercent}%，钢琴卷帘 ${100 - splitPercent}%`}
+            onChange={e => changeSplit(Number(e.target.value))}/>
+          <button className="secondary" onClick={() => changeSplit(60)} title="恢复编排 60%、钢琴卷帘 40%">重置比例</button>
+        </div>}
         {view !== "arrange" && (track && clip
           ? (project.state.meter?.length && project.state.tempo?.length
             ? <PianoRoll key={`${project.id}/${track.id}/${clip.id}`} title={project.title} target={{ ...target, track, clip, ppq: project.ppq }} meter={project.state.meter} tempo={project.state.tempo} busy={p.busy} edit={p.edit} shift={p.shift} reportError={p.reportError} snap={snap} preview={p.preview}/>

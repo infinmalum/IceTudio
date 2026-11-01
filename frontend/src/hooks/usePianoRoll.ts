@@ -1,3 +1,5 @@
+import { ProjectService } from "../../bindings/icetudio";
+import type { TransformSpec } from "../../bindings/icetudio/internal/project/models";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MeterPoint, Op, TempoPoint } from "../../bindings/icetudio/internal/project/models";
 import type { ProjectEditPreview } from "../../bindings/icetudio/internal/app/models";
@@ -23,6 +25,9 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
   const mount = useRef<HTMLDivElement>(null);
   const latest = useRef({ target, busy, edit, shift, reportError, preview });
   latest.current = { target, busy, edit, shift, reportError, preview };
+  const [transformBusy, setTransformBusy] = useState(false);
+  const transformLock = useRef(false);
+  const [quantizeUnit, setQuantizeUnit] = useState("1/16");
   const [loadError, setLoadError] = useState("");
   const [ready, setReady] = useState(false);
   const [requestedPage, setPage] = useState(0);
@@ -236,7 +241,22 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
     host.addEventListener("pointerdown", down);
     return () => host.removeEventListener("pointerdown", down);
   }, [target.track.program, target.track.channel]);
+  async function transformNotes(spec: TransformSpec) {
+    if (busy || !ready || gesture.current || transformLock.current || !selection.current.size) return;
+    const frozen = structuredClone(target);
+    const ids = [...selection.current];
+    transformLock.current = true; setTransformBusy(true);
+    try {
+      const ops = await ProjectService.PrepareNoteTransform(frozen.id, frozen.revision, frozen.clip.id, ids, spec);
+      if (!ops?.length) throw Error("变换没有生成可提交的修改");
+      await edit(frozen, ops);
+    } catch (e) { reportError(e); }
+    finally { transformLock.current = false; setTransformBusy(false); }
+  }
   return {
+    transformBusy, quantizeUnit, setQuantizeUnit,
+    transpose: (semitones: number) => void transformNotes({ transpose: { semitones } }),
+    quantize: () => void transformNotes({ quantize: { unit: quantizeUnit, strength: 100 } }),
     mount,rulerSlot,ready,loadError,page,pageCount,setPage,zoom,setZoom,absoluteStart,mapIndex,selected,visible,velocityField,velocityIDs,velocity,
     selectPage: () => action.current("selection",visible.map(n=>n.id)),
     clearSelection: () => action.current("unselection"),

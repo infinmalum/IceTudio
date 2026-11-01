@@ -1,5 +1,7 @@
 # IceTudio 架构
 
+> 2026-11-01 新增目标架构见 [DAW 架构扩展](daw-expansion/architecture.md)，执行顺序见[扩展计划](daw-expansion/implementation.md)。本文已实现接线和 P0–P4 契约仍有效；新文档不宣称替换已经完成。
+
 更新：2026-10-30。本文为目标设计，注明日期和实现状态的段落描述限定接线；不是整体验收通过清单，交付状态以[实施计划](../IMPLEMENTATION_PLAN.md)为准。原设计保存在[历史档案](history/icepick-architecture-2026-10-16.md)。P0 的符号、存储和接口范围以[执行契约](p0-refactor-contract.md)为准。
 
 ## 1. 产品边界

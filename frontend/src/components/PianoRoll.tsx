@@ -6,7 +6,7 @@ import { usePianoRoll,type PianoRollProps } from "../hooks/usePianoRoll";
 
 export function PianoRoll(props: PianoRollProps) {
   const { target,meter,tempo,busy }=props;
-  const { mount,rulerSlot,ready,loadError,page,pageCount,setPage,zoom,setZoom,absoluteStart,mapIndex,selected,visible,velocityField,velocityIDs,velocity,selectPage,clearSelection,cloneNotes,removeNotes,focusVelocity,changeVelocity,applyVelocity }=usePianoRoll(props);
+  const { transformBusy,quantizeUnit,setQuantizeUnit,transpose,quantize,mount,rulerSlot,ready,loadError,page,pageCount,setPage,zoom,setZoom,absoluteStart,mapIndex,selected,visible,velocityField,velocityIDs,velocity,selectPage,clearSelection,cloneNotes,removeNotes,focusVelocity,changeVelocity,applyVelocity }=usePianoRoll(props);
   return <section className="piano-editor" aria-label="片段音符编辑器">
     {rulerSlot && createPortal(<MusicRuler ppq={target.ppq} start={absoluteStart} zoom={zoom} meter={meter} tempo={tempo}/>, rulerSlot)}
     <div className="editor-toolbar">
@@ -25,6 +25,17 @@ export function PianoRoll(props: PianoRollProps) {
         onFocus={focusVelocity} onChange={e => changeVelocity(e.target.value)}/></label>
       <button className="secondary" disabled={busy || !ready || !velocityIDs.length || velocityField.locked || !!velocityField.error || !velocityField.raw || !Number.isInteger(velocity) || velocity < 1 || velocity > 127} onClick={applyVelocity}>应用力度</button>
       <span>{selected.length} 个已选 · 本页 {visible.length} / 共 {target.clip.notes?.length ?? 0} 个音符</span>
+    </div>
+    <div className="editor-toolbar" role="group" aria-label="选中音符变换">
+      <label>量化网格<select aria-label="量化网格" value={quantizeUnit} disabled={busy || transformBusy}
+        onChange={e => setQuantizeUnit(e.target.value)}>
+        {["1/4", "1/8", "1/16", "1/32", "1/8T", "1/16T"].map(unit => <option key={unit} value={unit}>{unit.endsWith("T") ? `${unit.slice(0, -1)} 三连音` : unit}</option>)}
+      </select></label>
+      <button className="secondary" disabled={busy || transformBusy || !ready || !selected.length} title="将选中音符起点对齐网格；保留时长与力度" onClick={quantize}>量化选中音符</button>
+      {[-12, -1, 1, 12].map(n => <button key={n} className="secondary" disabled={busy || transformBusy || !ready || !selected.length}
+        title="只移动所选音符的音高，整组越界时拒绝" onClick={() => transpose(n)}>{n > 0 ? "+" : ""}{n} 半音</button>)}
+      {!selected.length && <span>先选择音符，再量化或移调</span>}
+      {transformBusy && <span role="status">正在准备选中音符变换…</span>}
     </div>
     {props.preview && <p className="editor-help">候选差异：绿色虚线为新值，红色虚线为旧值；只读标记，不参与选择或编辑。</p>}
     {loadError ? <p role="alert">{loadError}</p> : null}

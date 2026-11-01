@@ -112,10 +112,10 @@ try {
   await evaluate(`(()=>{const s=document.querySelectorAll('.browser-section summary');s[1].click();return s.length})()`);
   await sleep(400);
   await shot("03-浏览器-音色分区");
-  await clickIn(".transport-bar", "拆分");
+  await clickIn(".transport-bar", "编排 + 卷帘");
   await sleep(500);
   await shot("04-拆分视图");
-  await clickIn(".transport-bar", "琴键");
+  await clickIn(".transport-bar", "钢琴卷帘");
   await sleep(500);
   await shot("05-钢琴卷帘视图");
   await evaluate(`(()=>{const c=document.querySelector('.workspace-center');if(c)c.scrollTop=c.scrollHeight;return true})()`);
