@@ -1,37 +1,43 @@
 :root {
   font-family:
-    Inter,
-    "Noto Sans SC",
-    "PingFang SC",
-    "Microsoft YaHei",
     system-ui,
     -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Noto Sans",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
     sans-serif;
   font-synthesis: none;
   color-scheme: light;
-  /* 亮色主题：冰雪蓝白 */
+  /* 亮色主题：冰雪蓝白。中性色与交互态对齐 antd 设计规范，
+     色相保持 IceTudio 的冰蓝品牌（与 App.tsx 的 antd 令牌一致）。 */
   --bg: #f5f8fa;
-  --bg-sidebar: #ecf2f7;
+  --bg-sidebar: #eef1f6;
   --panel: #ffffff;
-  --panel-soft: #eff4f8;
-  --line: #d9e3ea;
-  --line-soft: #e5edf3;
-  --line-strong: #c2d2de;
-  --text: #21313d;
-  --text-strong: #142531;
-  --text-secondary: #46596b;
-  --text-muted: #63788b;
+  --panel-soft: #f2f5f9;
+  --line: #dde3ea;
+  --line-soft: #e9edf3;
+  --line-strong: #c3cfda;
+  --text: #26313c;
+  --text-strong: #101c26;
+  --text-secondary: #4a5b6b;
+  --text-muted: #6d7f8f;
   --accent: #176e96;
-  --accent-strong: #0f5878;
-  --accent-soft: #dcebf5;
-  --accent-border: #a2c5da;
+  --accent-hover: #1f82b1;
+  --accent-active: #0f5878;
+  --accent-soft: #e3eff7;
+  --accent-border: #9dc3da;
+  --accent-ring: rgba(23, 110, 150, 0.16);
   --on-accent: #ffffff;
-  --code-bg: #ebf2f7;
-  --code-block-bg: #e7eff5;
-  --bubble-user: #e6eef5;
-  --danger: #b23c3c;
-  --danger-strong: #98302f;
-  --danger-soft: #fbf1f1;
+  --code-bg: #eef3f7;
+  --code-block-bg: #f0f4f8;
+  --bubble-user: #e7eff6;
+  --danger: #c04141;
+  --danger-hover: #cf5454;
+  --danger-active: #98302f;
+  --danger-soft: #fcf1f1;
   --danger-border: #e7b4b4;
   --danger-text: #9c3434;
   --on-danger: #ffffff;
@@ -41,11 +47,15 @@
   --caution-soft: #fdf2e7;
   --success-soft: #e0eef6;
   --success-text: #1c5f83;
-  --focus: #6fb0d4;
-  --backdrop: rgba(17, 38, 53, 0.42);
-  --shadow-pop: 0 5px 20px rgba(19, 44, 63, 0.13);
-  --shadow-soft: 0 4px 18px rgba(20, 45, 64, 0.07);
-  --shadow-overlay: 0 24px 90px rgba(12, 34, 50, 0.32);
+  --focus: #4da3cf;
+  --backdrop: rgba(15, 28, 40, 0.5);
+  --radius: 8px;
+  --radius-control: 6px;
+  --shadow-pop: 0 2px 8px rgba(19, 44, 63, 0.12);
+  --shadow-soft: 0 1px 2px rgba(20, 45, 64, 0.04),
+    0 2px 10px rgba(20, 45, 64, 0.06);
+  --shadow-overlay: 0 6px 16px rgba(12, 34, 50, 0.08),
+    0 20px 60px rgba(12, 34, 50, 0.24);
   color: var(--text);
   background: var(--bg);
 }
@@ -53,26 +63,29 @@
   color-scheme: dark;
   /* 深色主题：极夜冰蓝 */
   --bg: #10161c;
-  --bg-sidebar: #141b22;
-  --panel: #1a232c;
-  --panel-soft: #212c37;
-  --line: #2b3946;
-  --line-soft: #253241;
-  --line-strong: #3b4d5e;
-  --text: #e3ebf2;
-  --text-strong: #f4f9fd;
-  --text-secondary: #b5c5d3;
-  --text-muted: #8da1b3;
+  --bg-sidebar: #171c23;
+  --panel: #1b222b;
+  --panel-soft: #232b35;
+  --line: #323d4a;
+  --line-soft: #2a3340;
+  --line-strong: #435361;
+  --text: #e6ebf1;
+  --text-strong: #f5f8fb;
+  --text-secondary: #b3c0cd;
+  --text-muted: #8593a1;
   --accent: #5fb9df;
-  --accent-strong: #7fcbe9;
-  --accent-soft: #1f3547;
+  --accent-hover: #7dc9ea;
+  --accent-active: #47a4cf;
+  --accent-soft: #1e3346;
   --accent-border: #3c5a72;
+  --accent-ring: rgba(95, 185, 223, 0.22);
   --on-accent: #0a1720;
-  --code-bg: #253140;
+  --code-bg: #263140;
   --code-block-bg: #161e27;
-  --bubble-user: #233040;
+  --bubble-user: #24313f;
   --danger: #dd8a80;
-  --danger-strong: #e6a094;
+  --danger-hover: #e79e94;
+  --danger-active: #cf7268;
   --danger-soft: #2d1f1f;
   --danger-border: #5e3a38;
   --danger-text: #f0a49a;
@@ -84,16 +97,20 @@
   --success-soft: #1d3140;
   --success-text: #9ecbe2;
   --focus: #6db8dc;
-  --backdrop: rgba(2, 8, 14, 0.6);
-  --shadow-pop: 0 5px 22px rgba(0, 0, 0, 0.45);
-  --shadow-soft: 0 4px 18px rgba(0, 0, 0, 0.28);
-  --shadow-overlay: 0 24px 90px rgba(0, 0, 0, 0.62);
+  --backdrop: rgba(2, 8, 14, 0.65);
+  --shadow-pop: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.24),
+    0 2px 10px rgba(0, 0, 0, 0.2);
+  --shadow-overlay: 0 6px 16px rgba(0, 0, 0, 0.32),
+    0 20px 60px rgba(0, 0, 0, 0.55);
 }
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
   transition:
     background-color 0.25s,
     color 0.25s;
@@ -101,26 +118,55 @@ body {
 ::selection {
   background: var(--accent-soft);
 }
+/* 细滚动条：深色界面里原生宽滚动条非常突兀。 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
 button,
 input,
 select,
 textarea {
   font: inherit;
 }
+/* 控件规格对齐 antd：主按钮实底、默认按钮描边、hover 换主题色描边。 */
 button {
   cursor: pointer;
   border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 9px 16px;
+  border-radius: var(--radius-control);
+  padding: 4px 15px;
   background: var(--accent);
   color: var(--on-accent);
-  font-size: 14.5px;
-  font-weight: 550;
-  transition: background 0.15s;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 400;
+  transition:
+    color 0.15s,
+    background-color 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
   white-space: nowrap;
 }
-button:where(:hover) {
-  background: var(--accent-strong);
+button:where(:hover:not(:disabled)) {
+  background: var(--accent-hover);
+}
+button:where(:active:not(:disabled)) {
+  background: var(--accent-active);
 }
 button:disabled {
   cursor: not-allowed;
@@ -128,18 +174,24 @@ button:disabled {
 }
 button.secondary {
   background: var(--panel);
-  color: var(--text-secondary);
+  color: var(--text);
   border-color: var(--line-strong);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.015);
 }
-button.secondary:where(:hover) {
-  background: var(--panel-soft);
+button.secondary:where(:hover:not(:disabled)) {
+  color: var(--accent);
+  border-color: var(--accent-border);
+  background: var(--panel);
 }
 button.danger {
   background: var(--danger);
   color: var(--on-danger);
 }
-button.danger:where(:hover) {
-  background: var(--danger-strong);
+button.danger:where(:hover:not(:disabled)) {
+  background: var(--danger-hover);
+}
+button.danger:where(:active:not(:disabled)) {
+  background: var(--danger-active);
 }
 button:focus-visible,
 a:focus-visible,
@@ -147,8 +199,8 @@ summary:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 a {
   color: var(--accent);
@@ -169,17 +221,19 @@ h3 {
   color: var(--text-strong);
 }
 h2 {
-  font-size: 21px;
-  line-height: 1.4;
-  margin: 0 0 14px;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 600;
+  margin: 0 0 12px;
 }
 h3 {
-  font-size: 16.5px;
-  margin: 25px 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 22px 0 8px;
 }
 p {
-  line-height: 1.7;
-  margin: 10px 0;
+  line-height: 1.65;
+  margin: 8px 0;
 }
 pre {
   white-space: pre-wrap;
@@ -208,32 +262,44 @@ details[open] > summary {
 }
 label {
   display: grid;
-  gap: 7px;
+  gap: 6px;
   color: var(--text-secondary);
-  font-size: 14.5px;
+  font-size: 14px;
 }
+/* 输入控件：32px 高、6px 圆角，聚焦为主题色描边 + 柔和光圈（antd 规格）。 */
 input:not([type="checkbox"]),
 select,
 textarea {
   border: 1px solid var(--line-strong);
   background: var(--panel);
-  border-radius: 9px;
-  padding: 10px 13px;
+  border-radius: var(--radius-control);
+  padding: 4px 11px;
   color: var(--text);
-  font-size: 15px;
+  font-size: 14px;
+  line-height: 22px;
   max-width: 100%;
   min-width: 0;
-  transition: border-color 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 input:not([type="checkbox"]):hover,
 select:hover,
 textarea:hover {
   border-color: var(--accent-border);
 }
+input:not([type="checkbox"]):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
+}
 textarea {
   width: 100%;
   resize: vertical;
   line-height: 1.65;
+  padding: 6px 11px;
 }
 input[type="checkbox"] {
   accent-color: var(--accent);
@@ -242,7 +308,7 @@ input[type="checkbox"] {
 }
 small {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.6;
 }
 .sr-only {
@@ -558,19 +624,19 @@ small {
   font-size: 36px;
   line-height: 1;
   color: var(--on-accent);
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-active) 100%);
   box-shadow: var(--shadow-pop);
   margin-bottom: 16px;
 }
 .welcome h1 {
-  font-size: 32px;
-  letter-spacing: -1px;
+  font-size: 26px;
+  letter-spacing: -0.5px;
   font-weight: 600;
   margin: 16px 0 5px;
 }
 .welcome p {
   color: var(--text-muted);
-  font-size: 15px;
+  font-size: 14px;
 }
 .message {
   min-width: 0;
@@ -733,14 +799,17 @@ fieldset.feedback-picker {
 }
 .composer {
   border: 1px solid var(--line-strong);
-  border-radius: 17px;
+  border-radius: 10px;
   background: var(--panel);
   box-shadow: var(--shadow-soft);
-  padding: 12px 15px 11px;
+  padding: 10px 14px 10px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 .composer:focus-within {
-  border-color: var(--accent-border);
-  box-shadow: var(--shadow-pop);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
 }
 .composer.dragging {
   border: 2px dashed var(--accent);
@@ -880,10 +949,10 @@ fieldset.feedback-picker {
   overflow: auto;
   background: var(--panel);
   color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 16px;
+  border: 0;
+  border-radius: 12px;
   box-shadow: var(--shadow-overlay);
-  padding: 25px;
+  padding: 22px 24px;
 }
 .attachment-preview img {
   max-width: 100%;
@@ -925,13 +994,13 @@ fieldset.feedback-picker {
 .approval-card {
   background: var(--warn-soft);
   border: 1px solid var(--warn-border);
-  border-radius: 12px;
-  padding: 16px 20px;
-  margin: 18px 0;
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin: 16px 0;
   font-size: 14px;
 }
 .approval-card strong {
-  font-size: 15.5px;
+  font-size: 14.5px;
   color: var(--warn-text);
 }
 .approval-card .operation-target {
@@ -971,9 +1040,9 @@ fieldset.feedback-picker {
   margin-bottom: 26px;
 }
 .page-header h1 {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 600;
-  margin: 5px 0;
+  margin: 4px 0;
 }
 .eyebrow {
   font-size: 12px;
@@ -983,19 +1052,19 @@ fieldset.feedback-picker {
 }
 .session-card {
   background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 25px;
-  margin: 0 0 20px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  margin: 0 0 16px;
 }
 .session-card > p {
-  font-size: 14.5px;
+  font-size: 14px;
   color: var(--text-secondary);
 }
 .card-title {
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 600;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 .card-title-row {
   display: flex;
@@ -1005,11 +1074,11 @@ fieldset.feedback-picker {
 }
 .card-title-row .secondary {
   font-size: 13px;
-  padding: 7px 12px;
+  padding: 2px 10px;
 }
 .model-form {
   display: grid;
-  gap: 17px;
+  gap: 16px;
 }
 /* Grid forms stretch children; action buttons keep their natural width. */
 .model-form > button {
@@ -1033,16 +1102,34 @@ fieldset.feedback-picker {
 .developer-settings pre {
   max-height: 360px;
 }
+/* 设置页签：antd 下划线式，选中态主题色下划线。 */
 .settings-tabs {
   display: flex;
-  gap: 8px;
+  gap: 24px;
   flex-wrap: wrap;
-  margin-bottom: 22px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.settings-tabs button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-secondary);
+  padding: 8px 2px;
+  margin-bottom: -1px;
+  font-size: 14px;
+}
+.settings-tabs button:where(:hover:not(:disabled)) {
+  background: transparent;
+  color: var(--accent);
 }
 .settings-tabs .selected {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  border-color: var(--accent-border);
+  background: transparent;
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 500;
+  box-shadow: none;
 }
 .template-grid {
   display: grid;
@@ -1059,7 +1146,7 @@ fieldset.feedback-picker {
   background: var(--panel-soft);
   color: var(--text-secondary);
   padding: 18px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   transition: border-color 0.15s;
   white-space: normal;
 }
@@ -1188,12 +1275,15 @@ fieldset.feedback-picker {
   color: var(--danger-text);
   font-size: 13.5px;
 }
-.error-notice {
-  border-left: 3px solid var(--danger);
-  background: var(--danger-soft);
-  border-radius: 8px;
-  padding: 10px 15px;
+/* ErrorNotice 渲染为 antd Alert；这里只调排版，不动组件库的配色体系。 */
+.error-notice.ant-alert {
   margin: 10px 0;
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+.error-notice .ant-alert-message {
+  font-size: 14px;
+  font-weight: 500;
 }
 .error-notice p {
   margin: 0;
@@ -1201,6 +1291,11 @@ fieldset.feedback-picker {
 .error-notice summary {
   font-size: 12px;
   color: var(--text-muted);
+  cursor: pointer;
+}
+.error-notice pre {
+  margin: 6px 0 0;
+  font-size: 12px;
 }
 .success {
   color: var(--accent);
@@ -1221,31 +1316,42 @@ fieldset.feedback-picker {
 }
 .text-button:hover {
   background: transparent;
-  color: var(--accent-strong);
+  color: var(--accent-active);
   text-decoration: underline;
 }
+/* 应用对话框保持原生 <dialog>（焦点圈定/输入法/e2e 语义依赖它），
+   视觉规格对齐 antd Modal：8px 圆角、无描边、弹出动画。 */
 .app-dialog {
   max-width: 520px;
   width: calc(100vw - 40px);
   background: var(--panel);
   color: var(--text);
-  border: 1px solid var(--line);
-  padding: 28px;
-  border-radius: 18px;
+  border: 0;
+  padding: 20px 24px;
+  border-radius: var(--radius);
   box-shadow: var(--shadow-overlay);
 }
 .app-dialog::backdrop {
   background: var(--backdrop);
-  backdrop-filter: blur(3px);
+}
+.app-dialog[open] {
+  animation: dialog-in 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
 }
 .app-dialog .dialog-body {
-  font-size: 14.5px;
+  font-size: 14px;
   color: var(--text-secondary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .app-dialog .actions {
   justify-content: flex-end;
+  margin-top: 20px;
 }
 .app-dialog label {
   margin-top: 16px;
@@ -1429,7 +1535,7 @@ fieldset.feedback-picker {
   flex: none;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius);
   box-shadow: var(--shadow-soft);
   padding: 14px 16px;
   display: grid;
@@ -1517,7 +1623,7 @@ fieldset.feedback-picker {
   text-align: center;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 12px;
   box-shadow: var(--shadow-soft);
   padding: 38px 36px;
 }
@@ -1679,7 +1785,7 @@ fieldset.feedback-picker {
 .piano-host gsui-step-select { visibility: hidden; pointer-events: none; }
 /* 走带条：中性安静的控件 + 唯一主行动（播放），视图开关用分段控件表达。
    结构保持 P2 契约：单行紧凑 + 细进度条 + 精确位置/循环行。 */
-.transport { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.transport { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
 .transport-position {
   width: 100%;
   appearance: none;
@@ -1725,7 +1831,7 @@ fieldset.feedback-picker {
 .music-ruler line { stroke: currentColor; stroke-opacity: .3; }
 .music-ruler text { fill: currentColor; font: 11px system-ui, sans-serif; }
 .music-ruler-beat line { stroke-opacity: .15; }
-.music-ruler-meter { color: var(--accent-strong); }
+.music-ruler-meter { color: var(--accent-active); }
 .music-ruler-tempo { color: #9a6a12; }
 :root[data-theme="dark"] .music-ruler-meter { color: #a9d8ff; }
 :root[data-theme="dark"] .music-ruler-tempo { color: #ffe1a0; }
@@ -1780,7 +1886,7 @@ fieldset.feedback-picker {
 .track-head button.secondary { padding: 4px 7px; font-size: 11px; border-radius: 6px; font-weight: 600; }
 .track-head button.secondary[aria-pressed="true"] {
   background: var(--accent-soft);
-  color: var(--accent-strong);
+  color: var(--accent-active);
   border-color: var(--accent-border);
 }
 .track-color { width: 14px; height: 14px; flex: none; border-radius: 3px; border: 1px solid rgba(0,0,0,.35); padding: 0; cursor: pointer; }
@@ -1812,7 +1918,7 @@ fieldset.feedback-picker {
 .browser-search { display: flex; align-items: center; gap: 6px; font-size: 12px; margin: 4px 0; }
 .browser-search input { flex: 1; min-width: 0; padding: 5px 7px; }
 .browser .project-list { margin: 4px 0; }
-.transport-top { position: sticky; top: 0; z-index: 5; background: var(--panel); padding: 9px 10px 8px; border-radius: 12px; }
+.transport-top { position: sticky; top: 0; z-index: 5; background: var(--panel); padding: 9px 10px 8px; border-radius: 10px; }
 .transport-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .transport .transport-play {
   font-size: 12.5px;
@@ -1822,7 +1928,7 @@ fieldset.feedback-picker {
   background: var(--accent);
   color: var(--on-accent);
 }
-.transport .transport-play:hover:not(:disabled) { background: var(--accent-strong); }
+.transport .transport-play:hover:not(:disabled) { background: var(--accent-active); }
 .transport .transport-btn {
   font-size: 12px;
   padding: 5px 10px;
@@ -1859,7 +1965,7 @@ fieldset.feedback-picker {
 .view-switch .transport-btn { border: 0; border-radius: 7px; padding: 5px 11px; }
 .view-switch .transport-btn[aria-pressed="true"] {
   background: var(--panel);
-  color: var(--accent-strong);
+  color: var(--accent-active);
   font-weight: 650;
   box-shadow: var(--shadow-soft);
 }

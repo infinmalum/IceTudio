@@ -1,3 +1,5 @@
+import { Alert } from "antd";
+
 export function friendlyError(error: unknown) {
   const raw = String(error);
   if (/数据库|存储|sqlite|数据初始化/i.test(raw))
@@ -41,13 +43,19 @@ export function friendlyError(error: unknown) {
 export function ErrorNotice({ error }: { error: unknown }) {
   if (!error) return null;
   return (
-    <div className="error-notice" role="alert">
-      <p>{friendlyError(error)}</p>
-      <details>
-        <summary>技术详情</summary>
-        <pre>{String(error)}</pre>
-      </details>
-    </div>
+    <Alert
+      className="error-notice"
+      role="alert"
+      type="error"
+      showIcon
+      message={friendlyError(error)}
+      description={
+        <details>
+          <summary>技术详情</summary>
+          <pre>{String(error)}</pre>
+        </details>
+      }
+    />
   );
 }
 export const stateLabel = (state: string) =>

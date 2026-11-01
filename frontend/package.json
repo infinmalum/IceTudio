@@ -12,7 +12,9 @@
     "test:music": "node --experimental-strip-types --test tests/time-map.test.ts tests/gm.test.ts tests/piano-projection.test.ts"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.3.4",
     "@wailsio/runtime": "3.0.0-beta.26",
+    "antd": "^6.6.8",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",

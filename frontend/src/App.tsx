@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { ConfigProvider, theme as antdTheme, type ThemeConfig } from "antd";
+import zhCN from "antd/locale/zh_CN";
 import { useApp } from "./hooks/useApp";
 import { ProjectWorkspace } from "./components/ProjectWorkspace";
-import { useTheme } from "./shared/theme";
+import { ThemeProvider, useTheme, type Theme } from "./shared/theme";
 import { ConversationPanel } from "./components/ConversationPanel";
 import { loadPaneWidth, paneStyle, PaneResizer } from "./shared/panes";
 import { ProfileAdvanced } from "./components/ProfileAdvanced";
@@ -32,7 +34,33 @@ function usePaneWidth(key: string) {
   return [width, set] as const;
 }
 
+// antd 组件与手写界面共用同一套冰雪色板：组件库令牌在这里声明一次，
+// style.css 的 CSS 变量保持相同色值，明暗切换走 antd 的标准算法。
+function antdThemeConfig(theme: Theme): ThemeConfig {
+  const dark = theme === "dark";
+  return {
+    algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+    token: {
+      colorPrimary: dark ? "#5fb9df" : "#176e96",
+      colorInfo: dark ? "#5fb9df" : "#176e96",
+      colorLink: dark ? "#5fb9df" : "#176e96",
+      colorError: dark ? "#dd8a80" : "#b23c3c",
+      borderRadius: 6,
+      fontFamily:
+        'system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif',
+    },
+  };
+}
+
 function App() {
+  return (
+    <ThemeProvider>
+      <ThemedApp />
+    </ThemeProvider>
+  );
+}
+
+function ThemedApp() {
   const app = useApp();
   const { theme, toggle } = useTheme();
   const w = app.workspace;
@@ -83,6 +111,7 @@ function App() {
     }
   }
   return (
+    <ConfigProvider locale={zhCN} theme={antdThemeConfig(theme)}>
     <div className="shell">
       <main className="content">
         {app.page === "workspace" ? (
@@ -313,6 +342,7 @@ function App() {
         )}
       </main>
     </div>
+    </ConfigProvider>
   );
 }
 export default App;
