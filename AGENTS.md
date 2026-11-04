@@ -37,3 +37,15 @@ This project has no actual users yet. Until the maintainer explicitly announces 
 - The 2026-11-01 user-requested DAW expansion is specified in `docs/daw-expansion/README.md`, its feature matrix, UI design, architecture, implementation plan and acceptance matrix. E0–E8 extend the original MIDI-first scope; they are targets, not shipped capabilities.
 - Existing P0–P4 preservation, authorization, persistence and recovery contracts remain binding. A planned replacement is not deletion authorization; inventory actual callers and verify equivalent reachable behavior before removing its carrier.
 - FL Studio reference images are documentation research material only, with provenance in the reference manifest; do not package them as product assets or infer permission to redistribute them under AGPL.
+
+# MyGo migration authority
+
+- The 2026-11-02 migration and UI redesign are specified in `docs/mygo-migration.md`. DAW expansion feature implementation is paused until migration acceptance; E0–E8 targets remain planned.
+- Native workspace and Arrangement replace the ordinary React UI; Piano Roll/GridSound remain in WebView. Agent Markdown is Native first, with a documented message-body-only WebView exception after actual validation.
+- Wails removal is REPLACE: preserve reachable services, shared edit coordination, drafts, authorization, history and recovery before deleting old carriers. MyGo migration does not authorize rewriting the Go core or treating planned Mixer/Automation/Audio Clip capabilities as shipped.
+
+# Execution order and Agent refactor freeze
+
+- The 2026-11-03 user decision fixes the order: complete MyGo migration/UI redesign, then the full DAW editor scope and acceptance, then reconsider ADK/Agent loop replacement. The scope remains the existing DAW feature and acceptance matrices; unresolved items are not silently waived.
+- Freeze Agent framework/runtime refactoring during the first two stages. Preserve existing roles, scheduling, persistence, permissions, approvals, budgets and recovery. Native Agent UI migration, necessary music-tool integration and verified blocking defect fixes remain allowed; none authorizes adopting ADK or rewriting the execution core.
+- Reopen the Agent replacement decision only after the two preceding stages meet their acceptance conditions and the maintainer confirms completion.

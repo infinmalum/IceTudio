@@ -1,7 +1,7 @@
 # 基础 CI（工程化与安全基线，2026-10-23 纳入）：go test/vet、前端生产构建、
-# 音乐单元测试与 product/music e2e（headless）。
-# 依赖真实音频设备或桌面环境的验收（物理延迟、原生窗口、真实 Wails 交互）
-# 不在此伪装为通过，保留为 manual/native acceptance（见 IMPLEMENTATION_PLAN.md）。
+# 音乐规则、Native 控件和实际 MyGo/WebKit（Xvfb）回归。
+# 依赖真实音频设备或桌面环境的验收（物理延迟、原生窗口、真实 MyGo 交互）
+# 不在此伪装为通过，见 docs/mygo-acceptance.md。
 name: CI
 on:
   push:
@@ -11,29 +11,26 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      # GitHub 托管 runner 预装 Google Chrome；本地默认 chromium 不变。
-      ICETUDIO_E2E_BROWSER: google-chrome
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.10"
+          go-version: "1.27.3"
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: 安装系统依赖（GTK4/WebKitGTK 开发包 + 源码编译 FluidSynth 2.6.1）
-        # 根包经 wails/pkg/application 引 internal/operatingsystem（cgo
-        # pkg-config gtk4 webkitgtk-6.0），Go 测试与绑定生成都需要这两个开发包。
+      - name: 安装系统依赖（GTK3/WebKitGTK 开发包 + 源码编译 FluidSynth 2.6.1）
+        # MyGo uses GTK3/WebKitGTK 4.1 at runtime; core audio still uses cgo.
         # Ubuntu 仓库的 FluidSynth 缺 2.6 portamento time-mode API，而播放引擎
         # 要求 >= 2.6（native.c 有编译期检查）。测试只用 offline 引擎，无需
         # 音频驱动与 libsndfile，最小化编译即可。
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake pkg-config libglib2.0-dev \
-            libgtk-4-dev libwebkitgtk-6.0-dev
+            libgtk-3-dev libwebkit2gtk-4.1-dev xvfb dbus-x11 python3-gi \
+            gir1.2-webkit-6.0 gir1.2-gtk-4.0
           curl -fL https://github.com/FluidSynth/fluidsynth/archive/refs/tags/v2.6.1.tar.gz -o /tmp/fluidsynth.tar.gz
           tar -xf /tmp/fluidsynth.tar.gz -C /tmp
           cmake -S /tmp/fluidsynth-2.6.1 -B /tmp/fluidsynth-build -DCMAKE_BUILD_TYPE=Release \
@@ -45,19 +42,14 @@ jobs:
           cmake --build /tmp/fluidsynth-build --parallel "$(nproc)"
           sudo cmake --install /tmp/fluidsynth-build
           sudo ldconfig
-      - name: 生成 Wails 绑定
-        # frontend/bindings 是生成物（gitignore），但前端源码直接 import 它；
-        # 本地由 wails3 工具链生成，CI 用同一命令、与 go.mod 相同的版本。
-        run: |
-          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
-          "$(go env GOPATH)/bin/wails3" generate bindings -ts -i -d frontend/bindings
       - name: 前端依赖
         working-directory: frontend
         run: npm ci
       - name: 前端生产构建
-        # main.go 以 go:embed all:frontend/dist 打包产物，必须先于 Go 步骤生成。
+        # Go embeds only the isolated Piano Roll assets.
         working-directory: frontend
-        run: npm run build
+        run: |
+          npm run build
       - name: Go 测试
         run: go test ./...
       - name: Go vet
@@ -68,7 +60,7 @@ jobs:
       - name: Product e2e（headless）
         working-directory: frontend
         run: npm run test:ui
-      - name: Music e2e（真实 Go 服务与 SQLite；音频门面模拟）
+      - name: Actual MyGo/WebKit integration (local model fixture)
         env:
-          ICETUDIO_MUSIC_BROWSER: "1"
-        run: go test ./internal/app -run '^TestMusicEditorBrowser$' -count=1 -timeout=180s -v
+          MYGO_GPU: "0"
+        run: dbus-run-session -- xvfb-run -a npm --prefix frontend run test:native

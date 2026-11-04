@@ -1,0 +1,21 @@
+{
+  "afterNativeSelection": {
+    "ready": "true",
+    "error": "",
+    "notes": "10",
+    "clip": "clip-0-1",
+    "generation": "3"
+  },
+  "editFlowVerified": false,
+  "initial": {
+    "ready": "true",
+    "error": "",
+    "notes": "8",
+    "clip": "clip-0-0",
+    "generation": "2"
+  },
+  "mountedNotes": 10,
+  "mygo": "v0.7.4",
+  "readOnly": true,
+  "scope": "Native/WebView captures and typed context selection; editFlowVerified additionally covers transforms, undo, lost acknowledgement recovery and pending-close cancellation; no physical pointer, IME or audio acceptance"
+}

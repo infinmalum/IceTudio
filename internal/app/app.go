@@ -1,6 +1,6 @@
 // Package app hosts the UI-agnostic application service: run orchestration,
 // session and context management, startup recovery and the single-host
-// guarantee. The Wails binding layer and the future CLI/IPC client both talk
+// guarantee. The Native desktop and CLI/IPC client both talk
 // to this service instead of owning any run state themselves.
 package app
 
@@ -82,6 +82,8 @@ type Service struct {
 	// dataDir hosts logs and the GUI recovery journal; empty disables both.
 	dataDir           string
 	projectRecoveryMu sync.Mutex
+	// Serializes service binding changes with root-task scope capture.
+	projectBindingMu sync.Mutex
 
 	mu         sync.RWMutex
 	config     config.Config
@@ -212,6 +214,14 @@ type AppStatus struct {
 	Model           config.Model `json:"model"`
 	AvailableModels []string     `json:"availableModels"`
 	Message         string       `json:"message"`
+}
+
+// ModelConfig returns the public connection settings without probing a model
+// endpoint. Credentials remain write-only in their separate store.
+func (s *Service) ModelConfig() config.Model {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.config.Model
 }
 
 func (s *Service) SaveModelConfig(next config.Model) (AppStatus, error) {
@@ -443,6 +453,30 @@ func (s *Service) checkSessionExists(sessionID string) error {
 // bound project at the current revision; a selection requires a bound
 // project and references only existing objects.
 func (s *Service) StartConversationTask(sessionID, input string, selection *ProjectScopeSelection, uploads ...materials.Upload) (storage.Run, error) {
+	s.projectBindingMu.Lock()
+	defer s.projectBindingMu.Unlock()
+	return s.startConversationTask(sessionID, input, selection, uploads...)
+}
+
+// StartConversationTaskForProject is the desktop confirmation boundary. The
+// expected binding (including empty for ordinary chat) is frozen by the UI;
+// service binding updates cannot redirect it between verification and capture.
+func (s *Service) StartConversationTaskForProject(sessionID, expectedProject, input string, selection *ProjectScopeSelection, uploads ...materials.Upload) (storage.Run, error) {
+	s.projectBindingMu.Lock()
+	defer s.projectBindingMu.Unlock()
+	if err := s.checkReady(); err != nil {
+		return storage.Run{}, err
+	}
+	conv, err := s.GetConversation(sessionID)
+	if err != nil {
+		return storage.Run{}, err
+	}
+	if conv.ProjectID != expectedProject {
+		return storage.Run{}, errors.New("对话工程绑定已变化；本次发送未执行，请重新确认")
+	}
+	return s.startConversationTask(sessionID, input, selection, uploads...)
+}
+func (s *Service) startConversationTask(sessionID, input string, selection *ProjectScopeSelection, uploads ...materials.Upload) (storage.Run, error) {
 	if err := s.checkReady(); err != nil {
 		return storage.Run{}, err
 	}

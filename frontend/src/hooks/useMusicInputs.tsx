@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { EditTarget } from "../music/edits";
-import { ProjectService } from "../../bindings/icetudio";
-import { useCloseBlocker } from "../shared/closeGuard";
+import { useMusicServices } from "../music/services";
+import { useCloseBlocker } from "../shared/musicClose";
 
 export type MusicInput = { key: string; label: string; title: string; target: EditTarget; trackID?: string; clipID?: string; noteIDs?: string[]; raw: string };
 type State = { version: 1; entries: MusicInput[] };
@@ -30,6 +30,7 @@ function newToken() {
 }
 
 export function useMusicInputs() {
+  const ProjectService = useMusicServices();
   const initial = useRef<{ state: State }>();
   if (!initial.current) initial.current = { state: { version: 1, entries: [] } };
   const current = useRef(initial.current.state);

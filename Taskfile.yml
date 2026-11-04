@@ -3,10 +3,10 @@ version: '3'
 vars:
   APP_NAME: "icetudio"
   BIN_DIR: "bin"
+  BINARY: "{{.BIN_DIR}}/{{.APP_NAME}}{{exeExt}}"
   PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
-  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
   # Target OS for build/package/run. Defaults to the host OS, and is overridden
-  # by `wails3 build GOOS=...` (or the GOOS env var) for cross-compilation. The
+  # by the GOOS environment for an explicitly configured cross toolchain. The
   # tasks below dispatch to the matching platform Taskfile via this variable.
   GOOS: '{{.GOOS | default OS}}'
 
@@ -17,10 +17,23 @@ includes:
   linux: ./build/linux/Taskfile.yml
 
 tasks:
+  mygo:build:
+    summary: Builds the incremental MyGo desktop and its isolated Piano Roll
+    cmds:
+      - npm --prefix frontend run build:mygo
+      - go build -o {{.BIN_DIR}}/icetudio-mygo ./cmd/icetudio-mygo
+
+  mygo:preview:
+    summary: Opens the MyGo visual preview without a project host
+    deps: [mygo:build]
+    cmds:
+      - '{{.BIN_DIR}}/icetudio-mygo --preview'
+
   build:
     summary: Builds the application
     cmds:
-      - task: "{{.GOOS}}:build"
+      - npm --prefix frontend run build
+      - go build {{if eq .GOOS "windows"}}-ldflags="-H windowsgui"{{end}} -o {{.BINARY}} .
 
   package:
     summary: Packages a production build of the application
@@ -30,12 +43,13 @@ tasks:
   run:
     summary: Runs the application
     cmds:
-      - task: "{{.GOOS}}:run"
+      - task: build
+      - ./{{.BINARY}}
 
   dev:
     summary: Runs the application in development mode
     cmds:
-      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+      - node scripts/dev.mjs
 
   setup:docker:
     summary: Builds Docker image for cross-compilation (~800MB download)
@@ -43,7 +57,7 @@ tasks:
       - task: common:setup:docker
 
   build:server:
-    summary: Builds the application in server mode (no GUI, HTTP server only)
+    summary: Builds the application in server mode (no GUI, existing CLI/IPC host)
     cmds:
       - task: common:build:server
 

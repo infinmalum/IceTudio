@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=IceTudio
+Exec=icetudio
+Icon=icetudio
+Categories=AudioVideo;Audio;Midi;Sequencer;
+Terminal=false
+Keywords=Music;MIDI;DAW;
+Version=1.0
+StartupNotify=false

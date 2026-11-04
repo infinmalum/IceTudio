@@ -130,6 +130,8 @@ func (s *Service) ProjectHistory(projectID string) ([]project.HistoryEntry, erro
 // SetConversationProject binds or unbinds a conversation to a project. The
 // binding decides which project the conversation's next run freezes.
 func (s *Service) SetConversationProject(conversationID, projectID string) error {
+	s.projectBindingMu.Lock()
+	defer s.projectBindingMu.Unlock()
 	return s.store.SetSessionProject(context.Background(), conversationID, projectID)
 }
 

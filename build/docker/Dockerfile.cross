@@ -1,20 +1,20 @@
-# Cross-compile Wails v3 apps to any platform
+# Cross-compile IceTudio MyGo apps to any platform
 #
 # Darwin: Zig + macOS SDK
 # Linux: Native GCC when host matches target, Zig for cross-arch
 # Windows: Zig + bundled mingw
 #
 # Usage:
-#   docker build -t wails-cross -f Dockerfile.cross .
-#   docker run --rm -v $(pwd):/app wails-cross darwin arm64
-#   docker run --rm -v $(pwd):/app wails-cross darwin amd64
-#   docker run --rm -v $(pwd):/app wails-cross linux amd64
-#   docker run --rm -v $(pwd):/app wails-cross linux arm64
-#   docker run --rm -v $(pwd):/app wails-cross windows amd64
-#   docker run --rm -v $(pwd):/app wails-cross windows arm64
+#   docker build -t icetudio-cross -f Dockerfile.cross .
+#   docker run --rm -v $(pwd):/app icetudio-cross darwin arm64
+#   docker run --rm -v $(pwd):/app icetudio-cross darwin amd64
+#   docker run --rm -v $(pwd):/app icetudio-cross linux amd64
+#   docker run --rm -v $(pwd):/app icetudio-cross linux arm64
+#   docker run --rm -v $(pwd):/app icetudio-cross windows amd64
+#   docker run --rm -v $(pwd):/app icetudio-cross windows arm64
 
 # Debian 13 provides the GTK >= 4.14 API baseline used by the default Linux backend.
-FROM golang:1.26-trixie
+FROM golang:1.27.3-trixie
 
 ARG TARGETARCH
 ARG GARBLE_VERSION=v0.16.0
@@ -212,7 +212,7 @@ fi
 COMPILER="go build"
 if [ "$OBFUSCATED" = "true" ]; then
     COMPILER="garble ${GARBLE_ARGS} build"
-    TAGS="${TAGS},wails_obfuscated"
+    TAGS="${TAGS},icetudio_obfuscated"
 fi
 
 ${COMPILER} -tags "$TAGS" -trimpath -buildvcs=false -ldflags="$LDFLAGS" -o bin/${APP}-${GOOS}-${GOARCH}${EXT} .

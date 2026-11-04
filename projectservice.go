@@ -5,10 +5,10 @@ import (
 	"icetudio/internal/project"
 	"icetudio/internal/storage"
 
-	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/egoist/mygo"
 )
 
-// ProjectService is the Wails binding surface for the authoritative music
+// ProjectService is the framework-independent desktop facade for the authoritative music
 // project. It owns no run state: every method delegates to the UI-agnostic
 // app service so the CLI/IPC client and the Agent tools drive the exact
 // same code path. Editing goes through SubmitProjectOps only — the
@@ -136,21 +136,17 @@ func (s *ProjectService) ExportProjectMIDI(projectID, path string) error {
 // PickOpenMIDIFile shows the native open dialog and returns the chosen path
 // ("" when cancelled). The desktop imports with the returned path.
 func (s *ProjectService) PickOpenMIDIFile() (string, error) {
-	return application.Get().Dialog.OpenFile().
-		SetTitle("导入 MIDI 文件").
-		CanChooseFiles(true).
-		AddFilter("MIDI 文件", "*.mid;*.midi").
-		PromptForSingleSelection()
+	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "导入 MIDI 文件", Filters: []mygo.FileFilter{{Name: "MIDI", Extensions: []string{"mid", "midi"}}}})
+	if err != nil || len(paths) == 0 {
+		return "", err
+	}
+	return paths[0], nil
 }
 
 // PickSaveMIDIFile shows the native save dialog and returns the chosen path
 // ("" when cancelled).
 func (s *ProjectService) PickSaveMIDIFile(defaultName string) (string, error) {
-	return application.Get().Dialog.SaveFile().
-		SetMessage("导出 MIDI 文件").
-		SetFilename(defaultName).
-		AddFilter("MIDI 文件", "*.mid").
-		PromptForSingleSelection()
+	return mygo.Dialog.Save(mygo.SaveDialogOptions{Title: "导出 MIDI 文件", DefaultPath: defaultName, Filters: []mygo.FileFilter{{Name: "MIDI", Extensions: []string{"mid"}}}})
 }
 
 // PrepareNoteTransform compiles selected notes without writing music.

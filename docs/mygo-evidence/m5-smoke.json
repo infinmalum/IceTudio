@@ -1,0 +1,24 @@
+{
+  "afterNativeSelection": {
+    "ready": "true",
+    "error": "",
+    "notes": "3",
+    "clip": "c_second",
+    "generation": "32"
+  },
+  "editFlowVerified": true,
+  "initial": {
+    "ready": "true",
+    "error": "",
+    "notes": "1",
+    "clip": "c_first",
+    "generation": "2"
+  },
+  "mountedNotes": 3,
+  "mygo": "v0.7.4",
+  "nativeComposerVerified": true,
+  "nativeHistoryReadVerified": true,
+  "nativeWorkspaceVerified": true,
+  "readOnly": false,
+  "scope": "Native/WebView captures and typed context selection; editFlowVerified additionally covers Native project lifecycle/properties/time map/checkpoints/MIDI roundtrip, transforms, undo, lost acknowledgement recovery and pending-close cancellation; no physical pointer, IME or audio acceptance"
+}

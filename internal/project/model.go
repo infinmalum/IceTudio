@@ -1,7 +1,7 @@
 // Package project holds the authoritative music project model: tracks,
 // clips, notes, control/raw events, tempo and meter maps, plus the pure
 // transaction semantics (validation, application, inverse ops, undo/redo)
-// shared by the GUI, CLI and agent. It knows nothing about storage or Wails.
+// shared by the GUI, CLI and agent. It knows nothing about storage or GUI frameworks.
 package project
 
 import (

@@ -1,4 +1,4 @@
-import type { MeterPoint, Op, TempoPoint } from "../../bindings/icetudio/internal/project/models";
+import type { MeterPoint, Op, TempoPoint } from "./projectTypes";
 
 export const MAX_TICK = 2147483647;
 export const MAP_PAGE_SIZE = 24;

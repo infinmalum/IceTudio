@@ -1,5 +1,7 @@
 # DAW 架构扩展与保留边界
 
+> 2026-11-02：GUI 目标以 [MyGo Hybrid 迁移规范](../mygo-migration.md)为准：普通工作区与 Arrangement Native，Piano Roll WebView，Agent 正文优先 Native。下表 React/Wails 仅为现有基础，不能解释为迁移后的目标；领域、音频及授权约束继续有效。
+
 状态：目标设计，尚未接入。当前实现以 ../architecture.md 与 P1–P4 契约为准。本文列出新增模型与执行约束；API/schema 的最终字段在相应阶段实现前通过设计评审冻结，不允许开发者自行省略能力。
 
 ## 模块和数据职责

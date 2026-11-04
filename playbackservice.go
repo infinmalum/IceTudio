@@ -1,12 +1,12 @@
 package main
 
 import (
-	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/egoist/mygo"
 	"icetudio/internal/app"
 	"icetudio/internal/playback"
 )
 
-// PlaybackService controls the native engine; audio does not pass through Wails.
+// PlaybackService controls the native engine; audio remains in the existing Go playback service.
 type PlaybackService struct{ svc *app.Service }
 
 func (s *PlaybackService) Status() playback.Status         { return s.svc.PlaybackStatus() }
@@ -32,5 +32,9 @@ func (s *PlaybackService) Audition(req playback.AuditionRequest) error {
 }
 func (s *PlaybackService) StopAudition() error { return s.svc.StopAudition() }
 func (s *PlaybackService) PickSoundFont() (string, error) {
-	return application.Get().Dialog.OpenFile().SetTitle("选择本地 SoundFont 音色").CanChooseFiles(true).AddFilter("SoundFont 音色", "*.sf2;*.sf3").PromptForSingleSelection()
+	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "选择本地 SoundFont", Filters: []mygo.FileFilter{{Name: "SoundFont", Extensions: []string{"sf2", "sf3"}}}})
+	if err != nil || len(paths) == 0 {
+		return "", err
+	}
+	return paths[0], nil
 }

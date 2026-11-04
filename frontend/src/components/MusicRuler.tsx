@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { MeterPoint, TempoPoint } from "../../bindings/icetudio/internal/project/models";
+import type { MeterPoint, TempoPoint } from "../music/projectTypes";
 import { meterIndex, positionLabel, preciseWindow } from "../music/timeMap";
 import { PAGE_BEATS } from "../music/edits";
 

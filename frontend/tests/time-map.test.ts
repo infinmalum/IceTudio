@@ -67,3 +67,17 @@ test("empty, duplicate, fractional, non-finite and out-of-range form values are 
   assert.throws(() => mapOps(d, original));
   assert.throws(() => meterIndex(480, [{ tick: 0, numerator: 4, denominator: 3 }]));
 });
+
+// Shared with Go Native Arrangement; expected values are fixed reviewable
+// fixtures produced from the retained time-map rules, not generated at test time.
+test("Native and WebView share exact meter/ruler fixtures", async () => {
+  const { readFileSync } = await import("node:fs");
+  const fixtures = JSON.parse(readFileSync(new URL("./fixtures/native-time-map.json", import.meta.url), "utf8"));
+  for (const f of fixtures) {
+    const m = meterIndex(f.ppq, f.meter);
+    for (const { tick, ...position } of f.positions) assert.deepEqual(m.position(tick), position, f.name);
+    const r = m.ruler(f.start, f.end, f.zoom, f.tempo);
+    assert.equal(r.thinned, f.thinned, f.name);
+    assert.deepEqual(r.marks.map(({ tick, kind, label, count }) => ({ tick, kind, label, count })), f.marks, f.name);
+  }
+});

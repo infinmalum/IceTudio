@@ -1,0 +1,20 @@
+{
+  "afterNativeSelection": {
+    "ready": "true",
+    "error": "",
+    "notes": "10",
+    "clip": "clip-0-1",
+    "generation": "3"
+  },
+  "initial": {
+    "ready": "true",
+    "error": "",
+    "notes": "8",
+    "clip": "clip-0-0",
+    "generation": "2"
+  },
+  "mountedNotes": 10,
+  "mygo": "v0.7.4",
+  "readOnly": true,
+  "scope": "Native view capture + actual WebView GridSound + read binding + typed selection event; no audio, editing, IME or physical input acceptance"
+}

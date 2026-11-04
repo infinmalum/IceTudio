@@ -4,21 +4,18 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build:dev": "tsc && vite build --minify false --mode development",
-    "build": "tsc && vite build --mode production",
+    "dev": "node ../scripts/dev.mjs",
+    "build:dev": "tsc -p tsconfig.mygo.json && vite build --config mygo.vite.config.ts --minify false",
+    "build": "tsc -p tsconfig.mygo.json && vite build --config mygo.vite.config.ts",
     "preview": "vite preview",
     "test:ui": "node e2e/product.mjs",
-    "test:music": "node --experimental-strip-types --test tests/time-map.test.ts tests/gm.test.ts tests/piano-projection.test.ts"
+    "test:music": "node --experimental-strip-types --test tests/time-map.test.ts tests/gm.test.ts tests/piano-projection.test.ts",
+    "build:mygo": "tsc -p tsconfig.mygo.json && vite build --config mygo.vite.config.ts",
+    "test:native": "node e2e/native.mjs"
   },
   "dependencies": {
-    "@ant-design/icons": "^6.3.4",
-    "@wailsio/runtime": "3.0.0",
-    "antd": "^6.6.8",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

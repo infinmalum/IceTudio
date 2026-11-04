@@ -1,0 +1,1259 @@
+[
+  {
+    "name": "meter_changes",
+    "ppq": 480,
+    "meter": [
+      {
+        "tick": 0,
+        "numerator": 4,
+        "denominator": 4
+      },
+      {
+        "tick": 1920,
+        "numerator": 3,
+        "denominator": 4
+      },
+      {
+        "tick": 3360,
+        "numerator": 6,
+        "denominator": 8
+      }
+    ],
+    "start": 0,
+    "zoom": 64,
+    "positions": [
+      {
+        "tick": 0,
+        "bar": 1,
+        "beat": 1,
+        "remainder": 0,
+        "numerator": 4,
+        "denominator": 4
+      },
+      {
+        "tick": 1920,
+        "bar": 2,
+        "beat": 1,
+        "remainder": 0,
+        "numerator": 3,
+        "denominator": 4
+      },
+      {
+        "tick": 4080,
+        "bar": 3,
+        "beat": 4,
+        "remainder": 0,
+        "numerator": 6,
+        "denominator": 8
+      },
+      {
+        "tick": 4800,
+        "bar": 4,
+        "beat": 1,
+        "remainder": 0,
+        "numerator": 6,
+        "denominator": 8
+      }
+    ],
+    "end": 7680,
+    "tempo": [
+      {
+        "tick": 0,
+        "usPerQuarter": 500001
+      },
+      {
+        "tick": 480,
+        "usPerQuarter": 666667
+      }
+    ],
+    "thinned": true,
+    "marks": [
+      {
+        "tick": 0,
+        "kind": "bar",
+        "label": "1",
+        "count": 1
+      },
+      {
+        "tick": 0,
+        "kind": "meter",
+        "label": "4/4",
+        "count": 1
+      },
+      {
+        "tick": 0,
+        "kind": "tempo",
+        "label": "120",
+        "count": 1
+      },
+      {
+        "tick": 480,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 480,
+        "kind": "tempo",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 960,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 1440,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 1920,
+        "kind": "bar",
+        "label": "2",
+        "count": 1
+      },
+      {
+        "tick": 1920,
+        "kind": "meter",
+        "label": "3/4",
+        "count": 1
+      },
+      {
+        "tick": 2400,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 2880,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 3360,
+        "kind": "bar",
+        "label": "3",
+        "count": 1
+      },
+      {
+        "tick": 3360,
+        "kind": "meter",
+        "label": "6/8",
+        "count": 1
+      },
+      {
+        "tick": 3600,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 3840,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 4080,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 4320,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 4560,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 4800,
+        "kind": "bar",
+        "label": "4",
+        "count": 1
+      },
+      {
+        "tick": 5040,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 5280,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 5520,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 5760,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 6000,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 6240,
+        "kind": "bar",
+        "label": "5",
+        "count": 1
+      },
+      {
+        "tick": 6480,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 6720,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 6960,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 7200,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 7440,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "mid_bar_and_offset",
+    "ppq": 480,
+    "meter": [
+      {
+        "tick": 0,
+        "numerator": 4,
+        "denominator": 4
+      },
+      {
+        "tick": 600,
+        "numerator": 3,
+        "denominator": 4
+      }
+    ],
+    "start": 8280,
+    "zoom": 64,
+    "positions": [
+      {
+        "tick": 599,
+        "bar": 1,
+        "beat": 2,
+        "remainder": 119,
+        "numerator": 4,
+        "denominator": 4
+      },
+      {
+        "tick": 600,
+        "bar": 2,
+        "beat": 1,
+        "remainder": 0,
+        "numerator": 3,
+        "denominator": 4
+      },
+      {
+        "tick": 8280,
+        "bar": 7,
+        "beat": 2,
+        "remainder": 0,
+        "numerator": 3,
+        "denominator": 4
+      }
+    ],
+    "end": 15960,
+    "tempo": [
+      {
+        "tick": 0,
+        "usPerQuarter": 500001
+      },
+      {
+        "tick": 8760,
+        "usPerQuarter": 666667
+      }
+    ],
+    "thinned": false,
+    "marks": [
+      {
+        "tick": 8280,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 8760,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 8760,
+        "kind": "tempo",
+        "label": "90",
+        "count": 1
+      },
+      {
+        "tick": 9240,
+        "kind": "bar",
+        "label": "8",
+        "count": 1
+      },
+      {
+        "tick": 9720,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 10200,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 10680,
+        "kind": "bar",
+        "label": "9",
+        "count": 1
+      },
+      {
+        "tick": 11160,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 11640,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 12120,
+        "kind": "bar",
+        "label": "10",
+        "count": 1
+      },
+      {
+        "tick": 12600,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 13080,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 13560,
+        "kind": "bar",
+        "label": "11",
+        "count": 1
+      },
+      {
+        "tick": 14040,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 14520,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 15000,
+        "kind": "bar",
+        "label": "12",
+        "count": 1
+      },
+      {
+        "tick": 15480,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "fractional_beats",
+    "ppq": 1,
+    "meter": [
+      {
+        "tick": 0,
+        "numerator": 3,
+        "denominator": 128
+      }
+    ],
+    "start": 0,
+    "zoom": 160,
+    "positions": [
+      {
+        "tick": 1,
+        "bar": 11,
+        "beat": 3,
+        "remainder": 0,
+        "numerator": 3,
+        "denominator": 128
+      },
+      {
+        "tick": 2147483647,
+        "bar": 22906492235,
+        "beat": 3,
+        "remainder": 0,
+        "numerator": 3,
+        "denominator": 128
+      },
+      {
+        "tick": 4294967294,
+        "bar": 45812984470,
+        "beat": 2,
+        "remainder": 0,
+        "numerator": 3,
+        "denominator": 128
+      }
+    ],
+    "end": 16,
+    "tempo": [
+      {
+        "tick": 0,
+        "usPerQuarter": 500001
+      },
+      {
+        "tick": 1,
+        "usPerQuarter": 666667
+      }
+    ],
+    "thinned": true,
+    "marks": [
+      {
+        "tick": 0,
+        "kind": "bar",
+        "label": "1",
+        "count": 1
+      },
+      {
+        "tick": 0,
+        "kind": "meter",
+        "label": "3/128",
+        "count": 1
+      },
+      {
+        "tick": 0,
+        "kind": "tempo",
+        "label": "120",
+        "count": 1
+      },
+      {
+        "tick": 0.375,
+        "kind": "bar",
+        "label": "5",
+        "count": 1
+      },
+      {
+        "tick": 0.75,
+        "kind": "bar",
+        "label": "9",
+        "count": 1
+      },
+      {
+        "tick": 1,
+        "kind": "tempo",
+        "label": "90",
+        "count": 1
+      },
+      {
+        "tick": 1.125,
+        "kind": "bar",
+        "label": "13",
+        "count": 1
+      },
+      {
+        "tick": 1.5,
+        "kind": "bar",
+        "label": "17",
+        "count": 1
+      },
+      {
+        "tick": 1.875,
+        "kind": "bar",
+        "label": "21",
+        "count": 1
+      },
+      {
+        "tick": 2.25,
+        "kind": "bar",
+        "label": "25",
+        "count": 1
+      },
+      {
+        "tick": 2.625,
+        "kind": "bar",
+        "label": "29",
+        "count": 1
+      },
+      {
+        "tick": 3,
+        "kind": "bar",
+        "label": "33",
+        "count": 1
+      },
+      {
+        "tick": 3.375,
+        "kind": "bar",
+        "label": "37",
+        "count": 1
+      },
+      {
+        "tick": 3.75,
+        "kind": "bar",
+        "label": "41",
+        "count": 1
+      },
+      {
+        "tick": 4.125,
+        "kind": "bar",
+        "label": "45",
+        "count": 1
+      },
+      {
+        "tick": 4.5,
+        "kind": "bar",
+        "label": "49",
+        "count": 1
+      },
+      {
+        "tick": 4.875,
+        "kind": "bar",
+        "label": "53",
+        "count": 1
+      },
+      {
+        "tick": 5.25,
+        "kind": "bar",
+        "label": "57",
+        "count": 1
+      },
+      {
+        "tick": 5.625,
+        "kind": "bar",
+        "label": "61",
+        "count": 1
+      },
+      {
+        "tick": 6,
+        "kind": "bar",
+        "label": "65",
+        "count": 1
+      },
+      {
+        "tick": 6.375,
+        "kind": "bar",
+        "label": "69",
+        "count": 1
+      },
+      {
+        "tick": 6.75,
+        "kind": "bar",
+        "label": "73",
+        "count": 1
+      },
+      {
+        "tick": 7.125,
+        "kind": "bar",
+        "label": "77",
+        "count": 1
+      },
+      {
+        "tick": 7.5,
+        "kind": "bar",
+        "label": "81",
+        "count": 1
+      },
+      {
+        "tick": 7.875,
+        "kind": "bar",
+        "label": "85",
+        "count": 1
+      },
+      {
+        "tick": 8.25,
+        "kind": "bar",
+        "label": "89",
+        "count": 1
+      },
+      {
+        "tick": 8.625,
+        "kind": "bar",
+        "label": "93",
+        "count": 1
+      },
+      {
+        "tick": 9,
+        "kind": "bar",
+        "label": "97",
+        "count": 1
+      },
+      {
+        "tick": 9.375,
+        "kind": "bar",
+        "label": "101",
+        "count": 1
+      },
+      {
+        "tick": 9.75,
+        "kind": "bar",
+        "label": "105",
+        "count": 1
+      },
+      {
+        "tick": 10.125,
+        "kind": "bar",
+        "label": "109",
+        "count": 1
+      },
+      {
+        "tick": 10.5,
+        "kind": "bar",
+        "label": "113",
+        "count": 1
+      },
+      {
+        "tick": 10.875,
+        "kind": "bar",
+        "label": "117",
+        "count": 1
+      },
+      {
+        "tick": 11.25,
+        "kind": "bar",
+        "label": "121",
+        "count": 1
+      },
+      {
+        "tick": 11.625,
+        "kind": "bar",
+        "label": "125",
+        "count": 1
+      },
+      {
+        "tick": 12,
+        "kind": "bar",
+        "label": "129",
+        "count": 1
+      },
+      {
+        "tick": 12.375,
+        "kind": "bar",
+        "label": "133",
+        "count": 1
+      },
+      {
+        "tick": 12.75,
+        "kind": "bar",
+        "label": "137",
+        "count": 1
+      },
+      {
+        "tick": 13.125,
+        "kind": "bar",
+        "label": "141",
+        "count": 1
+      },
+      {
+        "tick": 13.5,
+        "kind": "bar",
+        "label": "145",
+        "count": 1
+      },
+      {
+        "tick": 13.875,
+        "kind": "bar",
+        "label": "149",
+        "count": 1
+      },
+      {
+        "tick": 14.25,
+        "kind": "bar",
+        "label": "153",
+        "count": 1
+      },
+      {
+        "tick": 14.625,
+        "kind": "bar",
+        "label": "157",
+        "count": 1
+      },
+      {
+        "tick": 15,
+        "kind": "bar",
+        "label": "161",
+        "count": 1
+      },
+      {
+        "tick": 15.375,
+        "kind": "bar",
+        "label": "165",
+        "count": 1
+      },
+      {
+        "tick": 15.75,
+        "kind": "bar",
+        "label": "169",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "far_tick",
+    "ppq": 1,
+    "meter": [
+      {
+        "tick": 0,
+        "numerator": 1,
+        "denominator": 128
+      }
+    ],
+    "start": 2147483647,
+    "zoom": 16,
+    "positions": [
+      {
+        "tick": 2147483647,
+        "bar": 68719476705,
+        "beat": 1,
+        "remainder": 0,
+        "numerator": 1,
+        "denominator": 128
+      },
+      {
+        "tick": 4294967294,
+        "bar": 137438953409,
+        "beat": 1,
+        "remainder": 0,
+        "numerator": 1,
+        "denominator": 128
+      }
+    ],
+    "end": 2147483663,
+    "tempo": [
+      {
+        "tick": 0,
+        "usPerQuarter": 500001
+      },
+      {
+        "tick": 2147483648,
+        "usPerQuarter": 666667
+      }
+    ],
+    "thinned": true,
+    "marks": [
+      {
+        "tick": 2147483648,
+        "kind": "tempo",
+        "label": "90",
+        "count": 1
+      },
+      {
+        "tick": 2147483650,
+        "kind": "bar",
+        "label": "68719476801",
+        "count": 1
+      },
+      {
+        "tick": 2147483653.25,
+        "kind": "bar",
+        "label": "68719476905",
+        "count": 1
+      },
+      {
+        "tick": 2147483656.5,
+        "kind": "bar",
+        "label": "68719477009",
+        "count": 1
+      },
+      {
+        "tick": 2147483659.75,
+        "kind": "bar",
+        "label": "68719477113",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "triplet_grid_ppq",
+    "ppq": 7,
+    "meter": [
+      {
+        "tick": 0,
+        "numerator": 6,
+        "denominator": 8
+      },
+      {
+        "tick": 17,
+        "numerator": 7,
+        "denominator": 16
+      }
+    ],
+    "start": 0,
+    "zoom": 80,
+    "positions": [
+      {
+        "tick": 1,
+        "bar": 1,
+        "beat": 1,
+        "remainder": 1,
+        "numerator": 6,
+        "denominator": 8
+      },
+      {
+        "tick": 17,
+        "bar": 2,
+        "beat": 1,
+        "remainder": 0,
+        "numerator": 7,
+        "denominator": 16
+      },
+      {
+        "tick": 33,
+        "bar": 3,
+        "beat": 3,
+        "remainder": 0.25,
+        "numerator": 7,
+        "denominator": 16
+      }
+    ],
+    "end": 112,
+    "tempo": [
+      {
+        "tick": 0,
+        "usPerQuarter": 500001
+      },
+      {
+        "tick": 7,
+        "usPerQuarter": 666667
+      }
+    ],
+    "thinned": false,
+    "marks": [
+      {
+        "tick": 0,
+        "kind": "bar",
+        "label": "1",
+        "count": 1
+      },
+      {
+        "tick": 0,
+        "kind": "meter",
+        "label": "6/8",
+        "count": 1
+      },
+      {
+        "tick": 0,
+        "kind": "tempo",
+        "label": "120",
+        "count": 1
+      },
+      {
+        "tick": 3.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 7,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 7,
+        "kind": "tempo",
+        "label": "90",
+        "count": 1
+      },
+      {
+        "tick": 10.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 14,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 17,
+        "kind": "bar",
+        "label": "2",
+        "count": 1
+      },
+      {
+        "tick": 17,
+        "kind": "meter",
+        "label": "7/16",
+        "count": 1
+      },
+      {
+        "tick": 18.75,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 20.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 22.25,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 24,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 25.75,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 27.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 29.25,
+        "kind": "bar",
+        "label": "3",
+        "count": 1
+      },
+      {
+        "tick": 31,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 32.75,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 34.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 36.25,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 38,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 39.75,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 41.5,
+        "kind": "bar",
+        "label": "4",
+        "count": 1
+      },
+      {
+        "tick": 43.25,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 45,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 46.75,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 48.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 50.25,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 52,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 53.75,
+        "kind": "bar",
+        "label": "5",
+        "count": 1
+      },
+      {
+        "tick": 55.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 57.25,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 59,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 60.75,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 62.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 64.25,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 66,
+        "kind": "bar",
+        "label": "6",
+        "count": 1
+      },
+      {
+        "tick": 67.75,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 69.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 71.25,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 73,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 74.75,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 76.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 78.25,
+        "kind": "bar",
+        "label": "7",
+        "count": 1
+      },
+      {
+        "tick": 80,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 81.75,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 83.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 85.25,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 87,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 88.75,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 90.5,
+        "kind": "bar",
+        "label": "8",
+        "count": 1
+      },
+      {
+        "tick": 92.25,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 94,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 95.75,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 97.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 99.25,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 101,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 102.75,
+        "kind": "bar",
+        "label": "9",
+        "count": 1
+      },
+      {
+        "tick": 104.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 106.25,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 108,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 109.75,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      },
+      {
+        "tick": 111.5,
+        "kind": "beat",
+        "label": "",
+        "count": 1
+      }
+    ]
+  }
+]

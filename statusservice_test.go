@@ -76,7 +76,7 @@ func (finishedModel) Chat(context.Context, config.Model, []model.Message, []mode
 }
 
 // regression: a task runs to completion, a second is cancellable, and the
-// transcript is stored. This drives the same service the Wails UI binds to.
+// transcript is stored. This drives the same service the Native UI calls.
 func TestTaskPersistenceAndCancellation(t *testing.T) {
 	store, err := testfixture.Open(filepath.Join(t.TempDir(), "data.db"))
 	if err != nil {

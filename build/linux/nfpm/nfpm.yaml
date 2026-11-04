@@ -10,13 +10,19 @@ version: "0.1.0"
 section: "default"
 priority: "extra"
 maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
-description: "Local desktop agent"
+description: "AI native music creation app"
 vendor: "IceTudio"
-homepage: "https://wails.io"
+homepage: "https://github.com/infinmalum/IceTudio"
 license: "AGPL-3.0-only"
 release: "1"
 
 contents:
+  - src: "./frontend/public/vendor/gridsound/LICENSE"
+    dst: "/usr/share/licenses/icetudio/gridsound/LICENSE"
+  - src: "./frontend/public/vendor/gridsound/NOTICE.md"
+    dst: "/usr/share/licenses/icetudio/gridsound/NOTICE.md"
+  - src: "./frontend/public/vendor/gridsound/gs-utils/LICENSE"
+    dst: "/usr/share/licenses/icetudio/gs-utils/LICENSE"
   - src: "./LICENSE"
     dst: "/usr/share/licenses/icetudio/LICENSE"
   - src: "./licenses/"
@@ -42,10 +48,10 @@ contents:
   - src: "./build/linux/icetudio.desktop"
     dst: "/usr/share/applications/icetudio.desktop"
 
-# GTK4 + WebKitGTK 6.0; FluidSynth 2.6 or newer is required by native.c.
+# MyGo Linux uses GTK3/WebKitGTK 4.1; FluidSynth >= 2.6.
 depends:
-  - libgtk-4-1
-  - libwebkitgtk-6.0-4
+  - libgtk-3-0
+  - libwebkit2gtk-4.1-0
   - libfluidsynth3 (>= 2.6.0)
 
 # Distribution-specific overrides for different package formats
@@ -53,15 +59,15 @@ overrides:
   # RPM packages for Fedora / RHEL / AlmaLinux / Rocky Linux
   rpm:
     depends:
-      - gtk4
-      - webkitgtk6.0
+      - gtk3
+      - webkit2gtk4.1
       - libfluidsynth.so.3()(64bit)
 
   # Arch Linux packages
   archlinux:
     depends:
-      - gtk4
-      - webkitgtk-6.0
+      - gtk3
+      - webkit2gtk-4.1
       - fluidsynth>=2.6.0
 
 # scripts section to ensure desktop database is updated after install
@@ -70,35 +76,3 @@ scripts:
   # You can also add preremove, postremove if needed
   # preremove: "./build/linux/nfpm/scripts/preremove.sh"
   # postremove: "./build/linux/nfpm/scripts/postremove.sh"
-
-# If you build your app with -tags gtk3 (legacy WebKit2GTK 4.1 stack — supported through v3.0.x, removed in v3.1),
-# replace the depends/overrides above with these:
-#
-# depends:
-#   - libgtk-3-0
-#   - libwebkit2gtk-4.1-0
-#   - libfluidsynth3
-# overrides:
-#   rpm:
-#     depends:
-#       - gtk3
-#       - webkit2gtk4.1
-#       - libfluidsynth.so.3()(64bit)
-#   archlinux:
-#     depends:
-#       - gtk3
-#       - webkit2gtk-4.1
-#       - fluidsynth
-#
-# replaces:
-#   - foobar
-# provides:
-#   - bar
-# recommends:
-#   - whatever
-# suggests:
-#   - something-else
-# conflicts:
-#   - not-foo
-#   - not-bar
-# changelog: "changelog.yaml"

@@ -1,0 +1,630 @@
+[
+  {
+    "source": "native.mjs.reference",
+    "assertion": "await check('Native viewport keeps a usable browser column and a start hero or restored project',`document.querySelector('.browser').getBoundingClientRect().width>=180&&((document.querySelector('.hero-actions')?.getBoundingClientRect().height??0)>=40||document.querySelector('.music-editor')!==null)`);"
+  },
+  {
+    "source": "native.mjs.reference",
+    "assertion": "const title='原生完整流程-'+Date.now();await click('＋ 新建工程','.browser');await fill('dialog[open] input[type=text]',title);await click('创建','dialog[open]');await until(`document.querySelector('.transport-title')?.textContent===${JSON.stringify(title)}&&document.querySelector('.music-editor')`);await check('Open project keeps a usable editor area at the native viewport',`document.querySelector('.editor-center').getBoundingClientRect().height>150&&document.querySelector('.inspector-dock')!==null`);await click('编排 + 卷帘','.transport-bar');await until('document.querySelector(\".editor-center[data-view=split]\")');await click('添加音轨');await until('document.querySelector(\"gsui-pianoroll .gsui-row\")');"
+  },
+  {
+    "source": "native.mjs.reference",
+    "assertion": "await check('Native WebKit pointer input creates a committed MIDI note',`(await getNative()).state.tracks[0].clips[0].notes[0].pitch===60`);"
+  },
+  {
+    "source": "native.mjs.reference",
+    "assertion": "await check('Native multi-track/time-map editing shares undo and redo',`(await getNative()).state.tracks.length===2`);"
+  },
+  {
+    "source": "native.mjs.reference",
+    "assertion": "await check('Native transport reaches real FluidSynth/Pulse callbacks and stops',`!(await nativeCall('playbackservice.Status')).playing`);report.metrics.push({audio:before});"
+  },
+  {
+    "source": "native.mjs.reference",
+    "assertion": "await check('Native audition renders off-timeline without changing the project',`(await nativeCall('playbackservice.Status')).callbacks>${cb0}&&(await getNative()).revision===${rev0}`);"
+  },
+  {
+    "source": "native.mjs.reference",
+    "assertion": "await check('Native export opens the real system save dialog and cancel unblocks it',`document.querySelector('.transport-bar')!==null`);"
+  },
+  {
+    "source": "native.mjs.reference",
+    "assertion": "await check('Native binary exports and re-imports the MIDI round trip',`(await nativeCall('projectservice.GetProject',${JSON.stringify(imported.id)})).state.tracks.some(t=>t.clips?.some(c=>c.notes?.some(n=>n.pitch===60&&n.velocity===88)))`);"
+  },
+  {
+    "source": "native.mjs.reference",
+    "assertion": "await check('Native import opens the real system open dialog and cancel skips import',`localStorage.getItem('icetudio.lastProject')===${JSON.stringify(imported.id)}`);"
+  },
+  {
+    "source": "native.mjs.reference",
+    "assertion": "await check('Actual Wails window close is cancelled and preserves blank music input',`document.querySelector('[aria-label=\"片段长度（tick）\"]').value===''&&!document.querySelector('[data-close-guard]').hasAttribute('inert')`);"
+  },
+  {
+    "source": "native.mjs.reference",
+    "assertion": "await check('Actual close/reopen preserves music and offers input without applying it',`document.querySelector('[aria-label=\"已保留音乐输入\"]')!==null&&document.querySelector('[aria-label=\"片段长度（tick）\"]').disabled===true`);"
+  },
+  {
+    "source": "native.mjs.reference",
+    "assertion": "await click('恢复输入','[aria-label=\"已保留音乐输入\"]');await check('Explicit native input recovery restores the original blank value',`document.querySelector('[aria-label=\"片段长度（tick）\"]').value===''`);"
+  },
+  {
+    "source": "native.mjs.reference",
+    "assertion": "await check('SIGKILL/restart queries the original committed operation without replay',`(await nativeCall('projectservice.GetProject',${JSON.stringify(interrupted.id)})).revision===${interrupted.revision}&&(await nativeCall('projectservice.GetPendingProjectEdit'))===null`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Close initialization failure keeps the editor inert until explicit retry',`document.querySelector('[data-close-guard]').hasAttribute('inert') && document.querySelector('[data-close-guard]').dataset.closeGuard==='starting'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Recovery read failure blocks edits until retry',`Array.from(document.querySelectorAll('.browser button')).find(b=>b.textContent.trim()==='＋ 新建工程')?.disabled`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Recovery initialization failure blocks close approval (mock desktop)',`document.querySelector('.dialog-body').textContent.includes('恢复检查')&&!musicClose.confirmed.length`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Existing application dialog remains editable instead of queuing a close prompt',`document.querySelector('dialog[open] input').value==='浏览器真实事务'&&document.querySelectorAll('#dialog-title').length===1&&!document.querySelector('[data-close-guard]').hasAttribute('inert')&&!musicClose.confirmed.length`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Split view uses a three-row grid with scrollable editors',`(()=>{const p=document.querySelector('.editor-panes');return getComputedStyle(p).display==='grid'&&getComputedStyle(p).gridTemplateRows.split(' ').length===3&&getComputedStyle(p.querySelector('.piano-editor')).overflowY==='auto'})()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Snap uses musical note values with the same tick ratio',`document.querySelector('[aria-label=\"编排吸附\"]').selectedOptions[0].textContent==='1/4 音符'&&document.querySelector('[aria-label=\"编排吸附\"]').value==='1'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Split ratio updates layout and persists a view preference',`document.querySelector('[aria-label=\"编排区域比例\"]').getAttribute('aria-valuetext')==='编排 35%，钢琴卷帘 65%'&&document.querySelector('.editor-panes').style.gridTemplateRows.includes('35fr')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('External committed edits refresh the UI',`(await getMusic()).revision===2`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Failed recovery write prevents the music command from being sent',`(await getMusic()).revision===2&&(await musicCall('GetPendingProjectEdit'))===null`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Lost intention acknowledgment retains a durable query target without sending the edit',`(await getMusic()).revision===2&&(await musicCall('GetPendingProjectEdit')).projectID===base.id&&document.body.innerText.includes('查询保存结果')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('No committed result remains uncertain when the user continues waiting',`(await musicCall('GetPendingProjectEdit'))!==null&&(await getMusic()).revision===2`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Cleanup failure reports the committed result and retains recovery instead of replaying',`(await getMusic()).revision===3&&(await getMusic()).state.tracks[0].clips[0].start===120&&(await musicCall('GetPendingProjectEdit'))!==null&&document.body.innerText.includes('已保存')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Querying a committed operation retries cleanup without a second edit',`(await getMusic()).revision===3&&!document.body.innerText.includes('查询保存结果')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Arrangement mouse move changes only clip origin and preserves local events',`(()=>getMusic().then(p=>p.revision===arrBase.revision+1&&JSON.stringify({...p.state.tracks[0].clips[0],start:0})===JSON.stringify(arrBase.state.tracks[0].clips[0])))()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Arrangement edits share project undo and redo',`(await getMusic()).revision===arrBase.revision+3`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Arrangement right edge resize changes length without rewriting notes or controls',`(()=>getMusic().then(p=>JSON.stringify(p.state.tracks[0].clips[0].notes)===JSON.stringify(arrBase.state.tracks[0].clips[0].notes)&&JSON.stringify(p.state.tracks[0].clips[0].controls)===JSON.stringify(arrBase.state.tracks[0].clips[0].controls)))()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Arrangement shortening rejects a clip that cannot contain its existing note',`(await getMusic()).revision===arrReject&&(await getMusic()).state.tracks[0].clips[0].length===2400`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Arrangement negative origin preview is rejected without a transaction',`(await getMusic()).revision===arrReject&&(await getMusic()).state.tracks[0].clips[0].start===480`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Arrangement gesture retains its original revision and rejects a concurrent edit conflict',`(await getMusic()).revision===arrReject+1&&(await getMusic()).state.tracks[0].clips[0].start===480`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Arrangement '+reason+' cancels the preview without saving',`!document.querySelector('.arrangement-block.dragging')&&(await getMusic()).revision===arrReject+1`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Arrangement active gesture blocks native-close request (mock desktop)',`document.querySelector('.dialog-body').textContent.includes('片段手势')&&!musicClose.confirmed.length`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Fractional snap keeps the off-grid origin and rounds positive and negative half steps symmetrically',`(await getMusic()).state.tracks[0].clips[0].start===503`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Overlapping clips use distinct accessible lanes and cropped ends have no fake resize handle',`document.querySelector('[data-clip=\"c_overlap\"]').dataset.lane!==document.querySelector('[data-clip=\"'+arrClip+'\"]').dataset.lane&&document.querySelector('[data-clip=\"'+arrClip+'\"]').dataset.cropRight==='true'&&!document.querySelector('[data-clip=\"'+arrClip+'\"] .arrangement-resize')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Changing selected clip cancels an arrangement gesture without retargeting it',`(await getMusic()).revision===arrViews&&(await getMusic()).state.tracks[0].clips[0].start===0&&document.querySelector('[aria-label=\"选择片段\"]').value==='c_overlap'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('A clip spanning the page renders its continuation with its real right edge',`document.querySelector('[data-clip=\"'+arrClip+'\"]').dataset.cropLeft==='true'&&document.querySelector('[data-clip=\"'+arrClip+'\"] .arrangement-resize')&&!document.querySelector('[data-clip=\"c_overlap\"]')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Off-page clips remain selectable and reveal their absolute timeline page',`document.querySelector('[data-clip=\"c_far\"] .arrangement-clip').getAttribute('aria-pressed')==='true'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Selecting a clip on another track opens that clip without creating history',`document.querySelector('[aria-label=\"选择片段\"]').value==='c_arr_other'&&(await getMusic()).revision===arrViews`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Arrangement retains mute and solo edits in shared undo history',`!document.querySelector('[aria-label=\"静音 音轨 1\"]').getAttribute('aria-pressed').includes('true')&&!document.querySelector('[aria-label=\"独奏 音轨 1\"]').getAttribute('aria-pressed').includes('true')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Tempo/meter forms commit atomically, preserve untouched precision and note/control data',`(()=>getMusic().then(p=>p.revision===mapBase.revision+1&&p.state.tempo.length===3&&p.state.tempo[0].usPerQuarter===500001&&p.state.tempo[1].usPerQuarter===666667&&p.state.meter[2].numerator===5&&JSON.stringify(p.state.tracks)===JSON.stringify(mapBase.state.tracks)))()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Undo restores both time maps together',`(await getMusic()).state.tempo[1].usPerQuarter===600000`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Ruler follows 4/4 to 6/8 to 5/8 changes',`document.querySelector('.piano-host .music-ruler [data-kind=bar][data-tick=\"3360\"]').textContent.includes('第 3 小节')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Ruler labels accept hover inspection while pointer input stays read-only',`document.elementFromPoint(${rulerHit.x},${rulerHit.y})?.closest('.piano-host .music-ruler')!==null&&(await getMusic()).revision===beforeRuler`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Invalid time-map input leaves the project untouched',`(await getMusic()).revision===beforeInvalid&&document.querySelector('[aria-label=\"速度位置 0\"]').disabled&&document.querySelector('[aria-label=\"删除拍号点 0\"]').disabled`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Closing a dirty map requires explicit discard and cancellation preserves inputs',`document.querySelector('.time-map-dialog[open]')&&document.querySelector('[aria-label=\"拍号位置 1\"]').value==='0'&&(await getMusic()).revision===beforeInvalid`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Replacement form edits the initial tempo and meter without losing later points',`(await getMusic()).state.tempo[0].usPerQuarter===521739&&(await getMusic()).state.meter[0].numerator===7&&(await getMusic()).state.meter[0].denominator===8&&(await getMusic()).state.meter.length===3`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Time-map draft freezes its revision and does not overwrite a background edit',`(await getMusic()).revision===mapConflictBase+1&&document.querySelector('[aria-label=\"速度 BPM 0\"]').value==='111'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Ruler absolute tick origin aligns with note positions',aligned());"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Ruler remains aligned after horizontal scroll',aligned());"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Ruler remains aligned after zoom',aligned());"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Ctrl-wheel zoom keeps the ruler and host zoom control synchronized',aligned());"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Nonzero clip start uses absolute project meter positions',`document.querySelector('.ruler-position').textContent.includes('1 小节 1 拍 +240 tick')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('A clip at the maximum map tick still has a ruler extending beyond that tick',`document.querySelector('.piano-host .music-ruler [data-kind=bar]')!==null`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Numeric Enter commits preserve the focus revision and reject concurrent edits',`(await getMusic()).revision===numberConflict+1&&(await getMusic()).state.tracks[0].clips[0].start===0`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('MIDI velocity preserves controllers',`(await getMusic()).state.tracks[0].clips[0].controls[0].value===127`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Gesture freezes revision and rejects conflicts',`(()=>getMusic().then(p=>p.revision===beforeConflict.revision+1&&p.state.tracks[0].clips[0].notes[0].start===beforeConflict.state.tracks[0].clips[0].notes[0].start&&p.state.tracks[0].clips[0].notes[0].pitch===67))()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await sleep(200);await check('Escape cancels without committing',`(await getMusic()).revision===beforeCancel`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Music adoption is disabled until a valid preview is inspected',`Array.from(document.querySelectorAll('.music-edit-approval button')).find(b=>b.textContent==='采用这次修改').disabled`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Candidate preview reads real pending Agent parameters without changing project revision',`(await getMusic()).revision===previewBefore.revision&&document.querySelector('.note-diff-table').textContent.includes('力度')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Ghosts are read-only and excluded from vendor note count',`getComputedStyle(document.querySelector('.piano-ghost')).pointerEvents==='none'&&Array.from(document.querySelectorAll('.piano-ghost')).every(e=>!e.dataset.id)&&(await getMusic()).state.tracks[0].clips[0].notes.length===3`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Preview transport explicitly labels the uncommitted candidate (mock audio)',`document.querySelector('.preview-playing').textContent.includes('候选')&&(await getMusic()).revision===previewBefore.revision`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Adoption executes the original Agent transaction and retires ghosts',`(await getMusic()).state.tracks[0].clips[0].notes.every((n,i)=>n.pitch===previewBefore.state.tracks[0].clips[0].notes[i].pitch+1)`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Agent candidate uses the same GUI undo history',`JSON.stringify((await getMusic()).state.tracks[0].clips[0].notes)===JSON.stringify(previewBefore.state.tracks[0].clips[0].notes)`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Discarding a pending candidate leaves music untouched',`(await getMusic()).revision===discardBefore`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('User edit invalidates candidate projection and disables adoption',`Array.from(document.querySelectorAll('.music-edit-approval button')).find(b=>b.textContent==='采用这次修改').disabled`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await sleep(100);await check('Project change invalidates even an in-flight preview response',`!document.querySelector('.note-diff-table')&&Array.from(document.querySelectorAll('.music-edit-approval button')).find(b=>b.textContent==='采用这次修改').disabled`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check(retire+' retires a late audition request (mock audio)',`!musicTransport.previewId&&!musicTransport.playing`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await sleep(100);await check('Unmounted candidate response cannot replace a newer candidate view',`!document.querySelector('.note-diff-table')&&!document.querySelector('.piano-ghost')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Mixed candidate shows actual tempo, instrument, clip and control changes',`document.querySelector('.object-diff-table').textContent.includes('80.000 BPM')&&document.querySelector('.object-diff-table').textContent.includes('Violin')&&document.querySelector('.object-diff-table').textContent.includes('片段绝对起点')&&document.querySelector('.object-diff-table').textContent.includes('CC7 = 50')&&(await getMusic()).revision===mixedBefore.revision`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Mixed edits explain full-score audition and do not offer misleading ghosts',`!document.querySelector('.piano-ghost')&&!Array.from(document.querySelectorAll('.music-edit-approval button')).some(b=>b.textContent==='在卷帘查看')&&document.querySelector('.music-edit-approval').textContent.includes('从头循环整份工程')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Mixed adoption commits the original batch once',`(await getMusic()).state.tracks[0].program===40&&(await getMusic()).state.tracks[0].clips[0].start===mixedBefore.state.tracks[0].clips[0].start+120&&(await getMusic()).state.tempo[0].usPerQuarter===750000`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Mixed adoption shares GUI undo including metadata and controller events',`JSON.stringify((await getMusic()).state)===JSON.stringify(mixedBefore.state)`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Mixed discard preserves the full project',`(await getMusic()).revision===mixedBefore.revision+2&&JSON.stringify((await getMusic()).state)===JSON.stringify(mixedBefore.state)`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Native unknown result offers an authoritative query instead of invented success output',`!Array.from(document.querySelectorAll('.project-recovery-card button')).some(b=>b.textContent==='已核实完成')&&(await getMusic()).revision===recoveryBefore.revision+1`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Native result query records the actual commit without another edit',`document.querySelector('.project-recovery-result').textContent.includes('没有重复执行')&&(await getMusic()).revision===recoveryBefore.revision+1&&!document.querySelector('.project-recovery-card')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Recovered Agent operation stays in shared GUI undo',`JSON.stringify((await getMusic()).state)===JSON.stringify(recoveryBefore.state)`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Missing native result remains unknown and does not replay music',`document.querySelector('.project-recovery-card').textContent.includes('不证明未执行')&&(await getMusic()).revision===recoveryBefore.revision+2`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Arrow key submits one atomic selected-note batch',`(await getMusic()).state.tracks[0].clips[0].notes.every((n,i)=>n.pitch===keyboardBefore.state.tracks[0].clips[0].notes[i].pitch+1)`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await sleep(100);await check('Composition/input events do not edit notes',`(await getMusic()).revision===keyboardBefore.revision+2`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Zoom does not change the project revision',`(await getMusic()).revision===keyboardBefore.revision+2`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Boundary resize atomically extends the clip',`(await getMusic()).state.tracks[0].clips[0].notes.find(n=>n.id==='n_end').duration===960`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Undo removes the boundary extension after restoring the note in one transaction',`(await getMusic()).revision===boundaryEdit.revision+1&&(await getMusic()).state.tracks[0].clips[0].notes.find(n=>n.id==='n_end').duration===480`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Redo restores the extended clip and note together',`(await getMusic()).revision===boundaryEdit.revision+2&&JSON.stringify((await getMusic()).state)===JSON.stringify(boundaryEdit.state)`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check(`Ruler page offset follows absolute tick for ${count} notes`,`document.querySelector('.piano-host .music-ruler').dataset.start==='7680'&&document.querySelector('.ruler-position').textContent.includes('6 小节 4 拍')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Lost commit reply is resolved without replay',`(await getMusic()).state.tracks[0].clips[0].notes.filter(n=>n.velocity===81).length===64 && !document.body.innerText.includes('保存结果未知')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Unknown project outcome blocks native exit without replay',`!musicClose.confirmed.length&&document.querySelector('.dialog-body').textContent.includes('查询保存结果')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Browser reload with empty sessionStorage restores the Go journal without replay',`(await musicCall('GetPendingProjectEdit')).opID===${JSON.stringify(persistedOperation.opID)}&&(await getMusic()).revision===${persistedRevision}`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Recovery queries the original operation while preserving the newly selected project',`document.querySelector('.transport-title')?.textContent==='恢复时查看的工程'&&document.querySelector('.save-chip')?.textContent.includes('浏览器真实事务')&&(await musicCall('GetPendingProjectEdit'))===null&&(await getMusic()).revision===${persistedRevision}`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Unknown outcome retains a queryable operation ID',`(await getMusic()).state.tracks[0].clips[0].notes.filter(n=>n.velocity===82).length===64`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Deleted project recovery keeps its original identity and requires explicit stop-waiting',`document.querySelector('.dialog-body').textContent.includes('已删除的恢复工程')&&(await musicCall('GetPendingProjectEdit')).opID==='deleted-before-commit'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Explicitly stopping recovery for a deleted project does not recreate or replay music',`!(await musicCall('ListProjects')).some(p=>p.title==='已删除的恢复工程')&&(await getMusic()).revision===${persistedRevision}`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Rename dialog starts from the committed project name',`document.querySelector('dialog[open] input').value==='名称持久化原名'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Lost rename reply resolves once and updates header list and authoritative state',`(async()=>{const p=await musicCall('GetProject',${JSON.stringify(titledProject.id)});return p.revision===1&&p.title==='跨入口的新曲名 🎹'&&p.state.title===p.title&&Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===p.id).textContent.includes(p.title)})()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Export picker receives the current committed name (mock picker cancelled)',`musicExportName==='跨入口的新曲名 🎹.mid'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Rename undo restores both visible metadata and the state title',`(async()=>{const p=await musicCall('GetProject',${JSON.stringify(titledProject.id)});return p.revision===2&&p.state.title===p.title&&Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===p.id).textContent.includes('名称持久化原名')})()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Rename redo restores the committed name across projections',`(async()=>{const p=await musicCall('GetProject',${JSON.stringify(titledProject.id)});return p.revision===3&&p.title===p.state.title&&Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===p.id).textContent.includes(p.title)})()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Reload keeps the renamed selected project without adding a revision',`(async()=>{const p=await musicCall('GetProject',${JSON.stringify(titledProject.id)});return p.revision===3&&p.title===p.state.title&&Array.from(document.querySelectorAll('.project-select')).find(b=>b.dataset.id===p.id).textContent.includes(p.title)})()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Service-generated notes are visible in the real editor',`document.querySelector('[aria-label=\"选择片段\"]').value===${JSON.stringify(generatedClip)}`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check(`${undo?'Undo':'Redo'} generated-ID history step ${i+1} preserves objects and references`,`JSON.stringify((await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state)===${JSON.stringify(JSON.stringify(generatedStates[index]))}`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Later note edit remains undoable after restoring its generated creation',`document.querySelector('[data-id=\"${generatedNote}\"]')!==null&&JSON.stringify((await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state)===${JSON.stringify(JSON.stringify(generatedStates[4]))}`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('GUI deletion retires the note while retaining control events',`(await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state.tracks[0].clips[0].notes.length===0&&JSON.stringify((await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state.tracks[0].clips[0].controls)===${JSON.stringify(JSON.stringify(beforeIdentityDelete.state.tracks[0].clips[0].controls))}`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Shared service rejects deleted-note reuse and spoofed restoration without a commit',`JSON.stringify(await musicCall('GetProject',${JSON.stringify(titledProject.id)}))===${JSON.stringify(JSON.stringify(afterIdentityDelete))}&&!(await musicCall('GetProjectTransaction',${JSON.stringify(titledProject.id)},'browser-identity-reuse'))[1]`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('GUI undo restores the original note identity after a rejected reuse',`JSON.stringify((await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state)===${JSON.stringify(JSON.stringify(beforeIdentityDelete.state))}`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Ordinary edits cannot inject internal restoration payloads',`JSON.stringify(await musicCall('GetProject',${JSON.stringify(titledProject.id)}))===${JSON.stringify(JSON.stringify(restoredIdentity))}&&!(await musicCall('GetProjectTransaction',${JSON.stringify(titledProject.id)},'browser-inverse-injection'))[1]`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Rejected new edits leave the existing redo and nested state intact',`JSON.stringify((await musicCall('GetProject',${JSON.stringify(titledProject.id)})).state)===${JSON.stringify(JSON.stringify(beforeIdentityDelete.state))}`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Delayed project reads and drag unmount cannot retarget edits',`document.querySelector('.transport-title')?.textContent==='另一个工程' && !document.querySelector('gsui-pianoroll') && (await musicCall('GetProject',first.id)).revision===first.revision+1`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Remounted editor centers on its first note',`(()=>{const n=document.querySelector('[data-id=n_perf_10000_0]').getBoundingClientRect(),a=document.querySelector('.gsuiTimewindow-scrollArea').getBoundingClientRect();return n.top>=a.top&&n.bottom<=a.bottom})()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Invalid raw time-map rows are checkpointed without changing music',`(await getMusic()).revision===${draftBefore.revision}&&JSON.parse((await musicCall('GetTimeMapDraft')).payload).baseRevision===${draftBefore.revision}`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Draft read failure disables time-map editing and keeps a retry entry',`Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='编辑速度与拍号').disabled&&!document.querySelector('.time-map-dialog')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Unfinished draft recovery check blocks native-close approval',`document.querySelector('.dialog-body').textContent.includes('草稿检查')&&!musicClose.confirmed.length`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Reload offers the saved draft without opening or applying it',`!document.querySelector('.time-map-dialog')&&(await getMusic()).revision===${draftBefore.revision}&&JSON.stringify(JSON.parse((await musicCall('GetTimeMapDraft')).payload).tempo)===${JSON.stringify(JSON.stringify(draftBefore.state.tempo))}`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('A different selected project cannot replace the draft target',`JSON.parse((await musicCall('GetTimeMapDraft')).payload).projectID===${JSON.stringify(draftBefore.id)}&&Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='编辑速度与拍号').disabled`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Explicit recovery restores blank values row keys and the frozen base',`document.querySelector('[aria-label=\"速度 BPM 0\"]').value===''&&document.querySelector('[aria-label=\"速度位置 ${draftNewKey}\"]').value==='0'&&document.querySelector('.time-map-dialog').textContent.includes('基准修订 ${draftBefore.revision}')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Recovered stale draft rejects application without rebasing or losing its input',`(await getMusic()).revision===${draftBefore.revision+1}&&JSON.parse((await musicCall('GetTimeMapDraft')).payload).baseRevision===${draftBefore.revision}&&document.querySelector('[aria-label=\"速度 BPM 0\"]').value==='121'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Explicit discard clears draft content and retains a token barrier',`(await musicCall('GetTimeMapDraft')).payload===''&&!!(await musicCall('GetTimeMapDraft')).token`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Failed draft checkpoint blocks close approval and retains input',`!musicClose.confirmed.length&&document.querySelector('.dialog-body').textContent.includes('尚未保留')&&document.querySelector('[aria-label=\"速度 BPM 0\"]').value==='123'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Checkpoint retry persists the current draft without a music revision',`(await getMusic()).revision===${draftBefore.revision+1}&&JSON.parse((await musicCall('GetTimeMapDraft')).payload).draft.tempo[0].bpm==='123'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Serial checkpoints preserve newer input after a delayed write without resuming quit',`JSON.parse((await musicCall('GetTimeMapDraft')).payload).draft.tempo[0].bpm==='126'&&document.querySelector('[aria-label=\"速度 BPM 0\"]').value==='126'&&!musicClose.confirmed.length`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Discard failure keeps the form and the last persisted draft',`document.querySelector('[aria-label=\"速度 BPM 0\"]').value==='126'&&JSON.parse((await musicCall('GetTimeMapDraft')).payload).draft.tempo[0].bpm==='126'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Lost checkpoint reply and failed lookup retry the original token safely',`JSON.parse((await musicCall('GetTimeMapDraft')).payload).draft.tempo[0].bpm==='124'&&(await getMusic()).revision===${draftBefore.revision+1}`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Committed music remains saved when draft cleanup fails and cannot be resubmitted',`(await getMusic()).revision===${draftBefore.revision+2}&&document.querySelector('[aria-label=\"速度 BPM 0\"]').disabled&&Array.from(document.querySelectorAll('.time-map-dialog button')).find(b=>b.textContent==='应用时间图').disabled`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Retrying committed draft cleanup does not send a second edit',`(await getMusic()).revision===${draftBefore.revision+2}&&(await musicCall('GetTimeMapDraft')).payload===''`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Unmounting a dialog retains its in-flight checkpoint as a global close blocker',`document.querySelector('.dialog-body').textContent.includes('草稿写入尚未确认')&&!musicClose.confirmed.length`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Unmount flush coalesces the latest input into the original deleted-project draft',`JSON.parse((await musicCall('GetTimeMapDraft')).payload).draft.tempo[0].bpm==='89'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Deleting a project preserves its draft without recreating music',`JSON.parse((await musicCall('GetTimeMapDraft')).payload).projectID===${JSON.stringify(orphanDraft.id)}&&!(await musicCall('ListProjects')).some(p=>p.id===${JSON.stringify(orphanDraft.id)})`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Orphan draft can be explicitly discarded without restoring the deleted project',`(await musicCall('GetTimeMapDraft')).payload===''&&!(await musicCall('ListProjects')).some(p=>p.id===${JSON.stringify(orphanDraft.id)})`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Large time maps mount only 24 form rows per map page',`document.querySelectorAll('.time-map-dialog [aria-label^=\"速度 BPM \"]').length===24`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Paginated edits and point deletion preserve hidden rows and exact values',`(()=>getMusic().then(p=>p.state.tempo.length===49&&p.state.tempo[0].usPerQuarter===500001&&p.state.tempo[24].usPerQuarter===500025&&!p.state.tempo.some(t=>t.tick===48*960)&&p.state.tempo[48].tick===49*960&&p.state.tempo[48].usPerQuarter===750000))()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Active note gesture blocks exit before committing its preview',`document.querySelector('.dialog-body').textContent.includes('音符手势')&&!musicClose.confirmed.length`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Blank numeric music input is retained without a zero edit',`(await getMusic()).revision===inputBase.revision&&JSON.parse(JSON.parse(localStorage.getItem('test.musicInputsRecord')).payload).entries[0].raw===''&&document.querySelector('[aria-label=\"片段长度（tick）\"]').value===''`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Reload offers music input without automatically restoring or applying it',`document.querySelector('[aria-label=\"片段长度（tick）\"]').disabled&&document.querySelector('[aria-label=\"片段长度（tick）\"]').value!==''`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Recovered numeric input keeps its base revision and refuses silent rebase',`JSON.parse(JSON.parse(localStorage.getItem('test.musicInputsRecord')).payload).entries[0].target.revision===(await getMusic()).revision-1&&document.querySelector('[aria-label=\"片段长度（tick）\"]').value==='1201200'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Blank velocity is preserved and cannot submit an invalid MIDI value',`document.querySelector('[aria-label=\"音符力度\"]').value===''&&Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='应用力度').disabled&&JSON.parse(JSON.parse(localStorage.getItem('test.musicInputsRecord')).payload).entries[0].noteIDs.length===64`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Explicit velocity recovery applies the original note IDs once with shared history',`(await getMusic()).state.tracks[0].clips[0].notes.slice(0,64).every(n=>n.velocity===79)`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Playback draft preserves an empty raw tick without coercing it to zero',`JSON.parse(JSON.parse(JSON.parse(localStorage.getItem('test.musicInputsRecord')).payload).entries[0].raw).start===''`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Music input persistence failure retains memory and blocks native-close approval',`document.querySelector('.dialog-body').textContent.includes('音乐输入草稿尚未保存')&&!musicClose.confirmed.length`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Music input retry saves the original blank string without editing music',`JSON.parse(JSON.parse(localStorage.getItem('test.musicInputsRecord')).payload).entries[0].raw===''`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check(`Dense ${count} all-page selection includes notes outside the mounted viewport`,`document.body.textContent.includes('${count} 个已选')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Dense note selection displays without per-note transitions',`(()=>{const n=document.querySelector('.piano-host .gsuiBlocksManager-block[data-selected]');return !!n&&getComputedStyle(n).transitionDuration==='0s'})()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Selected velocity slider retains the correct stacking order',`(()=>{const s=document.querySelector('.gsuiSliderGroup-sliderSelected');return !!s&&Number(s.style.zIndex)===Math.floor(parseFloat(s.style.left)*100)+1000})()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Deselected velocity slider restores its stacking order',`(()=>{const s=document.querySelector('.gsuiSliderGroup-slider');return !!s&&!s.classList.contains('gsuiSliderGroup-sliderSelected')&&Number(s.style.zIndex)===Math.floor(parseFloat(s.style.left)*100)})()`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check(`Dense ${count} edit keeps every source note and updates offscreen notes`,`(await getMusic()).state.tracks[0].clips[0].notes.length===${count}`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Native close blurs numeric input and waits for its original commit',`(await getMusic()).state.tracks[0].clips[0].start===240&&!musicClose.confirmed.length`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Repeated close requests show one preserve-draft dialog and disable editor input',`document.querySelectorAll('#dialog-title').length===1&&document.querySelector('[data-close-guard]').hasAttribute('inert')&&document.querySelector('[aria-label=\"速度 BPM 0\"]').disabled&&!musicClose.confirmed.length`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Cancelled native exit retains time-map draft and frozen revision',`document.querySelector('[aria-label=\"速度 BPM 0\"]').value==='101'&&document.querySelector('.time-map-dialog[open]')&&!document.querySelector('[data-close-guard]').hasAttribute('inert')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Preserve-exit confirmation cannot cover a later draft version',`!musicClose.confirmed.length&&document.querySelector('[aria-label=\"速度 BPM 0\"]').value==='102'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('In-flight project save blocks exit; completion never silently resumes it',`!musicClose.confirmed.length&&(await getMusic()).state.tempo[0].usPerQuarter===588235`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Quit transport failure leaves the draft and permits retry',`document.querySelector('.close-guard-status[role=alert]').textContent.includes('test close reply failed')&&!document.querySelector('[data-close-guard]').hasAttribute('inert')&&document.querySelector('[aria-label=\"速度 BPM 0\"]').value==='103'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Explicit preserve permits exit without submitting draft or enabling new edits',`(await getMusic()).revision===beforeExit&&document.querySelector('[data-close-guard]').hasAttribute('inert')&&document.querySelector('[aria-label=\"速度 BPM 0\"]').disabled&&JSON.parse((await musicCall('GetTimeMapDraft')).payload).draft.tempo[0].bpm==='103'`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Clean editor exits without a discard prompt after checks initialize',`!document.querySelector('#dialog-title')&&document.querySelector('[data-close-guard]').hasAttribute('inert')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Transform actions require an explicit note selection',`Array.from(document.querySelectorAll('[aria-label=\"选中音符变换\"] button')).every(b=>b.disabled)`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Offline GUI transpose uses the authoritative saved project',`(await getTransform()).state.tracks[0].clips[0].notes[0].velocity===90&&(await musicCall('GetPendingProjectEdit'))===null`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Quantize and transpose share project undo without changing note duration',`(await getTransform()).state.tracks[0].clips[0].notes[0].duration===120`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Busy close dialog offers 返回工程处理 and a real forced exit',`Array.from(document.querySelectorAll('dialog[open] button')).some(b=>b.textContent.trim()==='仍然退出')&&Array.from(document.querySelectorAll('dialog[open] button')).some(b=>b.textContent.trim()==='返回工程处理')`);"
+  },
+  {
+    "source": "music.mjs.reference",
+    "assertion": "await check('Forced exit from a busy blocker confirms native close and freezes input',`document.querySelector('[data-close-guard]').hasAttribute('inert')`);"
+  }
+]

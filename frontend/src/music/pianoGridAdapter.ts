@@ -1,4 +1,4 @@
-import type { ProjectEditPreview } from "../../bindings/icetudio/internal/app/models";
+import type { ProjectEditPreview } from "./previewTypes";
 import type { ClipTarget } from "./edits";
 import { PAGE_BEATS } from "./edits";
 import type { GridElement, GridNote } from "./gridsound";

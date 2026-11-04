@@ -1,4 +1,4 @@
-import type { Clip, Note, Op, Track } from "../../bindings/icetudio/internal/project/models";
+import type { Clip, Note, Op, Track } from "./projectTypes";
 
 export type EditTarget = { id: string; revision: number };
 export type ClipTarget = EditTarget & { track: Track; clip: Clip; ppq: number };

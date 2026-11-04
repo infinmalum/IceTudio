@@ -1,16 +1,16 @@
-import { ProjectService } from "../../bindings/icetudio";
-import type { TransformSpec } from "../../bindings/icetudio/internal/project/models";
+import { useMusicServices } from "../music/services";
+import type { TransformSpec } from "../music/projectTypes";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MeterPoint, Op, TempoPoint } from "../../bindings/icetudio/internal/project/models";
-import type { ProjectEditPreview } from "../../bindings/icetudio/internal/app/models";
+import type { MeterPoint, Op, TempoPoint } from "../music/projectTypes";
+import type { ProjectEditPreview } from "../music/previewTypes";
 import { loadGridSound, type GridElement, type GridNote } from "../music/gridsound";
 import { noteIntent, PAGE_BEATS, type ClipTarget, type EditTarget } from "../music/edits";
-import { auditionInstrument } from "../music/audition";
+
 import { meterIndex } from "../music/timeMap";
 import { renderPianoProjection } from "../music/pianoGridAdapter";
 import { pageNotes } from "../music/pianoProjection";
 import { useMusicField } from "./useMusicInputs";
-import { useCloseBlocker } from "../shared/closeGuard";
+import { useCloseBlocker } from "../shared/musicClose";
 
 export type PianoRollProps = {
   title: string; target: ClipTarget; busy: boolean;
@@ -22,6 +22,7 @@ export type PianoRollProps = {
 };
 
 export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,snap,preview=null }: PianoRollProps) {
+  const ProjectService = useMusicServices();
   const mount = useRef<HTMLDivElement>(null);
   const latest = useRef({ target, busy, edit, shift, reportError, preview });
   latest.current = { target, busy, edit, shift, reportError, preview };
@@ -236,7 +237,7 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
       const key = (e.target as Element | null)?.closest?.(".gsuiKeys-key[data-midi]");
       const midi = Number(key?.getAttribute("data-midi"));
       if (Number.isInteger(midi) && midi >= 0 && midi <= 127)
-        void auditionInstrument(target.track.program, target.track.channel, [midi]);
+        void ProjectService.Audition({program:target.track.program,bank:target.track.channel===9?128:0,keys:[midi],velocity:100,durationMs:500}).catch(() => {});
     };
     host.addEventListener("pointerdown", down);
     return () => host.removeEventListener("pointerdown", down);
@@ -254,9 +255,12 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
     finally { transformLock.current = false; setTransformBusy(false); }
   }
   return {
+    currentSelection: () => [...selection.current],
+    gestureActive: () => gesture.current !== null,
     transformBusy, quantizeUnit, setQuantizeUnit,
     transpose: (semitones: number) => void transformNotes({ transpose: { semitones } }),
     quantize: () => void transformNotes({ quantize: { unit: quantizeUnit, strength: 100 } }),
+    quantizeTo: (unit: string) => void transformNotes({ quantize: { unit, strength: 100 } }),
     mount,rulerSlot,ready,loadError,page,pageCount,setPage,zoom,setZoom,absoluteStart,mapIndex,selected,visible,velocityField,velocityIDs,velocity,
     selectPage: () => action.current("selection",visible.map(n=>n.id)),
     clearSelection: () => action.current("unselection"),

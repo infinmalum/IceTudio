@@ -7,7 +7,7 @@ import (
 	"icetudio/internal/storage"
 )
 
-// StatusService is the Wails binding surface. It owns no run state: every
+// StatusService is the framework-independent desktop service facade. It owns no run state: every
 // method delegates to the UI-agnostic app service so the CLI/IPC client
 // drives the exact same code path.
 type StatusService struct{ svc *app.Service }

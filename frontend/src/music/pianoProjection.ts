@@ -1,4 +1,4 @@
-import type { Note, NoteChange } from "../../bindings/icetudio/internal/project/models";
+import type { Note, NoteChange } from "./projectTypes";
 import { PAGE_BEATS } from "./edits.ts";
 import type { GridNote } from "./gridsound";
 
