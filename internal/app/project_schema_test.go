@@ -264,9 +264,9 @@ func TestProjectEditSchemaShapeMatchesContract(t *testing.T) {
 	}
 
 	branches := opBranches(t, schema)
-	wantKinds := []string{
-		"clip.add", "clip.remove", "clip.update", "control.add", "control.remove",
-		"meter.set", "note.add", "note.remove", "note.update", "project.rename",
+	wantKinds := []string{"audio.add", "audio.update", "audio.remove",
+		"clip.add", "clip.arrange", "clip.remove", "clip.update", "control.add", "control.remove",
+		"meter.set", "marker.add", "marker.remove", "pattern.place", "pattern.remove", "control.update", "note.add", "note.remove", "note.update", "project.rename",
 		"tempo.set", "track.add", "track.remove", "track.update",
 	}
 	if len(branches) != len(wantKinds) {
@@ -279,13 +279,19 @@ func TestProjectEditSchemaShapeMatchesContract(t *testing.T) {
 	}
 
 	// 每个 kind 的顶层字段集与必填集（契约 §3 表）。
-	wantFields := map[string][2][]string{ // [0]=properties 键 [1]=required
+	wantFields := map[string][2][]string{
+		"audio.add":      {[]string{"kind", "trackId", "audioClip"}, []string{"kind", "trackId", "audioClip"}},
+		"audio.update":   {[]string{"kind", "trackId", "audioClip"}, []string{"kind", "trackId", "audioClip"}},
+		"audio.remove":   {[]string{"kind", "trackId", "clipId"}, []string{"kind", "trackId", "clipId"}}, // [0]=properties 键 [1]=required
 		"project.rename": {[]string{"kind", "title"}, []string{"kind", "title"}},
 		"tempo.set":      {[]string{"kind", "tempo"}, []string{"kind", "tempo"}},
 		"meter.set":      {[]string{"kind", "meter"}, []string{"kind", "meter"}},
 		"track.add":      {[]string{"kind", "track"}, []string{"kind", "track"}},
 		"track.update":   {[]string{"kind", "trackId", "trackPatch"}, []string{"kind", "trackId", "trackPatch"}},
 		"track.remove":   {[]string{"kind", "trackId"}, []string{"kind", "trackId"}},
+		"pattern.place":  {[]string{"kind", "patternId", "arrangement"}, []string{"kind", "patternId", "arrangement"}},
+		"pattern.remove": {[]string{"kind", "patternId"}, []string{"kind", "patternId"}},
+		"clip.arrange":   {[]string{"kind", "arrangement"}, []string{"kind", "arrangement"}},
 		"clip.add":       {[]string{"kind", "clip"}, []string{"kind", "clip"}},
 		"clip.update":    {[]string{"kind", "clipId", "clipPatch"}, []string{"kind", "clipId", "clipPatch"}},
 		"clip.remove":    {[]string{"kind", "clipId"}, []string{"kind", "clipId"}},
@@ -293,6 +299,9 @@ func TestProjectEditSchemaShapeMatchesContract(t *testing.T) {
 		"note.update":    {[]string{"kind", "clipId", "noteDeltas"}, []string{"kind", "clipId", "noteDeltas"}},
 		"note.remove":    {[]string{"kind", "clipId", "noteIds"}, []string{"kind", "clipId", "noteIds"}},
 		"control.add":    {[]string{"kind", "clipId", "events"}, []string{"kind", "clipId", "events"}},
+		"marker.add":     {[]string{"kind", "clipId", "marker"}, []string{"kind", "clipId", "marker"}},
+		"marker.remove":  {[]string{"kind", "clipId", "eventIds"}, []string{"kind", "clipId", "eventIds"}},
+		"control.update": {[]string{"kind", "clipId", "events"}, []string{"kind", "clipId", "events"}},
 		"control.remove": {[]string{"kind", "clipId", "eventIds"}, []string{"kind", "clipId", "eventIds"}},
 	}
 	for kind, want := range wantFields {

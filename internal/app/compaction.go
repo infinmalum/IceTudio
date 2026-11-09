@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"icetudio/internal/project"
 	"strings"
 
 	"icetudio/internal/agent"
@@ -142,7 +143,13 @@ func (t bookkeepingTools) definitionsWith(ctx context.Context, definitions []mod
 		if err != nil {
 			return nil, err
 		}
-		for _, d := range projectDefinitions() {
+		audio := false
+		if scope.AccessMode == "write" && len(scope.Clips) == 0 {
+			if p, err := t.svc.GetProject(target); err == nil {
+				audio = len(project.ScopeRegion(&p.State, scope.Tracks, nil).AudioAssets) > 0
+			}
+		}
+		for _, d := range projectDefinitionsFor(audio) {
 			if scope.AccessMode != "write" && (d.Function.Name == "project__edit" || d.Function.Name == "project__transform") {
 				continue
 			}

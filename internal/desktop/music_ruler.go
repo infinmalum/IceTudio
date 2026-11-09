@@ -150,13 +150,36 @@ func drawArrangementRuler(c *ui.Context, p storage.Project, start, end int64, zo
 		return
 	}
 	marks, thinned := index.ruler(p.PPQ, start, end, zoom, p.State.Tempo)
+	bins := make(map[int]int)
+	for _, track := range p.State.Tracks {
+		for _, clip := range track.Clips {
+			if clip.Start >= end || clip.Start+clip.Length <= start {
+				continue
+			}
+			for _, raw := range clip.Raw {
+				tick := clip.Start + raw.Tick
+				if tick < start || tick >= end {
+					continue
+				}
+				if name, ok := project.MarkerName(raw.Data); ok {
+					bin := int(float64(tick-start) / float64(p.PPQ) * zoom / 72)
+					if i, exists := bins[bin]; exists {
+						marks[i].Count++
+						continue
+					}
+					bins[bin] = len(marks)
+					marks = append(marks, rulerMark{float64(tick), "marker", name, 1})
+				}
+			}
+		}
+	}
 	pos := index.position(start)
 	label := fmt.Sprintf("工程小节尺：第 %d 小节第 %d 拍，tick %d", pos.Bar, pos.Beat, start)
 	if thinned {
 		label += "；密集变化已分组合并"
 	}
 	theme := c.Theme()
-	ui.Box(c).Width(float32(16 * zoom)).Height(52).Background(c.Theme().Surface).Label(label).Tooltip(label).Draw(func(paint *ui.Painter, r ui.Rect) {
+	ui.Box(c).Width(float32(float64(end-start) / float64(p.PPQ) * zoom)).Height(52).Background(c.Theme().Surface).Label(label).Tooltip(label).Draw(func(paint *ui.Painter, r ui.Rect) {
 		for _, m := range marks {
 			x := r.X + float32((m.Tick-float64(start))/float64(p.PPQ)*zoom)
 			y := float32(0)
@@ -169,10 +192,16 @@ func drawArrangementRuler(c *ui.Context, p storage.Project, start, end int64, zo
 				ty = 24
 			case "meter":
 				ty = 39
+			case "marker":
+				y = 14
+				ty = 14
 			}
 			paint.Line(x, r.Y+y, x, r.Y+52, 1, theme.Border)
 			if m.Label != "" {
 				text := m.Label
+				if m.Kind == "marker" {
+					text = "⚑ " + text
+				}
 				if m.Kind == "tempo" {
 					text = "♩ " + text
 				}

@@ -30,6 +30,7 @@ const (
 	Pressure
 	KeyPressure
 	Parameter
+	Click
 )
 
 type segment struct {
@@ -87,6 +88,9 @@ type Snapshot struct {
 	State    project.State
 }
 type Score struct {
+	mix               *mixPlan
+	audioLimit        int64
+	Audio             []audioRegion
 	ID                string
 	Revision          int64
 	Timeline          Timeline
@@ -110,6 +114,10 @@ func Compile(snapshot Snapshot) (*Score, error) {
 	for _, tr := range st.Tracks {
 		solo = solo || tr.Solo
 	}
+	score.mix, err = compileMixer(st, t)
+	if err != nil {
+		return nil, err
+	}
 	channels := map[int32]bool{}
 	var token uint32
 	add := func(tick int64, kind int, ch, a, b int, tok uint32) error {
@@ -128,6 +136,9 @@ func Compile(snapshot Snapshot) (*Score, error) {
 		return nil
 	}
 	for ti, tr := range st.Tracks {
+		if err := project.ValidateSampler(st, tr.Sampler); err != nil {
+			return nil, err
+		}
 		if tr.Channel < 0 || tr.Channel > 15 {
 			return nil, errors.New("轨道通道无效")
 		}
@@ -146,6 +157,12 @@ func Compile(snapshot Snapshot) (*Score, error) {
 				if n.Channel < 0 || n.Channel > 15 || n.Pitch < 0 || n.Pitch > 127 || n.Velocity < 1 || n.Velocity > 127 || n.Start < 0 || n.Duration < 1 || n.Start > cl.Length || n.Duration > cl.Length-n.Start {
 					return nil, errors.New("播放音符无效")
 				}
+				if tr.Sampler != nil {
+					if err := compileSampleNote(st, score, ti, n, cl.Start); err != nil {
+						return nil, err
+					}
+					continue
+				}
 				token++
 				ch := ti*16 + n.Channel
 				used[n.Channel] = true
@@ -155,6 +172,12 @@ func Compile(snapshot Snapshot) (*Score, error) {
 				if err = add(cl.Start+n.Start+n.Duration, NoteOff, ch, n.Pitch, 0, token); err != nil {
 					return nil, err
 				}
+			}
+			if tr.Sampler != nil {
+				// Preserve all MIDI control data for editing and interchange. A
+				// sampled region has a fixed note, velocity and envelope snapshot.
+				score.Skipped += len(cl.Controls) + len(cl.Raw)
+				continue
 			}
 			for _, c := range cl.Controls {
 				if c.Channel < 0 || c.Channel > 15 || c.Tick < 0 || c.Tick >= cl.Length {
@@ -199,13 +222,25 @@ func Compile(snapshot Snapshot) (*Score, error) {
 			}
 		}
 	}
+	if err := validateSamplerPolyphony(score.Audio); err != nil {
+		return nil, err
+	}
+	baseEnd := t.Frame(float64(score.EndTick))
+	if score.EndFrame > baseEnd {
+		score.EndTick = max(score.EndTick, int64(math.Ceil(t.Tick(score.EndFrame))))
+	} else {
+		score.EndFrame = baseEnd
+	}
+	if err := compileAudio(st, score, solo); err != nil {
+		return nil, err
+	}
 	if score.EndTick == 0 {
 		score.EndTick = int64(st.PPQ) * 4
+		score.EndFrame = t.Frame(float64(score.EndTick))
 	}
 	if len(score.Events) > MaxEvents {
 		return nil, errors.New("播放事件数超过上限")
 	}
-	score.EndFrame = t.Frame(float64(score.EndTick))
 	if score.EndFrame <= 0 || score.EndFrame > MaxFrames {
 		return nil, errors.New("工程播放时长无效或超过 24 小时")
 	}
@@ -266,6 +301,8 @@ func (s *Score) Chase(frame int64) []Event {
 		}
 		key := [2]int32{e.Channel, e.A}
 		switch e.Kind {
+		case Click:
+			continue
 		case NoteOn:
 			// Portamento Control (84) is consumed by a note-on, not a
 			// persistent source for every later note after a seek.

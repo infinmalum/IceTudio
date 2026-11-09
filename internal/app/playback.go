@@ -79,6 +79,7 @@ func (s *Service) AuditionInstrument(req playback.AuditionRequest) error {
 	return s.playback.Audition(req)
 }
 func (s *Service) StopAudition() error {
+	s.StopMaterialPreview()
 	if s.playback != nil {
 		s.playback.AuditionStop()
 	}
@@ -89,4 +90,23 @@ func (s *Service) ResetAudioSettings() error {
 		return errors.New("此宿主未启用原生播放")
 	}
 	return s.playback.ResetSettings()
+}
+
+func (s *Service) ResetMixerMeters() {
+	if s.playback != nil {
+		s.playback.ResetMixerMeters()
+	}
+}
+
+func (s *Service) SetMixerOverride(projectID string, revision int64, target, parameter string, value float64) error {
+	if s.playback == nil {
+		return errors.New("此宿主未启用原生播放")
+	}
+	return s.playback.SetMixerOverride(projectID, revision, target, parameter, value)
+}
+
+func (s *Service) ClearMixerOverride() {
+	if s.playback != nil {
+		s.playback.ClearMixerOverride()
+	}
 }

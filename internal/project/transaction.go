@@ -105,10 +105,15 @@ func applyTransaction(st *State, ops []Op, priorIDs map[string]bool, fresh bool)
 	}
 	summary := map[string]int{}
 	for _, op := range ops {
-		if fresh && (op.InvTrackIndex != nil || len(op.InvClips) != 0 || len(op.InvNotes) != 0 || len(op.InvControls) != 0 || len(op.InvRaw) != 0) {
+		if fresh && (op.InvSampler != nil || op.InvMixer != nil || op.Kind == "audio.restore" || op.InvAssets != nil || len(op.InvAudioTracks) > 0 || len(op.InvTrackAudio) > 0 || op.InvPatterns != nil || op.InvGroupID != "" || op.InvPatternID != "" || op.Kind == "clip.restore_arrangement" || len(op.InvArrangement) != 0 || op.InvTrackIndex != nil || len(op.InvClips) != 0 || len(op.InvNotes) != 0 || len(op.InvControls) != 0 || len(op.InvRaw) != 0) {
 			return nil, nil, Result{}, opError(op.Kind, "普通编辑不能携带内部恢复载荷；恢复原对象请使用撤销/重做")
 		}
-		inv, created, err := applyOp(working, ids, op)
+		if (op.Kind == "clip.arrange" || op.Kind == "pattern.place") && op.Arrangement != nil && op.Arrangement.Seed == "" {
+			spec := *op.Arrangement
+			spec.Seed = NewID("arrange")
+			op.Arrangement = &spec
+		}
+		canonical, inv, created, err := applyWithPattern(working, ids, op)
 		if err != nil {
 			return nil, nil, Result{}, err
 		}
@@ -120,7 +125,7 @@ func applyTransaction(st *State, ops []Op, priorIDs map[string]bool, fresh bool)
 				used[id] = true // Never removed, even if a later op deletes it.
 			}
 		}
-		applied = append(applied, withCreatedIDs(op, created))
+		applied = append(applied, canonical)
 		inverse = append(inverse, inv)
 		summary[op.Kind]++
 		result.CreatedIDs = append(result.CreatedIDs, created...)
@@ -141,6 +146,10 @@ func applyTransaction(st *State, ops []Op, priorIDs map[string]bool, fresh bool)
 // Copy only the fields we fill so caller-owned pointers/slices stay untouched.
 func withCreatedIDs(op Op, ids []string) Op {
 	switch op.Kind {
+	case "marker.add":
+		spec := *op.Marker
+		spec.ID = ids[0]
+		op.Marker = &spec
 	case "track.add":
 		spec := *op.Track
 		spec.ID = ids[0]

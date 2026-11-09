@@ -31,7 +31,11 @@ func (a *Workspace) requestClose(prevent func()) {
 	if a.closeFrozen {
 		return
 	}
-	a.closeHadGesture = a.arrangementUI.gesture != nil
+	if a.form != nil {
+		a.finishMixerWrite(a.form)
+	}
+	a.stopMaterialPreview()
+	a.closeHadGesture = a.arrangementUI.gesture != nil || a.arrangementUI.marquee != nil || a.arrangementUI.patternDrag != nil || a.arrangementUI.materialDrag != nil || a.arrangementUI.audioDrag != nil
 	a.closeFrozen = true
 	a.closeDialogOpen = true
 	a.closeToken = project.NewID("close")
@@ -151,6 +155,12 @@ func (a *Workspace) closeDialog(c *ui.Context) {
 		if _, blocked := a.panelCloseState(); blocked {
 			ui.Text(c, "设置、反馈、任务或材料面板有未保存输入或进行中操作；返回核对后再退出。").MaxWidth(480)
 		}
+		if a.service != nil && a.service.TakeStatus().Active {
+			ui.Text(c, "录音仍在运行。请返回，停止录音并保留 take。")
+		}
+		if a.materialShelf.dirty || a.materialShelf.busy {
+			ui.Text(c, "素材索引有未保存标签或进行中的操作。返回素材栏可保存、丢弃或等待完成。").MaxWidth(480)
+		}
 		if a.audioBusy {
 			ui.Text(c, "音频或音色操作仍在进行，请等待完成。").MaxWidth(480)
 		}
@@ -202,12 +212,15 @@ func (a *Workspace) nativeCloseVersion() string {
 	}
 	panels, _ := a.panelCloseState()
 	composer, _ := composerCloseState(&a.composer)
-	return panels + composer + fmt.Sprintf("%t/%s/%s/%d/%t/%s", a.fileBusy || a.audioBusy, v, a.draftError, len(a.savedInputs), a.mapReady, a.mapError)
+	return panels + composer + fmt.Sprintf("%t/%s/%s/%d/%t/%s/%t/%t", a.fileBusy || a.audioBusy, v, a.draftError, len(a.savedInputs), a.mapReady, a.mapError, a.materialShelf.dirty, a.materialShelf.busy)
 }
 func (a *Workspace) nativeCloseBlocked() bool {
+	if a.service != nil && (a.service.TakeStatus().Active || a.recording != nil && a.recording.busy) {
+		return true
+	}
 	_, panelsBlocked := a.panelCloseState()
 	_, chatBlocked := composerCloseState(&a.composer)
-	return panelsBlocked || (a.service != nil && chatBlocked) || (a.savedMap != nil && a.savedMap.Payload != "") || !a.mapReady || a.mapError != "" || a.mapForm != nil || a.fileBusy || a.audioBusy || a.form != nil || a.draftError != "" || len(a.savedInputs) > 0
+	return a.materialShelf.dirty || a.materialShelf.busy || panelsBlocked || (a.service != nil && chatBlocked) || (a.savedMap != nil && a.savedMap.Payload != "") || !a.mapReady || a.mapError != "" || a.mapForm != nil || a.fileBusy || a.audioBusy || a.form != nil || a.draftError != "" || len(a.savedInputs) > 0
 }
 
 // A confirmation covers only the inspected snapshot. Unknown page state still

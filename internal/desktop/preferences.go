@@ -14,6 +14,12 @@ import (
 )
 
 type nativePreferences struct {
+	QuantizeKey      string  `json:"quantizeKey,omitempty"`
+	DuplicateKey     string  `json:"duplicateKey,omitempty"`
+	View             string  `json:"view,omitempty"`
+	HideBrowser      bool    `json:"hideBrowser,omitempty"`
+	HideAgent        bool    `json:"hideAgent,omitempty"`
+	Follow           string  `json:"follow,omitempty"`
 	Version          int     `json:"version"`
 	Theme            string  `json:"theme"`
 	Scale            float32 `json:"scale"`
@@ -28,7 +34,7 @@ func defaultPreferences() nativePreferences {
 	return nativePreferences{Version: 1, Theme: "dark", Scale: 1, BrowserWidth: 208, EditorShare: 72, Split: 48}
 }
 func validPreferences(p nativePreferences) bool {
-	return p.Version == 1 && (p.Theme == "dark" || p.Theme == "light") && p.Scale >= .5 && p.Scale <= 2 && p.BrowserWidth >= 160 && p.BrowserWidth <= 800 && p.EditorShare >= 15 && p.EditorShare <= 90 && p.Split >= 10 && p.Split <= 90
+	return validEditorKeys(p) && (p.View == "" || p.View == "split" || p.View == "arrangement" || p.View == "piano" || p.View == "mixer") && (p.Follow == "" || p.Follow == "关闭" || p.Follow == "页跟随" || p.Follow == "连续跟随") && p.Version == 1 && (p.Theme == "dark" || p.Theme == "light") && p.Scale >= .5 && p.Scale <= 2 && p.BrowserWidth >= 160 && p.BrowserWidth <= 800 && p.EditorShare >= 15 && p.EditorShare <= 90 && p.Split >= 10 && p.Split <= 90
 }
 func readPreferences(dir string) (nativePreferences, error) {
 	p := defaultPreferences()
@@ -129,7 +135,7 @@ func (a *Workspace) persistPreferences() {
 }
 func (a *Workspace) appearanceSettings(c *ui.Context, d *nativeSettings) {
 	ui.Text(c, "外观与布局").Bold()
-	nativeSelect(c, "主题", &a.preferences.Theme, []string{"dark", "light"}, d.busy, func() { a.savePreferences() })
+	nativeSelect(c, "主题", &a.preferences.Theme, []string{"dark", "light"}, d.busy, func() { a.savePreferences(); a.sendPianoCommand("appearance", 0) })
 	ui.Text(c, "界面缩放（Native 与嵌入内容）").FontSize(11)
 	ui.Row(c).Gap(6).Children(func() {
 		for _, scale := range []float32{.9, 1, 1.1, 1.25, 1.4} {
@@ -147,6 +153,30 @@ func (a *Workspace) appearanceSettings(c *ui.Context, d *nativeSettings) {
 	})
 	if a.prefsError != "" {
 		ui.Text(c, "外观保存状态未知："+a.prefsError).MaxWidth(630).TextColor(c.Theme().Warning)
+	}
+	ui.Text(c, "工具快捷键（仅音乐画布焦点时，标准文字快捷键保留）").FontSize(12)
+	if a.preferences.QuantizeKey == "" {
+		a.preferences.QuantizeKey = "Q"
+	}
+	if a.preferences.DuplicateKey == "" {
+		a.preferences.DuplicateKey = "B"
+	}
+	for _, item := range []struct {
+		label string
+		key   *string
+	}{{"量化快捷键", &a.preferences.QuantizeKey}, {"紧邻复制快捷键", &a.preferences.DuplicateKey}} {
+		previous := *item.key
+		ui.Text(c, item.label).FontSize(11)
+		ui.Select(c, item.key, []string{"Q", "W", "E", "R", "T", "B", "L"}).Width(160).Label(item.label).OnChange(func() {
+			if !validEditorKeys(a.preferences) {
+				*item.key = previous
+				d.err = "工具快捷键冲突，请为两个动作选择不同按键"
+				return
+			}
+			d.err = ""
+			a.savePreferences()
+			a.sendPianoCommand("keymap", 0)
+		})
 	}
 	ui.Button(c, "恢复旧浏览器输入与偏好").Disabled(a.composerBlocked()).OnClick(func() { d.open = false; a.openBrowserRecovery() })
 }

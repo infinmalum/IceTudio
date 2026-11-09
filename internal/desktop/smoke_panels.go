@@ -275,7 +275,7 @@ func (a *Workspace) verifyReadOnlyIsolation() error {
 	if err := setReadOnlyBody(view, markup); err != nil {
 		return err
 	}
-	_, err := view.Page().Eval(`window.__escaped=false;window.__bridgeCheck='waiting';(async()=>{try{await window.mygo.call('PianoPreview.Context');window.__bridgeCheck='ALLOWED'}catch(e){window.__bridgeCheck='denied:'+String(e)}})();true`)
+	_, err := view.Page().Eval(`(()=>{window.__escaped=false;window.__bridgeCheck='waiting';(async()=>{try{await window.mygo.call('PianoPreview.Context');window.__bridgeCheck='ALLOWED'}catch(e){window.__bridgeCheck='denied:'+String(e)}})();return true})()`)
 	if err != nil {
 		return err
 	}

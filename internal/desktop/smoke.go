@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -118,6 +119,26 @@ func (a *Workspace) captureSmoke(dir string) error {
 		if err = a.verifyDensePiano(dir); err != nil {
 			return fmt.Errorf("Native 密集卷帘：%w", err)
 		}
+		if err = a.verifyEditorWorkspace(dir); err != nil {
+			return fmt.Errorf("E1 工作区：%w", err)
+		}
+		if err = a.verifyMIDICreation(dir); err != nil {
+			return fmt.Errorf("E2 MIDI 创作：%w", err)
+		}
+		if err = a.verifyAudioE3(dir); err != nil {
+			return fmt.Errorf("E3 音频：%w", err)
+		}
+		if err = a.verifyMixerE4(dir); err != nil {
+			return fmt.Errorf("E4 混音：%w", err)
+		}
+		if err = a.verifyMaterialsE5(dir); err != nil {
+			return fmt.Errorf("E5 素材与采样：%w", err)
+		}
+		if folder := os.Getenv("ICETUDIO_PLUGIN_SMOKE_DIR"); folder != "" {
+			if err = a.verifyPluginCatalogE6(folder); err != nil {
+				return fmt.Errorf("E6 插件扫描：%w", err)
+			}
+		}
 		if err = a.verifyPianoEdits(); err != nil {
 			return err
 		}
@@ -146,7 +167,19 @@ func (a *Workspace) captureSmoke(dir string) error {
 	if err = os.WriteFile(filepath.Join(dir, "piano.png"), web, 0600); err != nil {
 		return err
 	}
-	payload, err := json.MarshalIndent(map[string]any{"mygo": "v0.7.4", "readOnly": !a.smokeEdit, "editFlowVerified": a.smokeEdit, "nativeWorkspaceVerified": a.smokeEdit, "nativeHistoryReadVerified": a.smokeAgentHistory, "nativeComposerVerified": a.smokeAgentComposer, "nativePanelsVerified": a.smokePanels, "nativeAgentEditVerified": a.smokeAgentEdit, "initial": first, "afterNativeSelection": second, "mountedNotes": len(ids), "scope": "Native/WebView captures and typed context selection; editFlowVerified additionally covers Native project lifecycle/properties/time map/checkpoints/MIDI roundtrip, transforms, undo, lost acknowledgement recovery and pending-close cancellation; no physical pointer, IME or audio acceptance"}, "", "  ")
+	mygoVersion := "unknown"
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, dep := range info.Deps {
+			if dep.Path == "github.com/egoist/mygo" {
+				mygoVersion = dep.Version
+				if dep.Replace != nil {
+					mygoVersion = dep.Replace.Path + "@" + dep.Replace.Version
+				}
+				break
+			}
+		}
+	}
+	payload, err := json.MarshalIndent(map[string]any{"mygo": mygoVersion, "readOnly": !a.smokeEdit, "editFlowVerified": a.smokeEdit, "nativeWorkspaceVerified": a.smokeEdit, "nativeHistoryReadVerified": a.smokeAgentHistory, "nativeComposerVerified": a.smokeAgentComposer, "nativePanelsVerified": a.smokePanels, "nativeAgentEditVerified": a.smokeAgentEdit, "initial": first, "afterNativeSelection": second, "mountedNotes": len(ids), "scope": "Native/WebView captures and typed context selection; editFlowVerified additionally covers Native project lifecycle/properties/time map/checkpoints/MIDI roundtrip, transforms, undo, lost acknowledgement recovery and pending-close cancellation; no physical pointer, IME or audio acceptance"}, "", "  ")
 	if err != nil {
 		return err
 	}

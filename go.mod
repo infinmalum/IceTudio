@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.78.0
-	github.com/egoist/mygo v0.7.4
+	github.com/egoist/mygo v0.8.3
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/openai/openai-go v1.12.0

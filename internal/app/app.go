@@ -13,11 +13,13 @@ import (
 	"time"
 
 	"icetudio/internal/agent"
+	"icetudio/internal/audioasset"
 	"icetudio/internal/config"
 	"icetudio/internal/materials"
 	"icetudio/internal/mcptools"
 	"icetudio/internal/model"
 	"icetudio/internal/playback"
+	"icetudio/internal/pluginhost"
 	"icetudio/internal/skills"
 	"icetudio/internal/storage"
 )
@@ -64,6 +66,9 @@ type Options struct {
 }
 
 type Service struct {
+	recordings *audioasset.Recorder
+	library    *audioasset.Library
+	plugins    *pluginhost.Catalog
 	playback   *playback.Manager
 	store      *storage.Store
 	runs       *agent.Runs
@@ -115,8 +120,11 @@ type Service struct {
 func New(opts Options) *Service {
 	timeout := 5 * time.Minute
 	svc := &Service{
-		playback: opts.Playback,
-		store:    opts.Store, runs: opts.Runs, tools: opts.Tools, skills: opts.Skills,
+		recordings: audioasset.NewRecorder(opts.DataDir),
+		library:    audioasset.NewLibrary(opts.DataDir),
+		plugins:    pluginhost.New(opts.DataDir),
+		playback:   opts.Playback,
+		store:      opts.Store, runs: opts.Runs, tools: opts.Tools, skills: opts.Skills,
 		chat: opts.Chat, discovery: opts.Discovery, config: opts.Config,
 		configPath: opts.ConfigPath, initErr: opts.InitError, running: map[string]string{},
 		credStore:       newCredentialStore(opts.CredentialPath),

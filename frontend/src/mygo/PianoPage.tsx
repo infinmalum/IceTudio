@@ -9,11 +9,12 @@ import { MusicRuler } from "../components/MusicRuler";
 import type { ProjectEditPreview } from "../music/previewTypes";
 import type { Clip, Track, MeterPoint, TempoPoint, Op } from "../music/projectTypes";
 import type { EditTarget } from "../music/edits";
+import { ControlLane } from "./ControlLane";
 import "./piano.css";
 
-type Context = {candidate?:ProjectEditPreview;snap?:number;protocolVersion:number;readOnly:boolean; sessionId:string;generation:number;projectId:string;trackId:string;clipId:string;revision:number;ppq:number;title:string;writable:boolean;track:Track;clip:Clip;meter:MeterPoint[];tempo:TempoPoint[]};
+type Context = {pattern?:{TrackID:string;TrackName:string;ClipID:string;ClipName:string;Start:number}[];candidate?:ProjectEditPreview;snap?:number;protocolVersion:number;readOnly:boolean; sessionId:string;generation:number;projectId:string;trackId:string;clipId:string;revision:number;ppq:number;title:string;writable:boolean;track:Track;clip:Clip;meter:MeterPoint[];tempo:TempoPoint[]};
 type Receipt = {opId:string;revision:number};
-type Command = {generation:number;selectionVersion:number;noteIds:string[];name:string;unit?:string;value?:number};
+type Command = {theme?:string;quantizeKey?:string;duplicateKey?:string;tick?:number;playing?:boolean;follow?:string;step?:number;generation:number;selectionVersion:number;noteIds:string[];name:string;unit?:string;value?:number};
 interface Runtime {call<T>(method:string,...args:unknown[]):Promise<T>;on<T>(event:string,callback:(value:T)=>void):()=>void}
 declare global {interface Window {mygo:Runtime;__icetudioPiano?:{inspect:(token:string)=>unknown;resume:(token:string)=>void}}}
 const call = <T,>(method:string,...args:unknown[]) => window.mygo.call<T>(`PianoPreview.${method}`,...args);
@@ -92,27 +93,48 @@ function PianoPage(){
 function Surface({context:ctx,busy,edit,reportError}:{context:Context;busy:boolean;edit:(target:EditTarget,ops:Op[]|"undo"|"redo")=>Promise<boolean>;reportError:(error:unknown)=>void}){
  const target=useMemo(()=>({id:ctx.projectId,revision:ctx.revision,ppq:ctx.ppq,track:ctx.track,clip:ctx.clip}),[ctx]);
  const [snap,setSnap]=useState(ctx.snap??1);
+ const [scale,setScale]=useState("off"), [root,setRoot]=useState(0), [controls,setControls]=useState(false);
  useEffect(()=>setSnap(ctx.snap??1),[ctx.snap]);
- const roll=usePianoRoll({title:ctx.title,target,meter:ctx.meter,tempo:ctx.tempo,busy,edit,shift:kind=>{void edit({id:ctx.projectId,revision:ctx.revision},kind)},reportError,snap,preview:ctx.candidate});
+ const roll=usePianoRoll({title:ctx.title,target,meter:ctx.meter,tempo:ctx.tempo,busy,edit,shift:kind=>{void edit({id:ctx.projectId,revision:ctx.revision},kind)},reportError,snap,navigate:(name,tick=0,end=0)=>{void call("Navigate",ctx.sessionId,ctx.generation,name,tick,end).catch(error=>{void scopedError(error,ctx)})},preview:ctx.candidate});
+ useEffect(()=>{
+  const notes=scale==="minor"?[0,2,3,5,7,8,10]:[0,2,4,5,7,9,11];
+  roll.mount.current?.querySelectorAll<HTMLElement>(".gsui-row[data-midi],.gsuiKeys-key[data-midi]").forEach(row=>{
+   const degree=(Number(row.dataset.midi)-root+12)%12;
+   row.classList.toggle("piano-scale-muted",scale!=="off"&&!notes.includes(degree));
+   row.classList.toggle("piano-scale-root",scale!=="off"&&degree===0);
+  });
+ },[roll.mount,roll.ready,root,scale]);
  const selectionVersion=useRef(0);
  const selectionKey=JSON.stringify(roll.selected);
  const latest=useRef({ctx,roll,busy});latest.current={ctx,roll,busy};
+ const alive=useRef(true);
+ useEffect(()=>{alive.current=true;return()=>{alive.current=false}},[]);
+ async function scopedError(error:unknown,requested:Context){
+  const same=()=>alive.current&&latest.current.ctx.sessionId===requested.sessionId&&latest.current.ctx.generation===requested.generation;
+  if(!same())return;
+  try{const actual=await call<Context>("Context");if(actual.sessionId!==requested.sessionId||actual.generation!==requested.generation)return}catch{}
+  if(same())reportError(error);
+ }
+
  useEffect(()=>window.mygo.on<Command>("icetudio:piano-command",command=>{
   const state=latest.current;
   if(command.generation!==state.ctx.generation||document.getElementById("root")?.inert)return;
   const r=state.roll;
+  if(command.name==="appearance"){document.documentElement.dataset.theme=command.theme==="light"?"light":"dark";return}
+  if(command.name==="keymap"){r.keymap(command.quantizeKey??"Q",command.duplicateKey??"B");return}
+  if(command.name==="playhead"){r.playhead(command.tick??0,command.playing??false,command.follow??"关闭");return}
   if(r.gestureActive()){reportError("请先完成或取消音符手势，再使用 Native 工具");return}
   if(["snap","zoom"].includes(command.name)){
    if(state.busy&&!state.ctx.readOnly)return;
    if(command.name==="zoom")r.setZoom(Math.max(16,Math.min(200,r.zoom+(command.value??0))));
-   else {const next=(command.value??1000)/1000;if([.25,.5,1,2,4].includes(next))setSnap(next)}
+   else {const next=command.step??1;if(Number.isFinite(next)&&next>0&&next<=16)setSnap(next)}
    return;
   }
-  if(!["previous","next","selectAll","clear"].includes(command.name)){
+  if(!["locate","paste","selectAll","clear"].includes(command.name)){
    const equal=(a:string[],b:string[])=>JSON.stringify([...a].sort())===JSON.stringify([...b].sort());
    if(state.busy||r.gestureActive()||command.selectionVersion!==selectionVersion.current||!equal(command.noteIds,r.currentSelection())||!equal(command.noteIds,r.selected)){reportError("选区或手势已变化，请重新选择后重试");return}
   }
-  switch(command.name){case "selectAll":r.selectPage();break;case "clear":r.clearSelection();break;case "delete":r.removeNotes();break;case "copy":r.cloneNotes();break;case "transpose":r.transpose(command.value??0);break;case "quantize":if(["1/4","1/8","1/16","1/32","1/8T","1/16T"].includes(command.unit??"1/16"))r.quantizeTo(command.unit??"1/16");break;case "previous":r.setPage(Math.max(0,r.page-1));break;case "next":r.setPage(Math.min(r.pageCount-1,r.page+1));break;}
+  switch(command.name){case "selectAll":r.selectAll();break;case "clear":r.clearSelection();break;case "delete":r.removeNotes();break;case "copy":r.copy();break;case "paste":r.paste();break;case "duplicate":r.cloneNotes();break;case "transpose":r.transpose(command.value??0);break;case "quantize":if(["1/4","1/8","1/16","1/32","1/8T","1/16T"].includes(command.unit??"1/16"))r.quantizeTo(command.unit??"1/16");break;case "locate":r.locate(command.value??0);break;}
  }),[]);
  useEffect(()=>{
   const version=++selectionVersion.current;
@@ -124,13 +146,30 @@ function Surface({context:ctx,busy,edit,reportError}:{context:Context;busy:boole
   document.body.dataset.preview=String(ctx.readOnly);
   document.body.dataset.clip=ctx.clipId;document.body.dataset.generation=String(ctx.generation);
   document.body.dataset.notes=String(roll.visible.length);
-  if(roll.ready)void call("ContextReady",ctx.sessionId,ctx.generation).catch(reportError);
+  if(roll.ready)void call("ContextReady",ctx.sessionId,ctx.generation).catch(error=>{void scopedError(error,ctx)});
  },[roll.ready,roll.loadError,ctx.sessionId,ctx.generation,ctx.clipId,roll.visible.length]);
  return <>
-  {roll.rulerSlot&&createPortal(<MusicRuler ppq={ctx.ppq} start={roll.absoluteStart} zoom={roll.zoom} meter={ctx.meter} tempo={ctx.tempo}/>,roll.rulerSlot)}
+  {roll.rulerSlot&&createPortal(<MusicRuler ppq={ctx.ppq} start={roll.absoluteStart} zoom={roll.zoom} meter={ctx.meter} tempo={ctx.tempo} beats={roll.viewport.beats}/>,roll.rulerSlot)}
   {roll.loadError&&<p role="alert">{roll.loadError}</p>}
+  <div className="piano-control-tools piano-aux">
+   <label>音阶 <select value={scale} onChange={event=>setScale(event.target.value)}>
+    <option value="off">关闭</option><option value="major">大调</option><option value="minor">自然小调</option>
+   </select></label>
+   {scale!=="off"&&<label>根音 <select value={root} onChange={event=>setRoot(Number(event.target.value))}>
+    {["C","C♯","D","E♭","E","F","F♯","G","A♭","A","B♭","B"].map((name,index)=><option key={name} value={index}>{name}</option>)}
+   </select></label>}
+   <button aria-expanded={controls} onClick={()=>setControls(open=>!open)}>控制通道</button>
+   {!!ctx.pattern?.length&&<details className="piano-pattern">
+    <summary>共享 Pattern · {ctx.pattern.length} 个实例</summary>
+    <ul>{ctx.pattern.map(part=><li key={part.ClipID}>{part.TrackName} / {part.ClipName} · {part.Start} tick</li>)}</ul>
+   </details>}
+  </div>
   <div className="piano-host" ref={roll.mount}/>
-  <div className="piano-status">第 {roll.page+1}/{roll.pageCount} 页 · 已选 {roll.selected.length} · {roll.visible.length}/{ctx.clip.notes?.length??0} 音符 · 保留 {ctx.clip.controls?.length??0} 控制事件</div>
+  {controls&&<ControlLane key={ctx.clipId} clipId={ctx.clipId} trackId={ctx.trackId} revision={ctx.revision}
+   channel={ctx.track.channel} length={ctx.clip.length} events={ctx.clip.controls} notes={ctx.clip.notes}
+   start={roll.viewport.start} span={roll.viewport.controlBeats*ctx.ppq} inset={roll.viewport.inset} grid={Math.max(1,snap*ctx.ppq)}
+   disabled={busy||!roll.ready} submit={ops=>{void edit(target,ops)}}/>}
+  <div className="piano-status">连续时间轴 · 已选 {roll.selected.length} · {roll.visible.length}/{ctx.clip.notes?.length??0} 音符 · 保留 {ctx.clip.controls?.length??0} 控制事件</div>
  </>;
 }
 

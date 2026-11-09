@@ -4,7 +4,6 @@ export type EditTarget = { id: string; revision: number };
 export type ClipTarget = EditTarget & { track: Track; clip: Clip; ppq: number };
 export const objectID = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
 export const ticks = (beats: number, ppq: number) => Math.round(beats * ppq);
-export const PAGE_BEATS = 16;
 
 // Convert a complete musical intent to one batch. Untouched controls/raw
 // events never enter these patches, and extending a clip is atomic with notes.

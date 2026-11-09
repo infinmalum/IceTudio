@@ -8,7 +8,7 @@ import (
 )
 
 // dispatchProjects routes the projects.* IPC methods. They map one-to-one
-// to the app service methods the desktop UI calls, so CLI edits and GUI
+// to the app service methods the desktop UI calls, so IPC edits and GUI
 // edits receive identical validation, idempotency and conflict behavior.
 func (s *Server) dispatchProjects(ctx context.Context, request Request) (any, error) {
 	switch request.Method {

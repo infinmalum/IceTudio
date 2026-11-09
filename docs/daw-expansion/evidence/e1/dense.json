@@ -1,0 +1,54 @@
+{
+  "1000-dense": {
+    "commitToReadyMilliseconds": 149,
+    "notesPreserved": true,
+    "scrollToTwoFrames": {
+      "samples": 40,
+      "p50": 51,
+      "p95": 66,
+      "mounted": 80,
+      "scope": "WebKit scroll-to-two-RAF; synthetic input; no physical IME/audio claim"
+    },
+    "selected": 1000,
+    "selectionAndTransformMilliseconds": 2698
+  },
+  "1000-sparse": {
+    "commitToReadyMilliseconds": 129,
+    "notesPreserved": true,
+    "scrollToTwoFrames": {
+      "samples": 40,
+      "p50": 42,
+      "p95": 82,
+      "mounted": 8,
+      "scope": "WebKit scroll-to-two-RAF; synthetic input; no physical IME/audio claim"
+    },
+    "selected": 1000,
+    "selectionAndTransformMilliseconds": 2777
+  },
+  "10000-dense": {
+    "commitToReadyMilliseconds": 392,
+    "notesPreserved": true,
+    "scrollToTwoFrames": {
+      "samples": 40,
+      "p50": 56,
+      "p95": 69,
+      "mounted": 80,
+      "scope": "WebKit scroll-to-two-RAF; synthetic input; no physical IME/audio claim"
+    },
+    "selected": 10000,
+    "selectionAndTransformMilliseconds": 3268
+  },
+  "10000-sparse": {
+    "commitToReadyMilliseconds": 365,
+    "notesPreserved": true,
+    "scrollToTwoFrames": {
+      "samples": 40,
+      "p50": 49,
+      "p95": 86,
+      "mounted": 8,
+      "scope": "WebKit scroll-to-two-RAF; synthetic input; no physical IME/audio claim"
+    },
+    "selected": 10000,
+    "selectionAndTransformMilliseconds": 3240
+  }
+}

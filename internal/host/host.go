@@ -1,7 +1,7 @@
 // Package host boots the single IceTudio host for its selected data directory:
 // configuration, the ownership lock, the SQLite store, run recovery, the
 // skills catalog, the MCP hub and the application service. The desktop
-// entry point and the headless `icetudio serve` host share this path so both
+// entry point and the standalone IPC host share this path so both
 // expose identical behavior to clients.
 package host
 
@@ -38,7 +38,7 @@ type Host struct {
 	lock    *os.File
 	logFile *os.File
 	// InitError carries a non-fatal startup failure (the host stays
-	// running but the UI/CLI should surface it).
+	// running but the UI should surface it).
 	InitError error
 }
 
@@ -134,6 +134,10 @@ func Start() (*Host, error) {
 func (h *Host) Close() {
 	if h == nil {
 		return
+	}
+	if h.Service != nil {
+		h.Service.StopTake()
+		h.Service.StopMaterialPreview()
 	}
 	if h.Playback != nil {
 		h.Playback.Close()

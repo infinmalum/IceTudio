@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"icetudio/internal/agent"
@@ -164,6 +165,7 @@ func (s *Service) prepareProjectPreview(callID string) (preparedProjectPreview, 
 		}
 		if len(parents) > 0 {
 			a = project.ScopeRegion(&out.after, parents, nil)
+			a.AudioAssets = nil
 			for i := range a.Tracks {
 				var kept []project.Clip
 				for _, c := range a.Tracks[i].Clips {
@@ -172,6 +174,7 @@ func (s *Service) prepareProjectPreview(callID string) (preparedProjectPreview, 
 					}
 				}
 				a.Tracks[i].Clips = kept
+				a.Tracks[i].Audio = nil
 			}
 		}
 	}
@@ -193,6 +196,11 @@ func (s *Service) prepareProjectPreview(callID string) (preparedProjectPreview, 
 	clipIDs := map[string]bool{}
 	for _, op := range ops {
 		clipIDs[op.ClipID] = true
+		if project.ChangesPatternBody(op) {
+			for _, member := range project.PatternMembers(&item.State, op.ClipID) {
+				clipIDs[member.ClipID] = true
+			}
+		}
 	}
 	out.view.StartTick = project.MaxTick
 	for _, tr := range item.State.Tracks {
@@ -207,10 +215,16 @@ func (s *Service) prepareProjectPreview(callID string) (preparedProjectPreview, 
 }
 
 func previewScoreEnd(st *project.State) int64 {
+	timeline, timelineErr := playback.NewTimeline(st)
 	var end int64
 	for _, t := range st.Tracks {
 		for _, c := range t.Clips {
 			end = max(end, c.Start+c.Length)
+		}
+		if timelineErr == nil {
+			for _, c := range t.Audio {
+				end = max(end, int64(math.Ceil(timeline.Tick(timeline.Frame(float64(c.Start))+c.Frames))))
+			}
 		}
 	}
 	if end == 0 {

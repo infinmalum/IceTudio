@@ -57,7 +57,7 @@ tasks:
       - task: common:setup:docker
 
   build:server:
-    summary: Builds the application in server mode (no GUI, existing CLI/IPC host)
+    summary: Builds the standalone internal IPC host
     cmds:
       - task: common:build:server
 

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"icetudio/internal/cli"
+	"fmt"
 	"icetudio/internal/desktop"
 	"icetudio/internal/host"
 	"log"
@@ -9,8 +9,9 @@ import (
 )
 
 func main() {
-	if args := os.Args[1:]; len(args) > 0 {
-		os.Exit(cli.Run(args))
+	if len(os.Args) > 1 {
+		fmt.Fprintln(os.Stderr, "IceTudio 桌面程序不接受命令行参数，请直接打开应用。")
+		os.Exit(2)
 	}
 	runDesktop()
 }

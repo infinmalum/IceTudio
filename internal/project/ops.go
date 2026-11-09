@@ -10,7 +10,23 @@ import (
 // only the fields relevant to Kind are read; update patches carry pointers
 // so "no change" is distinguishable from a zero value.
 type Op struct {
-	Kind string `json:"kind"`
+	Sampler        *Sampler            `json:"sampler,omitempty"`
+	InvSampler     *Sampler            `json:"invSampler,omitempty"`
+	Mixer          *Mixer              `json:"mixer,omitempty"`
+	InvMixer       *Mixer              `json:"invMixer,omitempty"`
+	AudioAsset     *AudioAsset         `json:"audioAsset,omitempty"`
+	AudioClip      *AudioClip          `json:"audioClip,omitempty"`
+	InvAssets      *[]AudioAsset       `json:"invAssets,omitempty"`
+	InvAudioTracks []AudioTrackHistory `json:"invAudioTracks,omitempty"`
+	InvTrackAudio  []AudioClip         `json:"invTrackAudio,omitempty"`
+	PatternID      string              `json:"patternId,omitempty"`
+	InvPatterns    *[]Pattern          `json:"invPatterns,omitempty"`
+	InvGroupID     string              `json:"invGroupId,omitempty"`
+	InvPatternID   string              `json:"invPatternId,omitempty"`
+	Marker         *MarkerSpec         `json:"marker,omitempty"`
+	Arrangement    *ArrangementEdit    `json:"arrangement,omitempty"`
+	InvArrangement []ArrangementTrack  `json:"invArrangement,omitempty"`
+	Kind           string              `json:"kind"`
 
 	Title string       `json:"title,omitempty"` // project.rename
 	Tempo []TempoPoint `json:"tempo,omitempty"` // tempo.set
@@ -187,10 +203,30 @@ func validateEventValues(kind string, e EventSpec) error {
 // idSet collects every object id in the state for uniqueness checks.
 func idSet(st *State) map[string]bool {
 	ids := map[string]bool{}
+	if st.Mixer != nil {
+		for _, id := range st.Mixer.IDs() {
+			ids[id] = true
+		}
+	}
+	for _, a := range st.AudioAssets {
+		ids[a.ID] = true
+	}
+	for _, p := range st.Patterns {
+		ids[p.ID] = true
+	}
 	for _, t := range st.Tracks {
 		ids[t.ID] = true
+		for _, c := range t.Audio {
+			ids[c.ID] = true
+		}
 		for _, c := range t.Clips {
 			ids[c.ID] = true
+			if c.PatternID != "" {
+				ids[c.PatternID] = true
+			}
+			if c.GroupID != "" {
+				ids[c.GroupID] = true
+			}
 			for _, n := range c.Notes {
 				ids[n.ID] = true
 			}
@@ -206,7 +242,13 @@ func idSet(st *State) map[string]bool {
 }
 
 func registerClipIDs(ids map[string]bool, c Clip) {
+	if c.GroupID != "" {
+		ids[c.GroupID] = true
+	}
 	ids[c.ID] = true
+	if c.PatternID != "" {
+		ids[c.PatternID] = true
+	}
 	for _, n := range c.Notes {
 		ids[n.ID] = true
 	}
@@ -350,6 +392,39 @@ func normalizeMeter(points []MeterPoint) ([]MeterPoint, error) {
 // working copy, so partial application never reaches storage.
 func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, err error) {
 	switch op.Kind {
+	case "sampler.set":
+		i, ok := findTrack(st, op.TrackID)
+		if !ok {
+			return inv, nil, opError(op.Kind, "音轨不存在")
+		}
+		if err := ValidateSampler(st, op.Sampler); err != nil {
+			return inv, nil, err
+		}
+		old := st.Tracks[i].Sampler
+		st.Tracks[i].Sampler = op.Sampler.Copy()
+		return Op{Kind: op.Kind, TrackID: op.TrackID, Sampler: old}, nil, nil
+	case "mixer.set":
+		if op.Mixer == nil {
+			return inv, nil, opError(op.Kind, "缺少混音快照")
+		}
+		old := st.Mixer
+		if old == nil {
+			old = &Mixer{}
+		}
+		created, err := replaceMixer(st, ids, op.Mixer.Copy())
+		return Op{Kind: op.Kind, Mixer: old}, created, err
+	case "audio.asset", "audio.add", "audio.update", "audio.remove", "audio.restore":
+		return applyAudioOp(st, ids, op)
+	case "pattern.place", "pattern.remove":
+		return applyPatternAsset(st, ids, op)
+	case "marker.add", "marker.remove":
+		return applyMarker(st, ids, op)
+	case "control.update":
+		return applyControlUpdate(st, op)
+	case "clip.arrange":
+		return applyArrangement(st, ids, op)
+	case "clip.restore_arrangement":
+		return restoreArrangement(st, ids, op)
 	case "project.rename":
 		if len([]rune(op.Title)) > MaxTitleRunes {
 			return inv, nil, opError(op.Kind, "工程名过长")
@@ -402,7 +477,10 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 		track := Track{
 			ID: id, Name: op.Track.Name, Color: op.Track.Color, Channel: op.Track.Channel,
 			Program: op.Track.Program, Muted: op.Track.Muted, Solo: op.Track.Solo,
-			Clips: op.InvClips,
+			Clips: op.InvClips, Audio: slices.Clone(op.InvTrackAudio), Sampler: op.InvSampler.Copy(),
+		}
+		for _, c := range track.Audio {
+			ids[c.ID] = true
 		}
 		if track.Clips == nil {
 			track.Clips = []Clip{}
@@ -418,6 +496,11 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 			st.Tracks = slices.Insert(st.Tracks, i, track)
 		} else {
 			st.Tracks = append(st.Tracks, track)
+		}
+		if op.InvMixer != nil {
+			if _, err := replaceMixer(st, ids, op.InvMixer.Copy()); err != nil {
+				return inv, nil, err
+			}
 		}
 		return Op{Kind: "track.remove", TrackID: id}, []string{id}, nil
 
@@ -488,12 +571,23 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 		for _, c := range removed.Clips {
 			dropClipIDs(ids, c)
 		}
+		for _, c := range removed.Audio {
+			delete(ids, c.ID)
+		}
 		delete(ids, removed.ID)
 		st.Tracks = append(st.Tracks[:i], st.Tracks[i+1:]...)
 		inv = Op{Kind: "track.add", Track: &TrackSpec{
 			ID: removed.ID, Name: removed.Name, Color: removed.Color, Channel: removed.Channel,
 			Program: removed.Program, Muted: removed.Muted, Solo: removed.Solo,
-		}, InvClips: removed.Clips, InvTrackIndex: &i}
+		}, InvClips: removed.Clips, InvTrackAudio: removed.Audio, InvTrackIndex: &i, InvSampler: removed.Sampler}
+		if st.Mixer != nil {
+			inv.InvMixer = st.Mixer
+			next := st.Mixer.Copy()
+			next.RemoveChannel(removed.ID)
+			if _, err := replaceMixer(st, ids, next); err != nil {
+				return inv, nil, err
+			}
+		}
 		return inv, nil, nil
 
 	case "clip.add":
@@ -524,7 +618,7 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 		}
 		ids[id] = true
 		clip := Clip{
-			ID: id, Name: op.Clip.Name, Color: op.Clip.Color, Start: op.Clip.Start, Length: op.Clip.Length,
+			ID: id, PatternID: op.InvPatternID, GroupID: op.InvGroupID, Name: op.Clip.Name, Color: op.Clip.Color, Start: op.Clip.Start, Length: op.Clip.Length,
 			Notes: op.InvNotes, Controls: op.InvControls, Raw: op.InvRaw,
 		}
 		if clip.Notes == nil {
@@ -607,7 +701,7 @@ func applyOp(st *State, ids map[string]bool, op Op) (inv Op, created []string, e
 		inv = Op{Kind: "clip.add", Clip: &ClipSpec{
 			ID: removed.ID, TrackID: t.ID, Name: removed.Name, Color: removed.Color,
 			Start: removed.Start, Length: removed.Length,
-		}, InvNotes: removed.Notes, InvControls: removed.Controls, InvRaw: removed.Raw}
+		}, InvPatternID: removed.PatternID, InvGroupID: removed.GroupID, InvNotes: removed.Notes, InvControls: removed.Controls, InvRaw: removed.Raw}
 		return inv, nil, nil
 
 	case "note.add":

@@ -1,20 +1,22 @@
 # MyGo 迁移收尾与验收范围
 
-日期：2026-11-04。对象：维护者及后续实现者。本文记录当前实现与已执行验证；迁移设计及 A1–A10 门槛仍以 [迁移规范](mygo-migration.md) 为准，工程/授权/恢复约束仍以 P0–P4 契约为准。
+日期：2026-11-04，入口与版本于 2026-11-08 更新。对象：维护者及后续实现者。本文记录当前实现与已执行验证；迁移设计及 A1–A10 门槛仍以 [迁移规范](mygo-migration.md) 为准，工程/授权/恢复约束仍以 P0–P4 契约为准。
 
 ## 当前交付
 
-正式入口 `main.go` 使用 MyGo v0.7.4，携带参数仍走原 CLI；无参数打开实际工作区。Native 实现工作区、Browser、Arrangement、轨道/片段属性、Transport、时间图、音频设置、Agent 输入/历史/Markdown、审批/候选预览、任务详情、模型/权限/MCP/Skill/执行配置。音乐操作经桌面 Edits / app.Service 使用原事务、修订、操作 ID、共同撤销与恢复；没有重写 Agent 调度或循环。
+正式入口 `main.go` 使用 MyGo v0.8.3，直接打开实际工作区。IceTudio 命令行客户端已退役；内部 IPC 由单独的 `icetudio-server` 提供。Native 实现工作区、Browser、Arrangement、轨道/片段属性、Transport、时间图、音频设置、Agent 输入/历史/Markdown、审批/候选预览、任务详情、模型/权限/MCP/Skill/执行配置。音乐操作经桌面 Edits / app.Service 使用原事务、修订、操作 ID、共同撤销与恢复；没有重写 Agent 调度或循环。
 
 钢琴卷帘仍使用原 GridSound 子集与 React hook，通过独立页面及最小桥接接入；普通 React App/Arrangement 已退役。PDF/GIF 与供应商搜索建议 HTML 的只读正文是已记录的 WebView 例外，普通操作仍 Native。
 
 Wails Go/npm 运行依赖、生成绑定、旧窗口/事件/关闭握手、旧普通 React 源码及框架专属打包脚手架已移除。Task、CI、开发启动与平台打包入口改为直接 Go/MyGo 构建。原测试断言及旧关闭载体在 `tests/retired-react` 保留为审计参考，活动测试驱动改为 Native。2026-11-04 维护者针对自动审查意见明确批准此退役方案；无需再次申请同一范围的清理许可。
 
-保留工程数据、旧浏览器 profile、SQLite、CLI/IPC、音频链路与现有 Agent 执行能力。Linux 旧文字/IndexedDB 附件通过只读 profile 快照读取器显式接管，冲突不覆盖、相同导入不重复。Windows/macOS 自动 profile 接管未验收；可导入明确导出的恢复文件，原 profile 不删除。
+保留工程数据、旧浏览器 profile、SQLite、内部 IPC、音频链路与现有 Agent 执行能力。Linux 旧文字/IndexedDB 附件通过只读 profile 快照读取器显式接管，冲突不覆盖、相同导入不重复。Windows/macOS 自动 profile 接管未验收；可导入明确导出的恢复文件，原 profile 不删除。
 
 ## 已执行验证
 
-以下均在本机 Linux、已有依赖及实际桌面环境中运行；不等于 CI 远端已执行。
+2026-11-08 升级回归使用 MyGo v0.8.3。Linux 通过全量 Go 测试、vet、两组实际 MyGo/WebKit 窗口回归，并重新构建桌面程序、验证入口和独立 IPC 宿主。使用临时数据启动独立宿主，验证原协议鉴权、同目录拒绝第二宿主、SIGTERM 清理套接字与令牌、保留数据库。旧桌面命令返回退出码 2，未创建数据库。Windows、macOS 及容器构建未在本轮运行。
+
+以下是 2026-11-04 使用 MyGo v0.7.4 的迁移记录，均在本机 Linux 执行。
 
 | 检查 | 结果与范围 |
 |---|---|
@@ -47,4 +49,4 @@ Windows/macOS、NSIS/MSIX、DEB/RPM/Arch、AppImage 与签名任务已替换框�
 
 旧忽略输出 frontend/dist 已删除；此前自动审批连接故障导致的未执行动作，经重新提交同一已授权清理范围后成功执行。Wails 历史文档和退役断言中的名称是研究/审计记录，不是产品运行依赖。
 
-DAW E0–E8 实现继续暂停，待维护者按迁移门槛确认后再恢复。完整 DAW 编辑器及验收完成后，仍须维护者确认才能重新评估 ADK/Agent 循环替换；不能因清理 Wails 提前启动。
+2026-11-05 维护者明确恢复编辑器路线，从 E1 整节推进；这不把上述 MyGo 设备/跨平台缺口改为已通过。完整 DAW 编辑器及验收完成后，仍须维护者确认才能重新评估 ADK/Agent 循环替换；不能因清理 Wails 提前启动。

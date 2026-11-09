@@ -2,7 +2,7 @@
 
 日期：2026-11-02。对象：维护者、UI 设计者、迁移实现者与验收者。
 
-状态：2026-11-04 框架替换与代码清理已落地：正式入口为 MyGo v0.7.4，普通工作区、Arrangement、Agent 和设置为 Native，钢琴卷帘继续使用 WebView。维护者明确授权按 tests/retired-react/README.md 退役旧 React 载体；Wails Go/npm 依赖、绑定和专属脚手架已移除。本文仍是迁移设计与验收约束，不把代码完成视为 A1–A10 全项通过；实测范围和未验收项见[收尾记录](mygo-acceptance.md)。后续章节中的阶段动作是原实施门槛，历史事实见[执行记录](mygo-progress.md)，当前调用定位见[门面清单](mygo-inventory.md)。
+状态：2026-11-04 框架替换与代码清理已落地：正式入口采用 MyGo（2026-11-08 已升级到 v0.8.3），普通工作区、Arrangement、Agent 和设置为 Native，钢琴卷帘继续使用 WebView。维护者明确授权按 tests/retired-react/README.md 退役旧 React 载体；Wails Go/npm 依赖、绑定和专属脚手架已移除。本文仍是迁移设计与验收约束，不把代码完成视为 A1–A10 全项通过；实测范围和未验收项见[收尾记录](mygo-acceptance.md)。后续章节中的阶段动作是原实施门槛，历史事实见[执行记录](mygo-progress.md)，当前调用定位见[门面清单](mygo-inventory.md)。
 
 ## 1. 权威、优先级与范围
 
@@ -65,10 +65,10 @@ Agent 消息正文允许有条件使用 WebView：M1/M5 的实际验收若证明
 
 | 操作 | 现有对象/层 | 目标与替换条件 |
 |---|---|---|
-| KEEP | internal/app、host、project、storage、SQLite、Agent、CLI/IPC | 权威状态、稳定 ID、格式、权限、事务、修订、幂等、原子批次、历史、恢复不重写；仅允许迁移所需的小范围适配 |
+| KEEP | internal/app、host、project、storage、SQLite、Agent、内部 IPC | 权威状态、稳定 ID、格式、权限、事务、修订、幂等、原子批次、历史、恢复不重写；仅允许迁移所需的小范围适配 |
 | KEEP | internal/playback、FluidSynth、音色配置、即时与候选试听 | 不用 MyGo 音频 API 或浏览器音频替换现有引擎；保持 stop/seek/loop/持续音/播放中编辑 |
 | KEEP | main/planner/worker/reviewer/improver、direct/dynamic/fixed、委派与任务系统 | 保留预算、审查/返工、复盘、证据、取消/续跑/恢复；开发者设置与任务详情可达 |
-| REPLACE | main.go 的 application.New/NewService、窗口、Wails 事件与资源服务 | MyGo App/Window、服务注册与 typed events；保留带参数走 CLI 的启动分支和 host 生命周期 |
+| REPLACE | main.go 的 application.New/NewService、窗口、Wails 事件与资源服务 | MyGo App/Window、服务注册与 typed events；保留 host 生命周期。2026-11-08 按维护者决定移除桌面参数分流及原 CLI 客户端，独立宿主仍提供原 IPC |
 | MOVE | projectservice.go、playbackservice.go、statusservice.go、conversationservice.go 的代理能力 | 框架无关 Service 门面供 Native 直接调用，WebView 经最小桥接调用；不直接访问 SQLite |
 | REPLACE | desktopfiles.go 及服务中的 Wails 文件选择 | MyGo PickFolder/OpenMIDI/SaveMIDI/SoundFont；取消不冒充成功，不改变导出覆盖及原子发布语义 |
 | MOVE | useProjects 的提交/恢复协调 | Go 桌面协调层，见第 5 节；不能只移植 SubmitProjectOps 后丢弃外围保护 |
@@ -93,7 +93,7 @@ flowchart TD
   C --> S[ProjectService / 其他 Service 门面]
   S --> A[app.Service]
   A --> P[Project transaction / Storage / Playback]
-  CLI[CLI / IPC / Agent 内置工具] --> A
+  IPC[内部 IPC / Agent 内置工具] --> A
   A --> E[提交后事件]
   E --> N
   E --> B
@@ -112,7 +112,7 @@ Native 用不可变查询快照绘制，只持有显示投影、选区、草稿�
 5. 明确拒绝与连接断开/回复丢失区分。始终按原工程/opID 查询；查无记录不能单独证明请求未执行，未知情况保留标记，不更换 opID 盲目重放。
 6. 当前 Wails RuntimeError 分类不能直接等同 MyGo CallError；M1 用拒绝、断链、丢回复、panic/取消样例建立可靠分类，不能证明终态时按未知处理。
 
-这是桌面提交协调，不是第二个业务引擎；所有对象校验、范围和事务最终由 app.Service 执行。Agent/CLI 写入仍走原服务，遇到旧 GUI 修订照常冲突；GUI 协调不替代服务并发控制。
+这是桌面提交协调，不是第二个业务引擎；所有对象校验、范围和事务最终由 app.Service 执行。Agent/IPC 写入仍走原服务，遇到旧 GUI 修订照常冲突；GUI 协调不替代服务并发控制。
 
 ## 6. Native ↔ Piano Roll 协议
 
@@ -164,7 +164,7 @@ M0 按固定版本规定检查超时与重试 UI；超时只表示未知，不�
 
 ## 9. 数据、草稿、授权与服务生命周期
 
-本次不新增音乐工程格式或重建 SQLite，不因为框架替换删除数据库、工程历史、音色、会话、附件、凭据、Skills 或恢复文件。保持 host 数据目录和 CLI/IPC 生命周期；任何必要路径变化先列源/目标、引用和失败恢复，验证后才切换，不悄悄改用 MyGo 默认目录导致“数据消失”。
+本次不新增音乐工程格式或重建 SQLite，不因为框架替换删除数据库、工程历史、音色、会话、附件、凭据、Skills 或恢复文件。保持 host 数据目录和内部 IPC 生命周期；任何必要路径变化先列源/目标、引用和失败恢复，验证后才切换，不悄悄改用 MyGo 默认目录导致“数据消失”。
 
 M0 必须登记当前持久位置与读写者：SQLite；pending-project-edit；music-inputs；时间图草稿；audio.json；浏览器 localStorage 偏好/对话文字草稿；IndexedDB 附件 File。最后两类随 WebView origin/profile 变化可能不可见，不能以“只是 UI”丢掉内容。替换前提供可验证的读取/显式导出或接管路径，未知/损坏文件保留；这不是增加旧工程格式兼容层。M2 定义 Native 对话草稿与附件的持久化合同后才能退役旧浏览器存储入口。
 
@@ -177,7 +177,7 @@ Go 中原有音乐草稿 token CAS、串行写入、迟到写拒绝、显式恢�
 目标是统一的音乐工作区，不逐屏翻译当前 JSX。M1/M2 先交付关键状态样稿和 Native 组件样例，经维护者走查后再铺全量界面。
 
 - 布局：顶部紧凑 Transport；左 Browser 可收起；中间 Arrangement 主导；底部卷帘/后续 Mixer 可折叠；右 Agent 可收起。设置与任务详情按需打开，不把运行参数挤进创作区。
-- 建议初始 token：深灰工作底 `#202328`、面板 `#292D33`、网格底 `#191C20`、分隔 `#3A4048`、正文 `#E5E9EF`、次要文字 `#AAB3BF`、强调 `#79B4E8`。颜色是待视觉验收的设计起点，不是已验证的对比度结论；轨道色用于音乐对象，错误/录制/选中不能只靠颜色区分。
+- 2026-11-08 更新视觉规范。暗色、亮色与控件分层以 [工作区视觉系统](daw-expansion/ui-design.md#2-视觉系统)为准。轨道色用于音乐对象，错误、录制和选中状态同时使用可辨识的文字、形状或边框。
 - 使用 4/8 间距体系；普通控件建议 28–32 DIP，正文建议 13–14 DIP。密度、字重、图标、焦点、hover、按下、禁用及错误状态统一，布局随字体/系统缩放适配，不堆固定像素宽度。
 - Native/WebView 共享语义 token、轨道色 ID、字体和缩放策略；卷帘不出现第二套应用外壳。禁止把官网截图当产品资源。
 - 验证 1440×900、1280×800、窄窗口及 200% 缩放；面板最小宽高、收起后找回、长中文/长工程名、大表格、键盘和 IME 均需检查。
@@ -203,16 +203,16 @@ M3 与 M4 的局部顺序可按依赖调整，但不能跳过 M2 的提交/恢�
 
 | 门槛 | 测试与可观察结果 |
 |---|---|
-| A1 核心不退化 | Go 核心/CLI/IPC/Agent/存储/权限/播放现有适用测试；基线失败与新增失败分开，无删测试掩盖退化 |
+| A1 核心不退化 | Go 核心/IPC/Agent/存储/权限/播放现有适用测试；基线失败与新增失败分开，无删测试掩盖退化 |
 | A2 编辑闭环 | 真实 MyGo 窗口无模型新建/重命名/导入、Arrangement 与卷帘编辑、试听、保存重开/导出；非音符事件保留 |
-| A3 并发与历史 | Native/卷帘/Agent/CLI 交替编辑，同一历史撤销/重做；旧手势/旧表单/旧任务冲突拒绝、整组原子与重复请求不重复提交 |
+| A3 并发与历史 | Native/卷帘/Agent 交替编辑，独立 IPC 复核同一事务，同一历史撤销/重做；旧手势/旧表单/旧任务冲突拒绝、整组原子与重复请求不重复提交 |
 | A4 恢复 | Begin 回复丢失、音乐提交回复丢失、标记清理失败、坏记录、查询失败、切工程、卷帘 reload、实际 SIGKILL 后查询原 opID 不重放 |
 | A5 草稿/退出 | Native+WebView 草稿及附件、token CAS、迟到写、关闭取消/保留/丢弃/未知仍退出、冻结失败/超时/重复关闭；重开内容与提示正确 |
 | A6 焦点与视觉 | IME、Tab/Shift+Tab、复制、撤销/Space/Escape 单次消费；模态覆盖 WebView；拖出窗口释放；不同 DPI/尺寸和 200% 下可操作 |
 | A7 Agent 与扩展 | 模型/实际端点与凭据、授权上限、审批拒绝/取消、材料冻结/发送、候选差异/试听、任务详情、Skill 提炼/版本回退、MCP/搜索；真实模型单列结果 |
 | A8 Markdown | 中英文混排、长 GFM 表格、长代码/复制、未闭合语法流式、消息选择与上滚不被抢回、链接与图片不自动外发；用当前内容 fixture 比较 |
 | A9 性能与音频 | 同机同数据记录基线及目标：64 轨、分散/密集 Clip、远时间、卷帘 1k/10k 音符、长消息历史；交互目标 60 Hz 下 p95 帧时间≤16.7ms，记录事件延迟/CPU/内存；UI 负载下真实播放 stop/seek/loop/编辑不因界面工作中断 |
-| A10 构建与发行 | 固定版本绑定生成、前端/Go 构建、静态检查与适用 race、实际安装和数据目录；Linux 运行库/音色/资源/第三方通知齐全；CLI 不要求启动 GUI |
+| A10 构建与发行 | 固定版本绑定生成、前端/Go 构建、静态检查与适用 race、实际安装和数据目录；Linux 运行库/音色/资源/第三方通知齐全；独立 IPC 宿主无需启动 GUI |
 
 A9 是待测目标，不是现有 MyGo 性能承诺；M0 定义 Clip 数量、消息量、硬件、采样与采集方法，再比较同机基线。若达不到，不得把阈值改成已测数值来宣称通过；记录瓶颈并优化或由维护者明确调整目标。无支持引擎的平台保持明确不可播放，不能模拟成功。
 

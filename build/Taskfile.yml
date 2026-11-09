@@ -7,10 +7,10 @@ tasks:
   dev:frontend:
     cmds: ['npm --prefix frontend run dev']
   build:server:
-    desc: Build the GUI-independent CLI/IPC host (serve), not an HTTP server
-    cmds: ['go build -o bin/icetudio-server ./cmd/icetudio-cli']
+    desc: Build the standalone internal IPC host
+    cmds: ['go build -o bin/icetudio-server ./cmd/icetudio-server']
   run:server:
-    cmds: ['go run ./cmd/icetudio-cli serve']
+    cmds: ['go run ./cmd/icetudio-server']
   build:docker:
     cmds: ['docker build -f build/docker/Dockerfile.server -t icetudio-host .']
   run:docker:

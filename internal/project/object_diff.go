@@ -37,6 +37,22 @@ func DiffObjects(before, after *State, limit int) ObjectDiff {
 		}
 	}
 	add("project", "", "", "", "工程名称", before.Title, after.Title)
+	oldPatterns := map[string]Pattern{}
+	for _, p := range before.Patterns {
+		oldPatterns[p.ID] = p
+	}
+	for _, p := range after.Patterns {
+		if _, ok := oldPatterns[p.ID]; !ok {
+			add("pattern", p.ID, "", p.Name, "Pattern 资源", "无", p.Name)
+		}
+		delete(oldPatterns, p.ID)
+	}
+	for _, p := range before.Patterns {
+		if _, ok := oldPatterns[p.ID]; ok {
+			add("pattern", p.ID, "", p.Name, "Pattern 资源", p.Name, "无")
+		}
+	}
+
 	oldTempo := map[int64]TempoPoint{}
 	newTempo := map[int64]bool{}
 	for _, p := range before.Tempo {
@@ -79,6 +95,28 @@ func DiffObjects(before, after *State, limit int) ObjectDiff {
 		oldTracks[t.ID] = t
 	}
 	clips := func(b, a Track) {
+		oldAudio := map[string]AudioClip{}
+		describe := func(c AudioClip) string {
+			return fmt.Sprintf("%s · 资产 %s · %d tick · 源 %d+%d 帧 · 淡变 %d/%d · 增益 %d%% · 反向 %t",
+				c.Name, c.AssetID, c.Start, c.Source, c.Frames, c.FadeIn, c.FadeOut, c.Gain, c.Reverse)
+		}
+		for _, c := range b.Audio {
+			oldAudio[c.ID] = c
+		}
+		for _, c := range a.Audio {
+			before := "无"
+			if previous, ok := oldAudio[c.ID]; ok {
+				before = describe(previous)
+			}
+			add("audio", c.ID, a.Name, c.Name, "音频片段", before, describe(c))
+			delete(oldAudio, c.ID)
+		}
+		for _, c := range b.Audio {
+			if _, ok := oldAudio[c.ID]; ok {
+				add("audio", c.ID, b.Name, c.Name, "音频片段", describe(c), "无")
+			}
+		}
+
 		oldClips := map[string]Clip{}
 		newClips := map[string]bool{}
 		for _, c := range b.Clips {
@@ -110,6 +148,25 @@ func DiffObjects(before, after *State, limit int) ObjectDiff {
 					add("control", e.ID, trackName, clipName, "控制事件", controlValue(e), "无")
 				}
 			}
+			beforeMarkers := make(map[string]string)
+			afterMarkers := make(map[string]bool)
+			for _, e := range bc.Raw {
+				if name, ok := MarkerName(e.Data); ok {
+					beforeMarkers[e.ID] = fmt.Sprintf("%s · %d tick", name, bc.Start+e.Tick)
+				}
+			}
+			for _, e := range ac.Raw {
+				if name, ok := MarkerName(e.Data); ok {
+					afterMarkers[e.ID] = true
+					add("marker", e.ID, trackName, clipName, "段落标记", beforeMarkers[e.ID], fmt.Sprintf("%s · %d tick", name, ac.Start+e.Tick))
+				}
+			}
+			for _, e := range bc.Raw {
+				if value, ok := beforeMarkers[e.ID]; ok && !afterMarkers[e.ID] {
+					add("marker", e.ID, trackName, clipName, "段落标记", value, "")
+				}
+			}
+
 		}
 		for _, c := range a.Clips {
 			newClips[c.ID] = true
@@ -117,7 +174,7 @@ func DiffObjects(before, after *State, limit int) ObjectDiff {
 			if !ok {
 				add("clip", c.ID, a.Name, c.Name, "新增片段", "无", clipValue(c))
 			} else {
-				for i, f := range []string{"片段名称", "片段颜色", "片段绝对起点", "片段长度"} {
+				for i, f := range []string{"片段名称", "片段颜色", "片段绝对起点", "片段长度", "共享 Pattern", "编排分组"} {
 					add("clip", c.ID, a.Name, c.Name, f, clipFields(old)[i], clipFields(c)[i])
 				}
 			}
@@ -166,7 +223,7 @@ func trackFields(t Track) []string {
 	return []string{t.Name, t.Color, strconv.Itoa(t.Channel + 1), fmt.Sprintf("%d（GM 1–128）", t.Program+1), switchValue(t.Muted), switchValue(t.Solo)}
 }
 func clipFields(c Clip) []string {
-	return []string{c.Name, c.Color, tickValue(c.Start), tickValue(c.Length)}
+	return []string{c.Name, c.Color, tickValue(c.Start), tickValue(c.Length), c.PatternID, c.GroupID}
 }
 func clipValue(c Clip) string {
 	bytes := 0

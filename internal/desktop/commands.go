@@ -8,7 +8,7 @@ import (
 )
 
 func (a *Workspace) writable() bool {
-	if a.edits == nil || a.editBusy || a.closeFrozen || a.fileBusy || a.arrangementUI.gesture != nil {
+	if a.edits == nil || a.editBusy || a.closeFrozen || a.fileBusy || a.arrangementUI.gesture != nil || a.arrangementUI.marquee != nil || a.arrangementUI.patternDrag != nil || a.arrangementUI.materialDrag != nil || a.arrangementUI.audioDrag != nil {
 		return false
 	}
 	s := a.edits.State()

@@ -26,6 +26,13 @@ type PianoReceipt struct {
 	Revision int64  `json:"revision"`
 }
 type PianoCommand struct {
+	Theme            string   `json:"theme,omitempty"`
+	QuantizeKey      string   `json:"quantizeKey,omitempty"`
+	DuplicateKey     string   `json:"duplicateKey,omitempty"`
+	Step             float64  `json:"step,omitempty"`
+	Tick             float64  `json:"tick,omitempty"`
+	Playing          bool     `json:"playing"`
+	Follow           string   `json:"follow,omitempty"`
 	Generation       uint64   `json:"generation"`
 	Name             string   `json:"name"`
 	Unit             string   `json:"unit,omitempty"`
@@ -53,6 +60,9 @@ func (p *PianoPreview) ContextReady(session string, generation uint64) error {
 	if changed && p.notify != nil {
 		p.notify()
 	}
+	if changed && p.ready != nil {
+		p.ready()
+	}
 	return nil
 }
 
@@ -60,6 +70,7 @@ func (p *PianoPreview) freeze(value bool) { p.mu.Lock(); p.frozen = value; p.mu.
 func (p *PianoPreview) Submit(req PianoEdit) (PianoReceipt, error) {
 	p.mu.Lock()
 	valid := req.SessionID != "" && req.SessionID == p.session && req.Generation == p.value.Generation && p.readyGeneration == req.Generation && !p.frozen && req.ProjectID == p.value.ProjectID && req.TrackID == p.value.TrackID && req.ClipID == p.value.ClipID && req.Revision == p.value.Revision
+	clip := p.value.Clip
 	p.mu.Unlock()
 	if !valid || p.edits == nil {
 		return PianoReceipt{}, errors.New("卷帘目标已变化或处于关闭检查中；本次修改未发送")
@@ -72,6 +83,9 @@ func (p *PianoPreview) Submit(req PianoEdit) (PianoReceipt, error) {
 	}
 	if req.Kind == "edit" {
 		if err := validatePianoOps(req); err != nil {
+			return PianoReceipt{}, err
+		}
+		if err := validatePianoControlTarget(req, clip); err != nil {
 			return PianoReceipt{}, err
 		}
 	}
@@ -100,6 +114,10 @@ func validatePianoOps(req PianoEdit) error {
 			payload = "noteDeltas"
 		case "note.remove":
 			payload = "noteIds"
+		case "control.add", "control.update":
+			payload = "events"
+		case "control.remove":
+			payload = "eventIds"
 		case "clip.update":
 			payload = "clipPatch"
 		default:
@@ -127,6 +145,43 @@ func validatePianoOps(req PianoEdit) error {
 	}
 	return nil
 }
+func validatePianoControlTarget(req PianoEdit, clip project.Clip) error {
+	isEditable := func(kind string) bool { return kind == project.KindCC || kind == project.KindPitchBend }
+	has := func(id string) bool {
+		for _, e := range clip.Controls {
+			if e.ID == id && isEditable(e.Kind) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, op := range req.Ops {
+		switch op.Kind {
+		case "control.add", "control.update":
+			if len(req.Ops) != 1 || len(op.Events) < 1 || len(op.Events) > project.MaxControlEditPoints {
+				return errors.New("卷帘一次可提交 1–128 个控制点")
+			}
+			for _, e := range op.Events {
+				if !isEditable(e.Kind) || (op.Kind == "control.update" && !has(e.ID)) {
+					return errors.New("卷帘只能修改所选片段的 CC 或弯音点")
+				}
+			}
+		case "control.remove":
+			if len(req.Ops) != 1 || len(op.EventIDs) < 1 || len(op.EventIDs) > project.MaxControlEditPoints {
+				return errors.New("卷帘一次可删除 1–128 个控制点")
+			}
+			seen := map[string]bool{}
+			for _, id := range op.EventIDs {
+				if !has(id) || seen[id] {
+					return errors.New("卷帘只能删除所选片段的 CC 或弯音点")
+				}
+				seen[id] = true
+			}
+		}
+	}
+	return nil
+}
+
 func (p *PianoPreview) Acknowledge(session, id, opID string) error {
 	p.mu.Lock()
 	valid := session != "" && session == p.session
@@ -193,6 +248,9 @@ func (p *PianoPreview) Audition(req playback.AuditionRequest) error {
 	if req.Program != value.Track.Program || req.Bank != bank {
 		return errors.New("音色上下文已变化")
 	}
+	if value.Sampled {
+		return p.service.AuditionProjectSampler(value.ProjectID, value.Revision, value.TrackID, req)
+	}
 	return p.service.AuditionInstrument(req)
 }
 
@@ -231,7 +289,12 @@ func (p *PianoPreview) Selection(session string, generation, version uint64, ids
 func (p *PianoPreview) command(name string, value int) PianoCommand {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return PianoCommand{Generation: p.value.Generation, Name: name, Value: value, SelectionVersion: p.selectionVersion, NoteIDs: append([]string{}, p.selectionIDs...)}
+	command := PianoCommand{Generation: p.value.Generation, Name: name, Value: value, SelectionVersion: p.selectionVersion}
+	switch name {
+	case "copy", "delete", "transpose", "quantize", "duplicate", "velocity":
+		command.NoteIDs = append([]string{}, p.selectionIDs...)
+	}
+	return command
 }
 
 // toolsReady additionally waits for the actual page to leave its busy render.
@@ -241,4 +304,28 @@ func (p *PianoPreview) toolsReady() bool {
 	ready := p.interactive
 	p.mu.Unlock()
 	return ready && p.Context().Writable
+}
+
+// Navigate changes only transport/view state. It cannot submit music edits.
+func (p *PianoPreview) Navigate(session string, generation uint64, name string, tick, end int64) error {
+	p.mu.Lock()
+	ctx := p.value
+	handler := p.navigation
+	valid := session != "" && session == p.session && generation == ctx.Generation && !p.frozen
+	p.mu.Unlock()
+	if !valid {
+		return errors.New("导航上下文已过期")
+	}
+	if tick < 0 || end < 0 || tick > project.MaxTick*2 || end > project.MaxTick*2 {
+		return errors.New("位置超出范围")
+	}
+	switch name {
+	case "toggle", "home", "seek", "loop", "manual":
+	default:
+		return errors.New("不支持的导航命令")
+	}
+	if handler != nil {
+		handler(ctx, name, tick, end)
+	}
+	return nil
 }

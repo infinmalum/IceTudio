@@ -43,6 +43,8 @@ func (a *Workspace) panelCloseState() (string, bool) {
 		version += fmt.Sprintf("browser:%t/", d.busy)
 		blocked = blocked || d.busy
 	}
+	version += fmt.Sprintf("plugins:%t/", a.pluginShelf.busy)
+	blocked = blocked || a.pluginShelf.busy
 	version += fmt.Sprintf("prefs:%t/%s/%d/", a.prefsSaving, a.prefsError, a.prefsVersion)
 	blocked = blocked || a.prefsSaving || a.prefsError != ""
 	return version, blocked

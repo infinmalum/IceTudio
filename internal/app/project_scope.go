@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"icetudio/internal/project"
 	"icetudio/internal/storage"
@@ -144,16 +145,86 @@ func checkScopeOps(scope ProjectScope, ops []project.Op, st *project.State) erro
 	for _, id := range scope.Clips {
 		clips[id] = true
 	}
+	checkMembers := func(id string) error {
+		if whole {
+			return nil
+		}
+		for _, member := range project.PatternMembers(st, id) {
+			if (len(clips) > 0 && !clips[member.ClipID]) || (len(clips) == 0 && !tracks[member.TrackID]) {
+				return fmt.Errorf("共享 Pattern 超出任务范围：任务须覆盖所有受影响实例")
+			}
+		}
+		return nil
+	}
 	projectLevel := ""
 	for _, op := range ops {
+		if project.ChangesPatternBody(op) {
+			if err := checkMembers(op.ClipID); err != nil {
+				return err
+			}
+		}
 		switch op.Kind {
-		case "project.rename", "tempo.set", "meter.set", "track.add":
+		case "mixer.set", "sampler.set":
+			return fmt.Errorf("混音和采样器设置仅允许用户通过工程编辑入口提交")
+		case "project.rename", "tempo.set", "meter.set", "track.add", "pattern.place", "pattern.remove":
 			if projectLevel == "" {
 				projectLevel = op.Kind
 			}
+		case "audio.add", "audio.update", "audio.remove":
+			if whole {
+				continue
+			}
+			if len(clips) > 0 || !tracks[op.TrackID] {
+				return fmt.Errorf("音频编辑仅限任务授权的轨道")
+			}
+			if op.AudioClip != nil {
+				allowed := false
+				for _, t := range st.Tracks {
+					if !tracks[t.ID] {
+						continue
+					}
+					for _, c := range t.Audio {
+						if c.AssetID == op.AudioClip.AssetID {
+							allowed = true
+						}
+					}
+				}
+				if !allowed {
+					return fmt.Errorf("音频资产超出任务范围")
+				}
+			}
 		case "track.update", "track.remove":
+			if op.Kind == "track.remove" && st.Mixer != nil {
+				next := st.Mixer.Copy()
+				next.RemoveChannel(op.TrackID)
+				if !reflect.DeepEqual(next, *st.Mixer) {
+					return fmt.Errorf("轨道关联混音通道、路由或自动化，请在混音台或编排中确认删除")
+				}
+			}
 			if len(scope.Clips) > 0 || len(tracks) == 0 || !tracks[op.TrackID] {
 				return fmt.Errorf("操作 %s 超出任务范围：只允许编辑所选轨道", op.Kind)
+			}
+		case "clip.arrange":
+			spec := op.Arrangement
+			if whole || spec == nil {
+				continue
+			}
+			if len(clips) > 0 && (spec.Track != "" || spec.Action == "copy" || spec.Action == "link" || spec.Action == "split") {
+				return fmt.Errorf("操作 %s 超出任务范围：当前片段权限不允许新建或跨轨", op.Kind)
+			}
+			if spec.Track != "" && !tracks[spec.Track] {
+				return fmt.Errorf("操作 %s 超出任务范围：目标轨未授权", op.Kind)
+			}
+			for _, id := range spec.IDs {
+				if spec.Action == "link" {
+					if err := checkMembers(id); err != nil {
+						return err
+					}
+				}
+				tid, exists := project.ClipTrack(st, id)
+				if !exists || (len(clips) > 0 && !clips[id]) || (len(clips) == 0 && !tracks[tid]) {
+					return fmt.Errorf("操作 %s 超出任务范围：源片段 %s 未授权", op.Kind, id)
+				}
 			}
 		case "clip.add":
 			if op.Clip == nil {
@@ -165,7 +236,7 @@ func checkScopeOps(scope ProjectScope, ops []project.Op, st *project.State) erro
 			if !tracks[op.Clip.TrackID] {
 				return fmt.Errorf("操作 %s 超出任务范围：只能在所选轨道上新建片段", op.Kind)
 			}
-		case "clip.update", "clip.remove", "note.add", "note.update", "note.remove", "control.add", "control.remove":
+		case "clip.update", "clip.remove", "note.add", "note.update", "note.remove", "control.add", "control.remove", "control.update", "marker.add", "marker.remove":
 			if len(clips) > 0 {
 				if !clips[op.ClipID] {
 					return fmt.Errorf("操作 %s 超出任务范围：只允许编辑所选片段", op.Kind)

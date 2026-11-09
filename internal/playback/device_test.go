@@ -1,9 +1,12 @@
+//go:build linux && cgo
+
 package playback
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"icetudio/internal/audioasset"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,28 +26,17 @@ func TestIsolatedAudioDeviceRestart(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	root, err := filepath.Abs("../../.cache")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.MkdirAll(root, 0700); err != nil {
-		t.Fatal(err)
-	}
-	dir, err := os.MkdirTemp(root, "p2-audio-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Keep artifacts/logs for diagnosis; this is an ephemeral validation service.
-	t.Log("isolated audio artifacts:", dir)
+	dir := t.TempDir()
+	var err error
 	pulsePath := filepath.Join(dir, "pulse.sock")
-	core := `context.properties = { core.daemon = true core.name = p2-core support.dbus = false default.clock.rate = 48000 default.clock.quantum = 128 }
+	core := `context.properties = { core.daemon = true core.name = p2-core support.dbus = false default.clock.rate = 48000 default.clock.quantum = 256 }
 context.spa-libs = { audio.convert.* = audioconvert/libspa-audioconvert support.* = support/libspa-support }
 context.modules = [ { name = libpipewire-module-protocol-native } { name = libpipewire-module-access args = { access.socket = { p2-core = "unrestricted" } } } { name = libpipewire-module-metadata } { name = libpipewire-module-spa-node-factory } { name = libpipewire-module-client-node } { name = libpipewire-module-adapter } { name = libpipewire-module-link-factory } ]
 context.objects = [ { factory = adapter args = { factory.name = support.null-audio-sink node.name = p2_a media.class = Audio/Sink audio.position = [ FL FR ] node.virtual = true object.linger = true } } ]`
 	pulse := fmt.Sprintf(`context.properties = { support.dbus = false }
 context.spa-libs = { audio.convert.* = audioconvert/libspa-audioconvert support.* = support/libspa-support }
 context.modules = [ { name = libpipewire-module-protocol-native } { name = libpipewire-module-client-node } { name = libpipewire-module-adapter } { name = libpipewire-module-metadata } { name = libpipewire-module-protocol-pulse } ]
-pulse.properties = { server.address = [ %q ] pulse.min.req = 128/48000 pulse.default.req = 128/48000 pulse.default.tlength = 384/48000 }`, "unix:"+pulsePath)
+pulse.properties = { server.address = [ %q ] pulse.min.req = 256/48000 pulse.default.req = 256/48000 pulse.default.tlength = 768/48000 }`, "unix:"+pulsePath)
 	for name, data := range map[string]string{"core.conf": core, "pulse.conf": pulse} {
 		if err = os.WriteFile(filepath.Join(dir, name), []byte(data), 0600); err != nil {
 			t.Fatal(err)
@@ -153,4 +145,45 @@ pulse.properties = { server.address = [ %q ] pulse.min.req = 128/48000 pulse.def
 		t.Fatalf("stop: %v %+v", elapsed, m.Status())
 	}
 	t.Logf("real isolated device switch callbacks=%d; lost=%q; restart callbacks=%d misses=%d; stop=%v; virtual devices, no physical latency claim", switched.Callbacks, lost.Error, recovered.Callbacks, recovered.MissedBlocks, elapsed)
+	m.Close()
+	font := filepath.Join(dir, "stress.sf2")
+	if err = os.WriteFile(font, BasicFont(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, effects := range []bool{false, true} {
+		// The private graph consumes the real FluidSynth callback. No system
+		// devices are used. Offline processing is benchmarked separately.
+		score := mixerStressScore(t, effects)
+		n, e := openNativePeriod(font, "pulseaudio", false, 256)
+		if e != nil {
+			t.Fatal(e)
+		}
+		t.Cleanup(n.close)
+		if e = n.install(score, 0, 0, 1920, true, true); e != nil {
+			t.Fatal(e)
+		}
+		time.Sleep(3 * time.Second)
+		status := n.status()
+		p99, overruns := n.callbackLoad()
+		t.Logf("E4 64 MIDI / 20 PCM effects=%t: block=%d callbacks=%d p99=%d%% overruns=%d mutex misses=%d", effects, n.callbackFrames(), status.Callbacks, p99, overruns, status.Misses)
+		if n.callbackFrames() != 256 || status.Callbacks < 40 || !status.Playing || p99 >= 70 {
+			t.Errorf("stress callback did not meet short-run budget: %+v p99=%d%%", status, p99)
+		}
+		n.close()
+	}
+
+	if _, err := exec.LookPath("pw-play"); err == nil {
+		previewCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		lib := audioasset.NewLibrary(filepath.Join(dir, "materials"))
+		pcm := make([]byte, 4800*4)
+		for i := range pcm {
+			pcm[i] = byte(i % 11)
+		}
+		if err := lib.PreviewPCM(previewCtx, .5, func(context.Context) ([]byte, error) { return pcm, nil }); err != nil {
+			t.Fatalf("E5 virtual PipeWire preview: %v", err)
+		}
+		t.Log("E5 preview drained successfully through isolated PipeWire")
+	}
+
 }

@@ -14,7 +14,7 @@ import (
 	"icetudio/internal/app"
 )
 
-// Client is the host-side counterpart used by the CLI. It multiplexes
+// Client connects to the internal IPC host. It multiplexes
 // request/response pairs and (optionally) service events over one connection.
 type Client struct {
 	conn net.Conn
@@ -49,7 +49,7 @@ func Connect(dataDir string, wait time.Duration) (*Client, error) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("连接 IceTudio 宿主失败（宿主未运行？可先运行 icetudio serve 或桌面端）: %w", err)
+		return nil, fmt.Errorf("连接 IceTudio IPC 宿主失败，请检查 icetudio-server 是否已启动: %w", err)
 	}
 	token, err := os.ReadFile(filepath.Join(dataDir, TokenName))
 	if err != nil {
@@ -166,7 +166,7 @@ func (c *Client) Closed() <-chan struct{} { return c.closed }
 
 // Call performs one request and decodes a successful result into result
 // (which may be nil for unit-typed methods). Errors from the application
-// service are returned verbatim so the CLI shows the exact reason.
+// service are returned verbatim so clients can report the exact reason.
 func (c *Client) Call(method string, params, result any) error {
 	var raw json.RawMessage
 	if params != nil {

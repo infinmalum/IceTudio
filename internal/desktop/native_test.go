@@ -121,7 +121,18 @@ func verifyNativeProject(t *testing.T, edit bool) {
 	}
 	output, err := exec.CommandContext(ctx, binary, args...).CombinedOutput()
 	if err != nil {
-		t.Fatalf("native probe: %v\n%s", err, output)
+		probeLog, _ := os.ReadFile(filepath.Join(dir, "icetudio.log"))
+		debug, _ := os.ReadFile(filepath.Join(evidence, "editor-stage.txt"))
+		t.Logf("E1 stage: %s", debug)
+		if dest := os.Getenv("ICETUDIO_MYGO_EVIDENCE_DIR"); dest != "" {
+			os.MkdirAll(dest, 0700)
+			for _, name := range []string{"dense.json", "editor-e1.json", "editor-stage.txt"} {
+				if b, e := os.ReadFile(filepath.Join(evidence, name)); e == nil {
+					_ = os.WriteFile(filepath.Join(dest, "failed-"+name), b, 0600)
+				}
+			}
+		}
+		t.Fatalf("native probe: %v\n%s\n%s", err, output, probeLog)
 	}
 	data, err := os.ReadFile(filepath.Join(evidence, "result.json"))
 	if err != nil {
@@ -170,7 +181,7 @@ func verifyNativeProject(t *testing.T, edit bool) {
 		if err := os.MkdirAll(dest, 0700); err != nil {
 			t.Fatal(err)
 		}
-		for _, name := range []string{"native.png", "piano.png", "native-properties.png", "agent-compose.png", "native-settings.png", "native-approval.png", "native-64-tracks.png", "dense.json", "result.json"} {
+		for _, name := range []string{"native.png", "piano.png", "native-properties.png", "agent-compose.png", "native-settings.png", "native-approval.png", "native-64-tracks.png", "dense.json", "editor-e1.json", "editor-e1-native.png", "editor-e1-piano.png", "editor-e1-1440.png", "editor-e1-1280.png", "editor-e1-200-percent.png", "result.json"} {
 			b, err := os.ReadFile(filepath.Join(evidence, name))
 			if err != nil {
 				t.Fatal(err)
@@ -181,7 +192,7 @@ func verifyNativeProject(t *testing.T, edit bool) {
 		}
 	}
 	if edit {
-		t.Log("actual MyGo/WebKit: Native project creation/properties/time map/draft clear/MIDI roundtrip, velocity/undo, transform/ack, shared undo, lost ack recovery without replay, pending-close cancel, unchanged music including CC, local-model approval/ghost, 1k/10k offscreen edits and readonly bridge isolation verified")
+		t.Log("actual MyGo/WebKit: Native project creation/properties/time map/draft clear/MIDI roundtrip, velocity/undo, transform/ack, shared undo, lost ack recovery without replay, pending-close cancel, unchanged music including CC, local-model approval/ghost, 1k/10k offscreen edits, E2 eight-bar MIDI roundtrip and shared control points, E3 audio form/FLAC/bundle roundtrip when FFmpeg is available, E4 mixer draft/undo/redo and compensated stereo export, E5 referenced material/polish/sampler and portable export when Rubber Band is available, readonly bridge isolation verified")
 	} else {
 		t.Log("actual MyGo window: native selection, typed event, GridSound DOM replacement and unchanged SQLite project verified")
 	}

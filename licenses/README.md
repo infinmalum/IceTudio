@@ -9,6 +9,12 @@
 
 旧音乐组件核验见 [实验许可初审](../experiments/music-spike/LICENSE-REVIEW.md)；GridSound 源码子集的通知在 `frontend/public/vendor/gridsound/NOTICE.md`。安装包包含的传递系统库、素材和完整应用依赖仍由 P5 单独验收。
 
-## 2026-11-03 MyGo 迁移增量
+## MyGo 桌面框架
 
-MyGo v0.7.4（commit `9bd34e1eb9525d9a1fe698aadc964c49c8ff8e7e`）为 MIT，Copyright (c) 2026 MyGo contributors；[完整通知](MyGo-MIT.txt)来自固定模块源码。当前用于正式桌面入口及独立迁移验证入口；此项不替代完整传递依赖/字体/系统库及最终安装包的发行许可审计。
+MyGo v0.8.3（commit `5add3817c74bb7505d0b473bc5fb28abe2201b99`）为 MIT，Copyright (c) 2026 MyGo contributors；[完整通知](MyGo-MIT.txt)来自固定模块源码。当前用于正式桌面入口及独立迁移验证入口；此项不替代完整传递依赖/字体/系统库及最终安装包的发行许可审计。
+
+## 2026-11-08 Linux 插件扫描助手
+
+- CLAP 1.2.10 的 ABI 头文件用于扫描助手，许可见 [CLAP MIT 通知](CLAP-MIT.txt)。
+- VST3 SDK 3.8.1 build 84 的宿主代码用于独立扫描助手，许可见 [VST3 SDK MIT 通知](VST3-SDK-MIT.txt)。已核对 SDK 根目录、base、pluginterfaces 和 public.sdk 的通知内容一致。
+- 扫描助手可单独构建。正式便携包目前不包含该助手，Dexed 与 Surge XT 仅用于本地测试。版本与构建细节见 [E6 记录](../docs/daw-expansion/e6-plugins.md)。

@@ -51,6 +51,8 @@ type FontList struct {
 	Notice      string      `json:"notice"`
 }
 type Request struct {
+	Metronome bool   `json:"metronome,omitempty"`
+	CountIn   bool   `json:"countIn,omitempty"`
 	ProjectID string `json:"projectId"`
 	Revision  int64  `json:"revision"`
 	Tick      int64  `json:"tick"`
@@ -59,29 +61,34 @@ type Request struct {
 	LoopEnd   int64  `json:"loopEnd"`
 }
 type Status struct {
-	Available      bool     `json:"available"`
-	Ready          bool     `json:"ready"`
-	Playing        bool     `json:"playing"`
-	ProjectID      string   `json:"projectId"`
-	Revision       int64    `json:"revision"`
-	Tick           float64  `json:"tick"`
-	EndTick        int64    `json:"endTick"`
-	Loop           bool     `json:"loop"`
-	LoopStart      int64    `json:"loopStart"`
-	LoopEnd        int64    `json:"loopEnd"`
-	SampleRate     int      `json:"sampleRate"`
-	Callbacks      int64    `json:"callbacks"`
-	MissedBlocks   int64    `json:"missedBlocks"`
-	Loops          int64    `json:"loops"`
-	SkippedEvents  int      `json:"skippedEvents"`
-	Engine         string   `json:"engine"`
-	Settings       Settings `json:"settings"`
-	ResolvedFont   string   `json:"resolvedFont"` // 引擎实际加载的音色名
-	ResolvedKind   string   `json:"resolvedKind"` // user | bundled | basic
-	Notice         string   `json:"notice"`       // 回退/告警（非错误）
-	Error          string   `json:"error"`
-	PreviewID      string   `json:"previewId,omitempty"`
-	PreviewVariant string   `json:"previewVariant,omitempty"`
+	Meters         map[string]Meter `json:"meters,omitempty"`
+	CallbackP99    int              `json:"callbackP99Percent,omitempty"`
+	Overruns       int64            `json:"overruns,omitempty"`
+	MixerLatency   int              `json:"mixerLatencyFrames,omitempty"`
+	CountIn        bool             `json:"countIn,omitempty"`
+	Available      bool             `json:"available"`
+	Ready          bool             `json:"ready"`
+	Playing        bool             `json:"playing"`
+	ProjectID      string           `json:"projectId"`
+	Revision       int64            `json:"revision"`
+	Tick           float64          `json:"tick"`
+	EndTick        int64            `json:"endTick"`
+	Loop           bool             `json:"loop"`
+	LoopStart      int64            `json:"loopStart"`
+	LoopEnd        int64            `json:"loopEnd"`
+	SampleRate     int              `json:"sampleRate"`
+	Callbacks      int64            `json:"callbacks"`
+	MissedBlocks   int64            `json:"missedBlocks"`
+	Loops          int64            `json:"loops"`
+	SkippedEvents  int              `json:"skippedEvents"`
+	Engine         string           `json:"engine"`
+	Settings       Settings         `json:"settings"`
+	ResolvedFont   string           `json:"resolvedFont"` // 引擎实际加载的音色名
+	ResolvedKind   string           `json:"resolvedKind"` // user | bundled | basic
+	Notice         string           `json:"notice"`       // 回退/告警（非错误）
+	Error          string           `json:"error"`
+	PreviewID      string           `json:"previewId,omitempty"`
+	PreviewVariant string           `json:"previewVariant,omitempty"`
 }
 type Getter func(string) (Snapshot, error)
 type Manager struct {
@@ -748,7 +755,7 @@ func (m *Manager) Play(req Request) error {
 // PlayPreview installs only a host-prepared immutable score. It never replaces
 // project state, and committed refresh hints cannot resume this temporary score.
 func (m *Manager) PlayPreview(req Request, snapshot Snapshot, token, variant string) error {
-	if token == "" || (variant != "original" && variant != "candidate") || snapshot.ID != req.ProjectID || snapshot.Revision != req.Revision {
+	if token == "" || (variant != "original" && variant != "candidate" && variant != "sketch") || snapshot.ID != req.ProjectID || snapshot.Revision != req.Revision {
 		return errors.New("候选试听请求无效")
 	}
 	return m.play(req, &snapshot, token, variant)
@@ -828,7 +835,7 @@ func (m *Manager) play(req Request, supplied *Snapshot, token, variant string) e
 	if cancelled {
 		return errors.New("播放请求已取消")
 	}
-	score, err := Compile(snapshot)
+	score, err := m.compile(snapshot, req.Metronome)
 	if err != nil {
 		return err
 	}
@@ -837,6 +844,13 @@ func (m *Manager) play(req Request, supplied *Snapshot, token, variant string) e
 	}
 	if req.Loop && req.Tick >= req.LoopEnd {
 		req.Tick = req.LoopStart
+	}
+	beats, beatFrames := 0, int64(0)
+	if req.CountIn {
+		beats, beatFrames, err = countInAt(&snapshot.State, score.Timeline, req.Tick)
+		if err != nil {
+			return err
+		}
 	}
 	if err = m.ensure(); err != nil {
 		return err
@@ -855,7 +869,7 @@ func (m *Manager) play(req Request, supplied *Snapshot, token, variant string) e
 	if m.closed || generation != m.generation {
 		return errors.New("播放请求已取消")
 	}
-	if err = m.engine.install(score, req.Tick, req.LoopStart, req.LoopEnd, req.Loop, true); err != nil {
+	if err = m.engine.installCount(score, req.Tick, req.LoopStart, req.LoopEnd, req.Loop, true, beats, beatFrames); err != nil {
 		return err
 	}
 	m.score = score
@@ -938,6 +952,8 @@ func (m *Manager) Seek(req Request) error {
 	if err := m.engine.install(m.score, req.Tick, req.LoopStart, req.LoopEnd, req.Loop, playing); err != nil {
 		return err
 	}
+	req.Metronome = m.request.Metronome
+	req.CountIn = false
 	m.request = req
 	m.generation++
 	m.targetID = req.ProjectID
@@ -958,9 +974,14 @@ func (m *Manager) Status() Status {
 	}
 	s := m.engine.status()
 	out.Playing = s.Playing
+	out.CountIn = s.CountIn
 	out.Callbacks = s.Callbacks
 	out.MissedBlocks = s.Misses
 	out.Loops = s.Loops
+	out.CallbackP99, out.Overruns = m.engine.callbackLoad()
+	if s.Playing && out.CallbackP99 >= 70 {
+		out.Notice = fmt.Sprintf("音频负载偏高 · 回调 p99 %d%% · 超时 %d 次", out.CallbackP99, out.Overruns)
+	}
 	if s.Callbacks != m.lastCallbacks {
 		m.lastCallbacks = s.Callbacks
 		m.lastProgress = time.Now()
@@ -972,6 +993,10 @@ func (m *Manager) Status() Status {
 		out.Revision = m.score.Revision
 		out.Tick = math.Min(float64(m.score.EndTick), m.score.Timeline.Tick(s.Frame))
 		out.EndTick = m.score.EndTick
+		out.Meters = m.engine.meters(m.score.mix)
+		if m.score.mix != nil {
+			out.MixerLatency = m.score.mix.latency
+		}
 		out.SkippedEvents = m.score.Skipped
 		out.Loop = m.request.Loop
 		out.LoopStart = m.request.LoopStart
@@ -1045,11 +1070,12 @@ func (m *Manager) refresh(id string) {
 		return
 	}
 	generation := m.generation
+	metronome := m.request.Metronome
 	m.mu.Unlock()
 	snapshot, err := m.get(id)
 	var score *Score
 	if err == nil {
-		score, err = Compile(snapshot)
+		score, err = m.compile(snapshot, metronome)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()

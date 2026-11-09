@@ -18,3 +18,6 @@ Local modifications, 2026-10-18:
 
 Local modification, 2026-10-27:
 - gsuiSliderGroup.js: read the numeric z-index already set inline by the slider instead of repeatedly requesting computed style during selection changes. This avoids repeated style recalculation for large selections while retaining the existing stacking adjustment.
+
+Local modifications, 2026-11-05 (E1 continuous viewport):
+- gsuiPianoroll.js: the opt-in icetudio-hosted attribute skips DOM allocation/update of the hidden upstream per-note slider panel. IceTudio's Native velocity editor and the existing note/gesture engine remain connected; hosts without the attribute keep upstream behavior.

@@ -30,7 +30,8 @@ test("far locations use direct arithmetic and page offsets, with exact supported
   const m = meterIndex(480, [{ tick: 0, numerator: 4, denominator: 4 }, { tick: 600, numerator: 3, denominator: 4 }]);
   assert.deepEqual(m.position(600 + 16 * 480), { bar: 7, beat: 2, remainder: 0, numerator: 3, denominator: 4 });
   assert.equal(m.ruler(8280, 15960, 64, []).marks.find(p => p.kind === "bar")?.tick, 9240);
-  assert.throws(() => m.ruler(0, 7681, 64, []));
+  assert(m.ruler(0, 32*480, 64, []).marks.length>0);
+  assert.throws(() => m.ruler(0, 512*480+1, 64, []));
 });
 test("dense changes are counted in bounded groups, not discarded or mounted per event", () => {
   const meter = Array.from({ length: 7000 }, (_, tick) => ({ tick, numerator: 1 + tick % 7, denominator: 128 }));

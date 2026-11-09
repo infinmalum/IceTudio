@@ -163,8 +163,7 @@ func (s *StatusService) ListSkills() ([]app.SkillInfo, error) {
 	return s.svc.ListSkills()
 }
 
-// ReadHostLogs returns the recent lines of the host log, oldest first —
-// the desktop counterpart of `icetudio logs`.
+// ReadHostLogs returns the recent lines of the host log, oldest first.
 func (s *StatusService) ReadHostLogs(limit int) ([]string, error) {
 	return s.svc.ReadHostLogs(limit)
 }

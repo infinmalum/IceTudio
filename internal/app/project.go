@@ -193,10 +193,16 @@ func (s *Service) ExportProjectMIDI(projectID, path string) error {
 // projectDefinitions are the agent-facing music tools. They are offered
 // when the run has a frozen project target. Main and delegated workers share
 // discovery, invocation and the same projectAccess guard.
-func projectDefinitions() []model.Tool {
+func projectDefinitions() []model.Tool { return projectDefinitionsFor(true) }
+
+func projectDefinitionsFor(audio bool) []model.Tool {
+	contract := projectMIDIEditContract()
+	if audio {
+		contract = projectEditContract()
+	}
 	specs := []struct{ name, description, schema string }{
 		{"project__query", "查询本任务冻结范围内的音乐工程：轨道、片段、音符、控制事件、速度/拍号映射与当前修订号。可选限定范围：trackId/clipId 或 startTick/endTick（半开区间 [start,end)，音符按重叠计入）；给出任一范围时只返回该区域，适合先查区域再构造批量编辑。结果 JSON 的 revision 字段是提交编辑时必须携带的基础修订。", `{"type":"object","properties":{"projectId":{"type":"string"},"trackId":{"type":"string"},"clipId":{"type":"string"},"startTick":{"type":"integer"},"endTick":{"type":"integer"}},"required":["projectId"],"additionalProperties":false}`},
-		{"project__edit", "对本任务冻结范围内的音乐工程提交一组编辑操作（原子事务）：提供 baseRevision（来自最近一次查询）、opId（本次调用的唯一 ID）与 ops 数组。整组成功或整组拒绝；修订冲突时必须重新查询后重试。使用规则：先 project__query 再构造编辑，范围不明确时用限定区域查询；ops 引用的对象 ID 必须来自最近一次查询结果，不得凭空构造；不得自行重放未确认的结果，中断后先查询提交结果（重放由 opId 幂等机制安全处理，但未查询时不得重复提交大批次）。", string(projectEditContract().schema)},
+		{"project__edit", "对本任务冻结范围内的音乐工程提交一组编辑操作（原子事务）：提供 baseRevision（来自最近一次查询）、opId（本次调用的唯一 ID）与 ops 数组。整组成功或整组拒绝；修订冲突时必须重新查询后重试。使用规则：先 project__query 再构造编辑，范围不明确时用限定区域查询；ops 引用的对象 ID 必须来自最近一次查询结果，不得凭空构造；不得自行重放未确认的结果，中断后先查询提交结果（重放由 opId 幂等机制安全处理，但未查询时不得重复提交大批次）。", string(contract.schema)},
 	}
 	out := []model.Tool{}
 	for _, s := range specs {

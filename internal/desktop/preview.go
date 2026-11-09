@@ -10,25 +10,27 @@ import (
 // PianoContext is a versioned UI projection, never authoritative project state.
 // Clip carries the complete selected clip; Notes is the bounded smoke sample.
 type PianoContext struct {
-	Candidate       *app.ProjectEditPreview `json:"candidate,omitempty"`
-	Snap            float64                 `json:"snap"`
-	ReadOnly        bool                    `json:"readOnly"`
-	ProtocolVersion int                     `json:"protocolVersion"`
-	SessionID       string                  `json:"sessionId"`
-	Writable        bool                    `json:"writable"`
-	Track           project.Track           `json:"track"`
-	Clip            project.Clip            `json:"clip"`
-	Tempo           []project.TempoPoint    `json:"tempo"`
-	Meter           []project.MeterPoint    `json:"meter"`
-	Generation      uint64                  `json:"generation"`
-	ProjectID       string                  `json:"projectId"`
-	TrackID         string                  `json:"trackId"`
-	ClipID          string                  `json:"clipId"`
-	Revision        int64                   `json:"revision"`
-	PPQ             int                     `json:"ppq"`
-	Title           string                  `json:"title"`
-	TotalNotes      int                     `json:"totalNotes"`
-	Notes           []project.Note          `json:"notes"`
+	Sampled         bool                      `json:"-"`
+	Pattern         []project.PatternInstance `json:"pattern,omitempty"`
+	Candidate       *app.ProjectEditPreview   `json:"candidate,omitempty"`
+	Snap            float64                   `json:"snap"`
+	ReadOnly        bool                      `json:"readOnly"`
+	ProtocolVersion int                       `json:"protocolVersion"`
+	SessionID       string                    `json:"sessionId"`
+	Writable        bool                      `json:"writable"`
+	Track           project.Track             `json:"track"`
+	Clip            project.Clip              `json:"clip"`
+	Tempo           []project.TempoPoint      `json:"tempo"`
+	Meter           []project.MeterPoint      `json:"meter"`
+	Generation      uint64                    `json:"generation"`
+	ProjectID       string                    `json:"projectId"`
+	TrackID         string                    `json:"trackId"`
+	ClipID          string                    `json:"clipId"`
+	Revision        int64                     `json:"revision"`
+	PPQ             int                       `json:"ppq"`
+	Title           string                    `json:"title"`
+	TotalNotes      int                       `json:"totalNotes"`
+	Notes           []project.Note            `json:"notes"`
 }
 
 // PianoPreview is the isolated Piano Roll binding whitelist. Music writes use
@@ -48,6 +50,8 @@ type PianoPreview struct {
 	drafts           *musicDraftStore
 	changed          func(string)
 	invalidate       func()
+	ready            func()
+	navigation       func(PianoContext, string, int64, int64)
 	notify           func()
 }
 
@@ -77,6 +81,7 @@ func (p *PianoPreview) set(value PianoContext) {
 }
 
 func clonePianoContext(value PianoContext) PianoContext {
+	value.Pattern = append([]project.PatternInstance(nil), value.Pattern...)
 	value.Notes = append([]project.Note(nil), value.Notes...)
 	value.Track.Clips = nil
 	value.Clip.Notes = append([]project.Note(nil), value.Clip.Notes...)

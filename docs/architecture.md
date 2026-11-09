@@ -1,5 +1,13 @@
 # IceTudio 架构
 
+> 2026-11-08：产品入口为 MyGo 桌面，原 IceTudio 命令行客户端已退役。内部 IPC 由独立 `icetudio-server` 提供，使用原鉴权协议与单数据目录所有权锁。下文早期的 CLI 验证记录是历史证据。
+
+> 2026-11-07：E3 增加受工程事务约束的哈希音频资产、Native 波形片段和独立录音 take。实时与离线渲染共用不可变音频快照。见 [E3 记录](daw-expansion/e3-audio.md)。
+
+> 2026-11-07：E2 MIDI 编辑接入共享 Pattern 库、实例事务、多音色步进、控制通道和原生节拍器。实现边界及设备验收见 [E2 记录](daw-expansion/e2-midi.md)。
+
+> 2026-11-05：编辑器路线已恢复；[E1](daw-expansion/e1-workspace.md) 在现有 MyGo/独立卷帘上推进连续视口与工作区体验，工程/事务/播放/Agent 核心边界不变。
+
 > 2026-11-04：生产 GUI 已采用 [MyGo Native + WebView Piano Roll](mygo-migration.md)。普通工作区、Arrangement、Agent、设置与关闭协调在 internal/desktop；Native 与卷帘共用 Edits，经 app.Service 调用原事务/存储/播放。正文中的 Wails 原生验证记录是历史证据，当前验证边界见[迁移收尾](mygo-acceptance.md)。Go 核心、P0–P4 和 Agent 重构冻结约束继续有效。
 
 > 2026-11-01 新增目标架构见 [DAW 架构扩展](daw-expansion/architecture.md)，执行顺序见[扩展计划](daw-expansion/implementation.md)。本文已实现接线和 P0–P4 契约仍有效；新文档不宣称替换已经完成。
@@ -43,7 +51,7 @@ flowchart TD
 - GridSound 适配层发出编辑意图并接受状态更新，不维护另一份权威工程或独立撤销栈。
 - Agent 调用内置音乐工具，复用 GUI 的服务；不以模拟点击或写 MIDI 再导入替代原生编辑。
 - 音频执行路径使用快照和调度消息，不在音频回调中访问数据库、模型或前端桥接。
-- CLI/IPC 复用服务；仅删除模板/Profile/长期记忆专属入口。tasks review/retrospect/continue、任务图、子运行、计划、组件查询和证据接口保留。
+- 桌面与内部 IPC 复用服务。原 P0 仅删除模板/Profile/长期记忆专属入口，后续退役了命令行客户端。tasks review/retrospect/continue、任务图、子运行、计划、组件查询和证据接口保留。
 
 ## 3. 数据模型
 
@@ -63,7 +71,7 @@ flowchart TD
 
 音乐位置经速度图换算到播放时间，拍号决定小节显示。三连音精度、PPQ 转换、同音高重叠配对和同 tick 事件顺序须有确定契约。MIDI 是交换格式，不能承载工程全部稳定身份、候选和编辑历史；工程不能仅保存音符数组而丢弃控制/元事件。
 
-P1 已落地工程模型与统一编辑事务的当前形态（规格与验收对照见 [P1 阶段设计](p1-project-model.md)）：`internal/project` 纯函数模型（Note/ControlEvent/RawEvent/Clip/Track/TempoMap/MeterMap、稳定 ID、整数 tick、操作集与逆操作），SQLite `projects`/`project_revisions` 承载状态、线性历史与 opID 结果；GUI（Native Edits / `app.Service`）、CLI（`icetudio projects`）与 Agent 工具（`project__query`/`project__edit`）驱动同一 `app.Service`，支持限定音轨/片段/tick 窗口的范围查询与整组原子事务。P2 钢琴卷帘与轨道/片段界面已接入；`PianoRoll` 只维护当前页投影与手势预览，所有音乐编辑复用 P1 事务。`project.changed/deleted` 是提交后的刷新提示，前端重新查询持久状态，并隔离迟到响应；手势期间不替换基准修订。详见 [P2 编辑设计](p2-midi-editor.md)。`project__edit` 的工具 Schema 按 14 类 kind 的 oneOf 声明载荷字段、必填项与数值范围（数值界与后端校验器共用 `internal/project` 导出常量），解码边界按 kind 白名单拒绝未知与 inverse-only 字段；后端校验仍是最终权威，见 [Agent 工具 Schema 契约](p3-agent-edit-schema.md)。根 run 在创建事务内冻结/复核工程范围（`runs.project_scope`：目标工程、基准修订、read/write、轨/片段允许清单），覆盖普通发送、底层 Start/CreateRun、improver 和独立审查/复盘入口。运行期间重绑、解绑与换选区不改变在途目标；worker 的隐藏 delegation 会话无需绑定，继承并按任务模式收紧范围后，经与 main 相同的工具、审批与 P1 事务编辑。空范围、缺失 run、错会话及损坏范围拒绝；只读任务不发现写工具且强行调用仍拒绝；范围外整组拒绝，非整工程查询裁剪到范围。工具描述附带宿主冻结 ID/范围供模型查询，不自动附带音符。见[工程范围契约](p3-agent-scope.md)和[统一网关契约](p3-worker-gateway.md)。`project__select`/`project__transform` 提供局部选择与确定性变换（移调/量化/力度/平移）：变换由程序按声明式参数编译为既有 `note.update` ops 走统一事务路径——模型不逐音符产出数值，dry-run 预览不落盘，见 [内置变换工具契约](p3-agent-tools.md)。
+P1 已落地工程模型与统一编辑事务的当前形态（规格与验收对照见 [P1 阶段设计](p1-project-model.md)）：`internal/project` 纯函数模型（Note/ControlEvent/RawEvent/Clip/Track/TempoMap/MeterMap、稳定 ID、整数 tick、操作集与逆操作），SQLite `projects`/`project_revisions` 承载状态、线性历史与 opID 结果；GUI（Native Edits / `app.Service`）、内部 IPC（`projects.*`）与 Agent 工具（`project__query`/`project__edit`）驱动同一 `app.Service`，支持限定音轨/片段/tick 窗口的范围查询与整组原子事务。P2 钢琴卷帘与轨道/片段界面已接入；`PianoRoll` 只维护视口投影与手势预览，所有音乐编辑复用 P1 事务。`project.changed/deleted` 是提交后的刷新提示，前端重新查询持久状态，并隔离迟到响应；手势期间不替换基准修订。详见 [P2 编辑设计](p2-midi-editor.md)。`project__edit` 的工具 Schema 按各类 kind 的 oneOf 声明载荷字段、必填项与数值范围（数值界与后端校验器共用 `internal/project` 导出常量），解码边界按 kind 白名单拒绝未知与 inverse-only 字段；后端校验仍是最终权威，见 [Agent 工具 Schema 契约](p3-agent-edit-schema.md)。根 run 在创建事务内冻结/复核工程范围（`runs.project_scope`：目标工程、基准修订、read/write、轨/片段允许清单），覆盖普通发送、底层 Start/CreateRun、improver 和独立审查/复盘入口。运行期间重绑、解绑与换选区不改变在途目标；worker 的隐藏 delegation 会话无需绑定，继承并按任务模式收紧范围后，经与 main 相同的工具、审批与 P1 事务编辑。空范围、缺失 run、错会话及损坏范围拒绝；只读任务不发现写工具且强行调用仍拒绝；范围外整组拒绝，非整工程查询裁剪到范围。工具描述附带宿主冻结 ID/范围供模型查询，不自动附带音符。见[工程范围契约](p3-agent-scope.md)和[统一网关契约](p3-worker-gateway.md)。`project__select`/`project__transform` 提供局部选择与确定性变换（移调/量化/力度/平移）：变换由程序按声明式参数编译为既有 `note.update` ops 走统一事务路径——模型不逐音符产出数值，dry-run 预览不落盘，见 [内置变换工具契约](p3-agent-tools.md)。
 
 多轨编排画布使用同一工程绝对时间轴与小节尺；重叠片段分行、跨页显示裁切区域。片段手势冻结 ID/修订/时间参数，松开只提交一个既有 `clip.update`，不改写局部事件，也不建立独立历史；非法长度和外部修订冲突由权威服务拒绝。片段选择/分页/缩放是临时 UI 状态，活动手势接入退出检查。接线及限制见[编排契约](p2-arrangement.md)，浏览器验证不等于原生 WebView 验收。
 
@@ -86,7 +94,7 @@ GUI edit/undo/redo 在发命令前通过应用服务持久记录原工程/opID/�
 5. GUI 与 Agent 共用撤销/重做；批量逆操作按依赖逆序执行，撤销检查后续修改，不能恢复整个旧工程来覆盖用户新工作。名称投影和逆操作顺序的修正范围、既有历史限制与验证见 [P1 §8](p1-project-model.md#8-2026-10-18-名称持久化与依赖批量撤销修正范围)。
 6. 播放中编辑在明确边界生效，停止/跳转/循环/候选切换正确清理 note-off、踏板与旧调度。
 7. 拖动中发生外部修改时协调基准快照、预览和提交；不能在松开鼠标时偷偷换成最新修订掩盖冲突。
-8. 取消 Agent 不自动撤销已提交操作；提供真实结果与撤销。对话/桌面/IPC/CLI 的显式原生结果核对在同一事务内读取原调用、冻结工程与历史，匹配来源 run/opID/基础修订后将未知调用及 step 收敛为成功，使用真实 Result 并标记 workspace 来源。查询不写音乐、不自动续跑；即使以后已撤销，也只能说明该操作曾提交。缺失、工程删除或来源冲突继续未知；原生成功不能用任意手填输出替代。外部人工核对继续保留，不自动重放。细节与分层验收见[中断结果查询契约](p3-operation-recovery.md)。
+8. 取消 Agent 不自动撤销已提交操作；提供真实结果与撤销。对话/桌面/IPC 的显式原生结果核对在同一事务内读取原调用、冻结工程与历史，匹配来源 run/opID/基础修订后将未知调用及 step 收敛为成功，使用真实 Result 并标记 workspace 来源。查询不写音乐、不自动续跑；即使以后已撤销，也只能说明该操作曾提交。缺失、工程删除或来源冲突继续未知；原生成功不能用任意手填输出替代。外部人工核对继续保留，不自动重放。细节与分层验收见[中断结果查询契约](p3-operation-recovery.md)。
 
 普通新编辑在同一写事务内检查本工程存活及历史占用 ID；删除、撤销创建或重做分支失效不使身份可分配给另一新对象。当前直接读取已有结果/逆操作，不增加表或迁移；仅服务从历史规划的撤销/重做可恢复原身份，客户端不能用来源字符串或内部逆操作载荷绕过。跨工程对象 ID 可相同，始终由工程 ID 限定目标。范围、历史保留前提与查询成本见 [P1 §10](p1-project-model.md#10-工程生命周期内的对象-id-防复用)。
 
@@ -141,7 +149,7 @@ RuntimeConfig 是内部有修订的执行配置载体，字段和交接规则见
 
 P0 先完成配置服务、持久化及运行接线并使三种模式均可从开发者设置选择和启动，再删除旧 Profile CRUD/表。默认普通任务可用 direct，这不是删除 dynamic/fixed 的理由。执行配置应提供安全默认值，普通用户无需选择组件。历史格式拒绝不等于允许移除当前运行记录、预算或证据表。
 
-任务详情保留图、计划、审查、复盘与轨迹。独立“改进 Profile”按钮删除或改为 Skill 反馈入口；复盘服务、CLI/IPC 和证据不能随按钮删除。会话计划是待办语义，调度任务图是执行语义，二者均保留且不能互相冒充。
+任务详情保留图、计划、审查、复盘与轨迹。独立“改进 Profile”按钮删除或改为 Skill 反馈入口；复盘服务、IPC 和证据不能随按钮删除。会话计划是待办语义，调度任务图是执行语义，二者均保留且不能互相冒充。
 
 共享模块默认保留。app/memory.go 中摘要/计划、execution.go 中角色注册/校验、draft_model/draft_evidence 和 TaskEvidence 都必须按符号拆分，不能按旧文件名整体删掉。
 

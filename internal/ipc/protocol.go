@@ -1,4 +1,4 @@
-// Package ipc connects CLI clients to the single running host of a data
+// Package ipc connects local clients to the single running host of a data
 // directory. The host owns the database, the run loops and the MCP
 // processes; clients only talk to the same application service the desktop
 // UI uses. Transport is newline-delimited JSON over a Unix socket locked to

@@ -72,7 +72,7 @@ export function meterIndex(ppq: number, meter: MeterPoint[]) {
   }
   function ruler(start: number, end: number, pixelsPerQuarter: number, tempo: TempoPoint[]) {
     at(start);
-    if (!Number.isSafeInteger(end * 32) || end <= start || !Number.isFinite(pixelsPerQuarter) || pixelsPerQuarter < 16 || pixelsPerQuarter > 200 || end - start > 16 * ppq) throw Error("小节尺窗口超出支持范围");
+    if (!Number.isSafeInteger(end * 32) || end <= start || !Number.isFinite(pixelsPerQuarter) || pixelsPerQuarter < 16 || pixelsPerQuarter > 200 || end - start > 512 * ppq) throw Error("小节尺窗口超出支持范围");
     const out: RulerMark[] = [];
     const groups = new Map<string, RulerMark>();
     let thinned = false;

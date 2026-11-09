@@ -32,9 +32,7 @@ func (s *Service) ListSkills() ([]SkillInfo, error) {
 	return out, nil
 }
 
-// ReadHostLogs returns up to limit recent lines of the host log, oldest
-// first, so the desktop UI can offer the same troubleshooting view as
-// `icetudio logs`.
+// ReadHostLogs returns up to limit recent lines of the host log, oldest first.
 func (s *Service) ReadHostLogs(limit int) ([]string, error) {
 	if s.dataDir == "" {
 		return nil, errors.New("数据目录未配置，无法读取日志")

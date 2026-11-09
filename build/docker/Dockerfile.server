@@ -1,4 +1,4 @@
-# GUI-independent IceTudio CLI/IPC host. The base images are supplied by the
+# Standalone IceTudio IPC host. The base images are supplied by the
 # maintainer with Go >= 1.27.3, C compiler, SQLite/FluidSynth build prerequisites
 # and runtime FluidSynth >= 2.6. This file never invents an HTTP server.
 ARG GO_IMAGE=icetudio-build-deps:1.27.3
@@ -6,10 +6,9 @@ ARG RUNTIME_IMAGE=icetudio-runtime-deps:2.6
 FROM ${GO_IMAGE} AS builder
 WORKDIR /src
 COPY . .
-RUN CGO_ENABLED=1 go build -trimpath -o /icetudio ./cmd/icetudio-cli
+RUN CGO_ENABLED=1 go build -trimpath -o /icetudio-server ./cmd/icetudio-server
 FROM ${RUNTIME_IMAGE}
-COPY --from=builder /icetudio /usr/local/bin/icetudio
+COPY --from=builder /icetudio-server /usr/local/bin/icetudio-server
 ENV ICETUDIO_DATA_DIR=/var/lib/icetudio
 VOLUME ["/var/lib/icetudio"]
-ENTRYPOINT ["/usr/local/bin/icetudio"]
-CMD ["serve"]
+ENTRYPOINT ["/usr/local/bin/icetudio-server"]

@@ -145,13 +145,10 @@ func TestArrangementProjectionAndFarReachability(t *testing.T) {
 	p := fixture()
 	p.PPQ = 1
 	p.State.Tracks[0].Clips = []project.Clip{{ID: "far", Start: project.MaxTick, Length: project.MaxTick}}
-	pages := arrangementPages(p)
-	if pages != (int64(project.MaxTick)*2+15)/16 {
-		t.Fatalf("end truncated: %d", pages)
-	}
+
 	v := arrangementView{}
 	v.locateClip(p, "far")
-	if v.page != int64(project.MaxTick)/16 {
+	if v.start != int64(project.MaxTick) {
 		t.Fatal("far location lost precision")
 	}
 	clips, lanes := arrangementClips([]project.Clip{{ID: "a", Start: 0, Length: 20}, {ID: "b", Start: 12, Length: 6}, {ID: "c", Start: 16, Length: 2}, {ID: "done", Start: 0, Length: 16}}, 16, 32, 1, 64)
@@ -218,10 +215,10 @@ func TestNativeArrangementNavigationAndFixedHeaders(t *testing.T) {
 	}
 	h.view.Key(0, ui.KeyEnd)
 	h.view.Key(0, ui.KeyEnter)
-	if h.selected != "far_clip" || h.v.page != int64(project.MaxTick)/(16*480) || h.p.Revision != 0 {
-		t.Fatalf("picker lost far clip: %s page %d", h.selected, h.v.page)
+	if h.selected != "far_clip" || h.v.start != int64(project.MaxTick) || h.p.Revision != 0 {
+		t.Fatalf("picker lost far clip: %s page %d", h.selected, h.v.start)
 	}
-	h.v.page = 0
+	h.v.start = 0
 	h.v.zoom = 200
 	h.view.Frame()
 	before, ok := h.view.Find("Keys")
@@ -253,19 +250,44 @@ func TestNativeArrangementNegativeStartAndClippedResizeBoundary(t *testing.T) {
 	r = h.clipRect(t)
 	h.view.Press(r.X+r.W-3, r.Y+15)
 	if h.v.gesture == nil || h.v.gesture.Resize {
-		t.Fatal("page crop edge treated as true clip end")
+		t.Fatal("viewport crop edge treated as true clip end")
 	}
 	h.view.Key(0, ui.KeyEscape)
-	h.v.page = 1
+	h.v.start = 15360 - 480*8
 	h.view.Frame()
 	h.view.Advance(time.Second)
 	r = h.clipRect(t)
 	h.view.Press(r.X+r.W-3, r.Y+15)
 	if h.v.gesture == nil || !h.v.gesture.Resize {
-		t.Fatal("true clip end on second page not resizable")
+		t.Fatal("true clip end after continuous navigation not resizable")
 	}
 	h.view.Key(0, ui.KeyEscape)
 	if h.calls != 0 {
 		t.Fatal("boundary checks changed music")
+	}
+}
+
+func TestNativeGroupedArrangementDragIsOneTransaction(t *testing.T) {
+	h, e := arrangementForTest(t)
+	_, err := e.Execute(EditTarget{h.p.ID, h.p.Revision}, "edit", []project.Op{
+		{Kind: "clip.add", Clip: &project.ClipSpec{ID: "c_second", TrackID: "t_native", Name: "第二片段", Start: 1920, Length: 480}},
+		{Kind: "clip.arrange", Arrangement: &project.ArrangementEdit{Action: "group", IDs: []string{"c_native", "c_second"}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.p, _ = e.backend.(*app.Service).GetProject(h.p.ID)
+	h.view.Frame()
+	r, ok := h.view.Find("▣ 片段")
+	if !ok {
+		t.Fatal("分组片段未显示")
+	}
+	h.view.Press(r.X+20, r.Y+15)
+	h.view.Move(r.X+84, r.Y+15)
+	h.view.Release(r.X+84, r.Y+15)
+	clips := h.p.State.Tracks[0].Clips
+	if h.calls != 1 || h.err != nil || len(h.ops) != 1 || h.ops[0].Kind != "clip.arrange" ||
+		clips[0].Start != 480 || clips[1].Start != 2400 || clips[0].GroupID != clips[1].GroupID {
+		t.Fatalf("grouped drag: calls=%d ops=%+v clips=%+v err=%v", h.calls, h.ops, clips, h.err)
 	}
 }

@@ -1,5 +1,30 @@
 :root{color-scheme:dark;font:13px/1.4 system-ui,sans-serif;background:#191c20;color:#aab3bf}*{box-sizing:border-box}html,body,#root{margin:0;height:100%;overflow:hidden}#root{display:flex;flex-direction:column}.piano-status{padding:5px 10px;flex:none;border-bottom:1px solid #343b44}.piano-status[role=alert]{color:#f3b29f}.piano-host{flex:1;min-height:0;position:relative;overflow:hidden;user-select:none;--app-bg:#191c20;--gsui-col-pattern:#79b4e8;--gsuiCursor-default:default;--gsuiCursor-pointer:pointer;--gsuiCursor-ew-resize:ew-resize;--gsuiCursor-ns-resize:ns-resize;--gsuiCursor-grab:grab;--gsuiCursor-grabbing:grabbing;--gsuiCursor-crosshair:crosshair}.piano-host gsui-pianoroll{display:block;width:100%;height:100%}.piano-host .gsuiTimewindow-contentDown,.piano-host .gsuiTimewindow-panelContentDown,.piano-host gsui-prop-select,.piano-host gsui-dragline,.piano-host gsui-slidergroup{display:none!important}.piano-host .gsuiBlocksManager-block{transition:none}.piano-host .gsuiTimewindow-mainContent{min-height:100%}.piano-host button{padding:0;border:0;border-radius:0;background:transparent}.piano-host gsui-step-select{visibility:hidden;pointer-events:none}.piano-host .gsuiTimewindow-currentTime,.piano-host .gsuiTimeline-cursor,.piano-host .gsuiTimeline-loop{display:none}.piano-host gsui-timewindow{--gsuiTimewindow-head-h:32px}.piano-host gsui-timeline{visibility:hidden}.music-ruler-slot{position:absolute;inset:0;pointer-events:none}.music-ruler{position:relative;height:32px;color:#ddd;background:#292d33;overflow:hidden}.music-ruler-tick{position:absolute;top:0;height:100%;border-left:1px solid #3a4048;font-size:10px;padding-left:3px}.music-ruler-label{white-space:nowrap}.piano-ghost{position:absolute;pointer-events:none;border:1px dashed;box-sizing:border-box;height:100%;opacity:.65}.piano-ghost-before{border-color:#ef9b9b}.piano-ghost-after{border-color:#8bcdae}
 
-.piano-host gsui-timewindow{--gsuiTimewindow-head-h:52px}.music-ruler-slot{position:relative;height:52px;width:100%}.music-ruler{display:block;height:52px}.music-ruler line{stroke:#58616e;stroke-width:1}.music-ruler text{fill:#d9dfe8;font:10px system-ui}.music-ruler-beat line{stroke:#39414b}
+.piano-host gsui-timewindow{--gsuiTimewindow-head-h:52px}.music-ruler-slot{position:relative;height:52px;width:100%}.music-ruler{display:block;height:52px}.music-ruler line{stroke:#58616e;stroke-width:1}.music-ruler text{fill:#d9dfe8;font:12px system-ui}.music-ruler-beat line{stroke:#39414b}
 
 .music-ruler-slot{position:absolute;top:0;left:0;height:52px;pointer-events:none}.music-ruler{pointer-events:auto;background:#292d33}body[data-preview=true] gsui-timewindow[disabled]{filter:none}
+
+.gsuiTimewindow-scrollArea{scroll-behavior:auto!important}.piano-playhead{position:absolute;top:0;bottom:0;width:2px;background:#79b4e8;pointer-events:none;z-index:8}.piano-playhead[hidden]{display:none}.music-ruler-slot{width:100vw}.piano-host .gsuiTimewindow-minimap{display:none}
+
+:root[data-theme=light]{color-scheme:light;background:#edf1f5;color:#243444}:root[data-theme=light] .piano-host{color-scheme:light;--app-bg:#edf1f5;--gsui-txt:#243444;--gsui-app-bg:#edf1f5;--gsui-head1-bg:#e1e6ed;--gsui-head2-bg:#d7dfe8;--gsui-head3-bg:#e7edf3;--gsui-head3-brd:#adb8c6;--gsui-win-brd:#adb8c6;--gsui-items-bg:#e5ebf2;--gsui-timewin-bg:#dce5ee}:root[data-theme=light] .music-ruler{background:#e1e6ed}:root[data-theme=light] .music-ruler text{fill:#243444}:root[data-theme=light] .piano-status{border-color:#adb8c6}
+
+:root[data-theme=light] .piano-status[role=alert]{color:#a32918}
+
+.piano-host .gsuiPianoroll-block{container-type:normal;contain:layout style paint}.piano-host .gsuiPianoroll-block span{display:none}
+
+.piano-host .gsuiPianoroll-block.piano-note-labelled span{display:flex;font-size:12px}
+
+.piano-host .gsuiPianoroll-block[data-layers]:not([data-layers="1"]){box-shadow:inset 0 -2px #fff8}.piano-host .gsuiPianoroll-block[data-layers]:not([data-layers="1"])::after{content:attr(data-layers);position:absolute;right:1px;top:0;font-size:9px;color:#17212b;pointer-events:none}
+
+.piano-control-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 8px}
+.piano-control-tools input{width:52px}
+.piano-aux,.piano-control{flex:none;border-bottom:1px solid #596473}
+.piano-control svg{display:block;width:100%;height:54px;background:#47536530;touch-action:none;cursor:crosshair}
+.piano-control svg line{stroke:#77b5db;vector-effect:non-scaling-stroke}
+.piano-control svg .piano-control-guide{stroke:#596473}
+.piano-control svg circle{fill:#77b5db}
+.piano-control svg .selected{fill:#f1bd66}
+.piano-pattern{position:relative}
+.piano-pattern ul{position:absolute;z-index:15;top:100%;right:0;min-width:240px;max-height:180px;overflow:auto;margin:0;padding:8px 24px;background:#292d33;color:#e5e9ef;border:1px solid #596473}
+.piano-host .gsui-row.piano-scale-muted{box-shadow:inset 0 0 0 100vw #13171d29}
+.piano-host .gsui-row.piano-scale-root,.piano-host .gsuiKeys-key.piano-scale-root{box-shadow:inset 3px 0 #5dc4d8}

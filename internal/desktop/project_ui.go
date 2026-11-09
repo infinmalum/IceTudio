@@ -11,7 +11,7 @@ import (
 )
 
 func (a *Workspace) projectAvailable() bool {
-	if a.edits == nil || a.editBusy || a.fileBusy || a.closeFrozen || a.form != nil || a.mapForm != nil || a.arrangementUI.gesture != nil {
+	if a.edits == nil || a.editBusy || a.fileBusy || a.closeFrozen || a.form != nil || a.mapForm != nil || a.arrangementUI.gesture != nil || a.arrangementUI.marquee != nil || a.arrangementUI.patternDrag != nil || a.arrangementUI.materialDrag != nil || a.arrangementUI.audioDrag != nil {
 		return false
 	}
 	s := a.edits.State()
@@ -22,10 +22,23 @@ func (a *Workspace) projectTools(c *ui.Context) {
 		ui.Button(c, "新建").Disabled(!a.projectAvailable()).OnClick(func() { a.beginProperties("create", project.Track{}, project.Clip{}) })
 		ui.Button(c, "导入 MIDI").Disabled(!a.projectAvailable()).OnClick(a.importMIDI)
 	})
+	ui.Row(c).Gap(4).Children(func() {
+		ui.Button(c, "打开资源包").Disabled(!a.projectAvailable()).OnClick(a.importAudioBundle)
+		ui.Button(c, "保存资源包").Disabled(!a.projectAvailable() || a.active.ID == "").OnClick(a.exportAudioBundle)
+	})
 	if a.active.ID != "" {
+		if len(a.active.State.Tracks) > 0 {
+			ui.Button(c, "采样器 / 鼓垫").Disabled(!a.projectAvailable()).OnClick(a.openSampler)
+		}
+		if len(a.active.State.AudioAssets) > 0 {
+			ui.Button(c, "定位音频引用").Disabled(!a.projectAvailable()).OnClick(a.locateProjectAudio)
+		}
 		ui.Row(c).Gap(4).Children(func() {
 			ui.Button(c, "重命名").Disabled(!a.projectAvailable()).OnClick(func() { a.beginProperties("rename", project.Track{}, project.Clip{}) })
-			ui.Button(c, "导出 MIDI").Disabled(!a.projectAvailable()).OnClick(a.exportMIDI)
+			ui.Button(c, "导出音频").Disabled(!a.projectAvailable()).OnClick(func() {
+				a.audioExport = &audioExportForm{open: true, projectID: a.active.ID, revision: a.active.Revision, format: "wav", rate: "48000", start: "0", bits: "16", tail: "250"}
+			})
+			ui.Button(c, "导出 MIDI").Tooltip("标准 MIDI 导出音乐事件；音频请用导出音频或保存资源包").Disabled(!a.projectAvailable()).OnClick(a.exportMIDI)
 		})
 	}
 	if a.active.ID != "" {
@@ -188,6 +201,10 @@ func (a *Workspace) removeObject(track project.Track, clip *project.Clip) {
 	name := track.Name
 	op := project.Op{Kind: "track.remove", TrackID: track.ID}
 	kind := "轨道"
+	detail := "可以用共享撤销恢复。确认后仍按原修订检查冲突。"
+	if clip == nil && a.active.State.Mixer != nil {
+		detail = "关联的混音设置、路由和自动化也会移除。可以用共享撤销恢复。"
+	}
 	if clip != nil {
 		name = clip.Name
 		kind = "片段"
@@ -197,7 +214,7 @@ func (a *Workspace) removeObject(track project.Track, clip *project.Clip) {
 	a.preview.freeze(true)
 	a.notifyPiano()
 	go func() {
-		res, err := mygo.Dialog.Message(mygo.MessageOptions{Parent: a.win, Type: mygo.MessageWarning, Title: "删除" + kind, Message: "删除「" + name + "」及其全部事件？", Detail: "可以用共享撤销恢复。确认后仍按原修订检查冲突。", Buttons: []string{"保留", "删除"}, CancelButton: 0, DestructiveButtons: []int{1}})
+		res, err := mygo.Dialog.Message(mygo.MessageOptions{Parent: a.win, Type: mygo.MessageWarning, Title: "删除" + kind, Message: "删除「" + name + "」及其全部事件？", Detail: detail, Buttons: []string{"保留", "删除"}, CancelButton: 0, DestructiveButtons: []int{1}})
 		a.update(func() {
 			a.fileBusy = false
 			a.preview.freeze(a.closeFrozen)
@@ -217,10 +234,23 @@ func (a *Workspace) objectTools(c *ui.Context) {
 		ui.Row(c).Gap(4).Children(func() {
 			a.timeMapTools(c)
 			ui.Button(c, "添加音轨").Disabled(!a.projectAvailable() || a.active.ID == "").OnClick(a.addTrack)
+			ui.Button(c, "导入音频").Disabled(!a.projectAvailable() || a.active.ID == "").OnClick(func() {
+				track, _ := project.ClipTrack(&a.active.State, a.selected)
+				if track == "" && len(a.active.State.Tracks) > 0 {
+					track = a.active.State.Tracks[0].ID
+				}
+				a.importAudio(track)
+			})
+			ui.Button(c, "Pattern 库").Disabled(!a.projectAvailable() || len(a.active.State.Patterns) == 0).OnClick(a.openPatternLibrary)
 			for _, t := range a.active.State.Tracks {
 				for _, clip := range t.Clips {
 					if clip.ID != a.selected {
 						continue
+					}
+					for _, tool := range []struct{ label, kind string }{
+						{"批量片段", "midi_arrange"}, {"控制事件", "midi_control"}, {"鼓组", "midi_steps"}, {"和弦", "midi_chords"}, {"段落", "midi_marker"},
+					} {
+						ui.Button(c, tool.label).Disabled(!a.writable()).OnClick(func() { a.openMIDIEditor(tool.kind, t, clip) })
 					}
 					ui.Button(c, "轨道属性").Disabled(!a.projectAvailable()).OnClick(func() { a.beginProperties("track", t, clip) })
 					ui.Button(c, "片段属性").Disabled(!a.projectAvailable()).OnClick(func() { a.beginProperties("clip", t, clip) })

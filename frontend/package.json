@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.mygo.json && vite build --config mygo.vite.config.ts",
     "preview": "vite preview",
     "test:ui": "node e2e/product.mjs",
-    "test:music": "node --experimental-strip-types --test tests/time-map.test.ts tests/gm.test.ts tests/piano-projection.test.ts",
+    "test:music": "node --experimental-strip-types --test tests/time-map.test.ts tests/gm.test.ts tests/piano-projection.test.ts tests/piano-viewport.test.ts",
     "build:mygo": "tsc -p tsconfig.mygo.json && vite build --config mygo.vite.config.ts",
     "test:native": "node e2e/native.mjs"
   },

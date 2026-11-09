@@ -189,7 +189,7 @@ class gsuiPianoroll extends gsui0ne {
 		obj.selected
 			? this.#blcManager.$getSelectedBlocks().set( id, blc )
 			: this.#blcManager.$getSelectedBlocks().delete( id );
-		this.#uiSliderGroup.$get( 0 ).$set( id, obj.when, obj.duration, 0 );
+		if ( !this.hasAttribute( "icetudio-hosted" ) ) this.#uiSliderGroup.$get( 0 ).$set( id, obj.when, obj.duration, 0 );
 		this.$changeKeyProp( id, "key", obj.key );
 		this.$changeKeyProp( id, "when", obj.when );
 		this.$changeKeyProp( id, "duration", obj.duration );
@@ -214,7 +214,7 @@ class gsuiPianoroll extends gsui0ne {
 		this.#getDragline( blcPrev ).$message( GSEV_DRAGLINE_LINKTO, null );
 		this.#blcManager.$getBlocks().delete( id );
 		this.#blcManager.$getSelectedBlocks().delete( id );
-		this.#uiSliderGroup.$get( 0 ).$delete( id );
+		if ( !this.hasAttribute( "icetudio-hosted" ) ) this.#uiSliderGroup.$get( 0 ).$delete( id );
 	}
 	$changeKeyProp( id, prop, val ) {
 		const blc = this.#blcManager.$getBlocks().get( id );
@@ -235,12 +235,12 @@ class gsuiPianoroll extends gsui0ne {
 		switch ( prop ) {
 			case "when":
 				el.$left( val, "em" );
-				this.#uiSliderGroup.$get( 0 ).$setProp( el.$dataId(), "when", val );
+				if ( !this.hasAttribute( "icetudio-hosted" ) ) this.#uiSliderGroup.$get( 0 ).$setProp( el.$dataId(), "when", val );
 				this.#blockRedrawDragline( el );
 				break;
 			case "duration":
 				el.$width( val, "em" );
-				this.#uiSliderGroup.$get( 0 ).$setProp( el.$dataId(), "duration", val );
+				if ( !this.hasAttribute( "icetudio-hosted" ) ) this.#uiSliderGroup.$get( 0 ).$setProp( el.$dataId(), "duration", val );
 				this.#currKeyDuration = val;
 				this.#blockRedrawDragline( el );
 				break;
@@ -249,7 +249,7 @@ class gsuiPianoroll extends gsui0ne {
 				break;
 			case "selected":
 				el.$setAttr( "data-selected", !!val );
-				this.#uiSliderGroup.$get( 0 ).$setProp( el.$dataId(), "selected", !!val );
+				if ( !this.hasAttribute( "icetudio-hosted" ) ) this.#uiSliderGroup.$get( 0 ).$setProp( el.$dataId(), "selected", !!val );
 				break;
 			case "row":
 				this.#blockDOMChange( el, "key", el.$getAttr( "data-key-note" ) - val );
@@ -289,7 +289,7 @@ class gsuiPianoroll extends gsui0ne {
 	}
 	#blockSliderUpdate( prop, el, val ) {
 		if ( this.#propSelect.$getAttr( "prop" ) === prop ) {
-			this.#uiSliderGroup.$get( 0 ).$setProp( el.$dataId(), "value", val );
+			if ( !this.hasAttribute( "icetudio-hosted" ) ) this.#uiSliderGroup.$get( 0 ).$setProp( el.$dataId(), "value", val );
 		}
 	}
 	#blockRedrawDragline( blc ) {

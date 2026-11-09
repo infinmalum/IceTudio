@@ -65,14 +65,16 @@ type RawEvent struct {
 // Clip is a region on a track holding local events. Clips may overlap;
 // export orders by absolute tick with a stable tie-break.
 type Clip struct {
-	ID       string         `json:"id"`
-	Name     string         `json:"name,omitempty"`
-	Color    string         `json:"color,omitempty"` // 调色板枚举，空 = 未设置（P1 §11）
-	Start    int64          `json:"start"`
-	Length   int64          `json:"length"`
-	Notes    []Note         `json:"notes"`
-	Controls []ControlEvent `json:"controls"`
-	Raw      []RawEvent     `json:"raw"`
+	GroupID   string         `json:"groupId,omitempty"`
+	PatternID string         `json:"patternId,omitempty"`
+	ID        string         `json:"id"`
+	Name      string         `json:"name,omitempty"`
+	Color     string         `json:"color,omitempty"` // 调色板枚举，空 = 未设置（P1 §11）
+	Start     int64          `json:"start"`
+	Length    int64          `json:"length"`
+	Notes     []Note         `json:"notes"`
+	Controls  []ControlEvent `json:"controls"`
+	Raw       []RawEvent     `json:"raw"`
 }
 
 // Palette 是 Track/Clip 颜色的限定调色板（P1 §11）；空串合法（未设置，显示层按轨道序回退）。
@@ -87,14 +89,16 @@ func ValidColor(c string) bool {
 
 // Track owns clips. The MIDI channel is routing metadata, not identity.
 type Track struct {
-	ID      string `json:"id"`
-	Name    string `json:"name,omitempty"`
-	Color   string `json:"color,omitempty"` // 调色板枚举，空 = 未设置（P1 §11）
-	Channel int    `json:"channel"`
-	Program int    `json:"program"`
-	Muted   bool   `json:"muted,omitempty"`
-	Solo    bool   `json:"solo,omitempty"`
-	Clips   []Clip `json:"clips"`
+	Sampler *Sampler    `json:"sampler,omitempty"`
+	Audio   []AudioClip `json:"audio,omitempty"`
+	ID      string      `json:"id"`
+	Name    string      `json:"name,omitempty"`
+	Color   string      `json:"color,omitempty"` // 调色板枚举，空 = 未设置（P1 §11）
+	Channel int         `json:"channel"`
+	Program int         `json:"program"`
+	Muted   bool        `json:"muted,omitempty"`
+	Solo    bool        `json:"solo,omitempty"`
+	Clips   []Clip      `json:"clips"`
 }
 
 // TempoPoint stores the exact SMF value (microseconds per quarter note).
@@ -113,11 +117,14 @@ type MeterPoint struct {
 // State is the serializable project content. The revision counter lives in
 // the storage row, not here.
 type State struct {
-	Title  string       `json:"title"`
-	PPQ    int          `json:"ppq"`
-	Tempo  []TempoPoint `json:"tempo"`
-	Meter  []MeterPoint `json:"meter"`
-	Tracks []Track      `json:"tracks"`
+	Mixer       *Mixer       `json:"mixer,omitempty"`
+	AudioAssets []AudioAsset `json:"audioAssets,omitempty"`
+	Patterns    []Pattern    `json:"patterns,omitempty"`
+	Title       string       `json:"title"`
+	PPQ         int          `json:"ppq"`
+	Tempo       []TempoPoint `json:"tempo"`
+	Meter       []MeterPoint `json:"meter"`
+	Tracks      []Track      `json:"tracks"`
 }
 
 // Resource limits from the P1 design (§3.4, §1).

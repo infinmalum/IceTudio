@@ -26,7 +26,8 @@ import (
 // the built schema itself, so a field declared here is exactly the field the
 // boundary accepts — nothing more, nothing less.
 
-var projectEditContract = sync.OnceValue(buildProjectEditContract)
+var projectEditContract = sync.OnceValue(func() projectEditContractType { return buildProjectEditContract(true) })
+var projectMIDIEditContract = sync.OnceValue(func() projectEditContractType { return buildProjectEditContract(false) })
 
 type projectEditContractType struct {
 	schema json.RawMessage
@@ -37,7 +38,7 @@ type projectEditContractType struct {
 // idPattern mirrors project.ValidID: [a-z0-9_], 1–64 chars.
 const idPattern = `^[a-z0-9_]{1,64}$`
 
-func buildProjectEditContract() projectEditContractType {
+func buildProjectEditContract(includeAudio bool) projectEditContractType {
 	id := func() map[string]any { return map[string]any{"type": "string", "pattern": idPattern} }
 	color := func() map[string]any {
 		values := append([]string{""}, project.Palette...)
@@ -142,7 +143,32 @@ func buildProjectEditContract() projectEditContractType {
 		}
 		return strict(properties, append([]string{"kind"}, required...)...)
 	}
+	audioClip := strict(map[string]any{
+		"id": id(), "assetId": id(), "name": map[string]any{"type": "string", "maxLength": project.MaxTitleRunes},
+		"start": bounded(0, project.MaxTick), "source": bounded(0, project.MaxAudioFrames),
+		"frames": bounded(1, project.MaxAudioFrames), "fadeIn": bounded(0, project.MaxAudioFrames),
+		"fadeOut": bounded(0, project.MaxAudioFrames), "gain": bounded(0, 200), "reverse": map[string]any{"type": "boolean"},
+	}, "id", "assetId", "name", "start", "source", "frames", "fadeIn", "fadeOut", "gain")
 	opBranches := []map[string]any{
+		branch("audio.add", []string{"trackId", "audioClip"}, map[string]any{"trackId": id(), "audioClip": audioClip}),
+		branch("audio.update", []string{"trackId", "audioClip"}, map[string]any{"trackId": id(), "audioClip": audioClip}),
+		branch("audio.remove", []string{"trackId", "clipId"}, map[string]any{"trackId": id(), "clipId": id()}),
+		branch("pattern.place", []string{"patternId", "arrangement"}, map[string]any{"patternId": id(), "arrangement": strict(map[string]any{
+			"track": id(), "tick": bounded(0, project.MaxTick), "repeat": bounded(1, 64),
+		}, "track", "tick", "repeat")}),
+		branch("pattern.remove", []string{"patternId"}, map[string]any{"patternId": id()}),
+		branch("marker.add", []string{"clipId", "marker"}, map[string]any{"clipId": id(), "marker": strict(map[string]any{
+			"id": id(), "tick": bounded(0, project.MaxTick), "name": map[string]any{"type": "string", "minLength": 1, "maxLength": 127},
+		}, "tick", "name")}),
+		branch("marker.remove", []string{"clipId", "eventIds"}, map[string]any{"clipId": id(), "eventIds": map[string]any{"type": "array", "minItems": 1, "maxItems": 1, "items": id()}}),
+		branch("control.update", []string{"clipId", "events"}, map[string]any{"clipId": id(), "events": map[string]any{
+			"type": "array", "minItems": 1, "maxItems": project.MaxControlEditPoints, "items": map[string]any{"oneOf": eventBranches},
+		}}),
+		branch("clip.arrange", []string{"arrangement"}, map[string]any{"arrangement": strict(map[string]any{
+			"action": map[string]any{"type": "string", "enum": []string{"move", "copy", "split", "merge", "crop", "link", "detach", "group", "ungroup", "makePattern"}},
+			"ids":    map[string]any{"type": "array", "minItems": 1, "maxItems": 64, "items": id()},
+			"track":  id(), "tick": bounded(0, 2*project.MaxTick), "end": bounded(0, 2*project.MaxTick), "repeat": bounded(1, 64),
+		}, "action", "ids", "tick")}),
 		branch("project.rename", []string{"title"},
 			map[string]any{"title": map[string]any{"type": "string", "maxLength": project.MaxTitleRunes}}),
 		branch("tempo.set", []string{"tempo"},
@@ -173,6 +199,13 @@ func buildProjectEditContract() projectEditContractType {
 					"items": map[string]any{"oneOf": eventBranches}}}),
 		branch("control.remove", []string{"clipId", "eventIds"},
 			map[string]any{"clipId": map[string]any{"type": "string"}, "eventIds": idList()}),
+	}
+
+	if !includeAudio {
+		opBranches = slices.DeleteFunc(opBranches, func(b map[string]any) bool {
+			kind := b["properties"].(map[string]any)["kind"].(map[string]any)["const"].(string)
+			return strings.HasPrefix(kind, "audio.")
+		})
 	}
 
 	schema := map[string]any{

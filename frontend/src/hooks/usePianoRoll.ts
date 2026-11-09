@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MeterPoint, Op, TempoPoint } from "../music/projectTypes";
 import type { ProjectEditPreview } from "../music/previewTypes";
 import { loadGridSound, type GridElement, type GridNote } from "../music/gridsound";
-import { noteIntent, PAGE_BEATS, type ClipTarget, type EditTarget } from "../music/edits";
+import { noteIntent, type ClipTarget, type EditTarget } from "../music/edits";
 
 import { meterIndex } from "../music/timeMap";
 import { renderPianoProjection } from "../music/pianoGridAdapter";
-import { pageNotes } from "../music/pianoProjection";
+import { WINDOW_BEATS,intersectNotes,boxSelection,copyNotes,pasteNotes,pianoClipboard } from "../music/pianoViewport";
 import { useMusicField } from "./useMusicInputs";
 import { useCloseBlocker } from "../shared/musicClose";
 
@@ -18,22 +18,27 @@ export type PianoRollProps = {
   edit: (target: EditTarget, ops: Op[]) => Promise<boolean>;
   shift: (direction: "undo" | "redo") => void;
   reportError: (error: unknown) => void;
+  navigate?:(name:string,tick?:number,end?:number)=>void;
   snap: number; preview?: ProjectEditPreview | null;
 };
 
-export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,snap,preview=null }: PianoRollProps) {
+export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,snap,navigate,preview=null }: PianoRollProps) {
   const ProjectService = useMusicServices();
   const mount = useRef<HTMLDivElement>(null);
-  const latest = useRef({ target, busy, edit, shift, reportError, preview });
-  latest.current = { target, busy, edit, shift, reportError, preview };
+  const latest = useRef({ target, busy, edit, shift, reportError, preview,navigate,snap });
+  latest.current = { target, busy, edit, shift, reportError, preview,navigate,snap };
   const [transformBusy, setTransformBusy] = useState(false);
   const transformLock = useRef(false);
   const [quantizeUnit, setQuantizeUnit] = useState("1/16");
   const [loadError, setLoadError] = useState("");
   const [ready, setReady] = useState(false);
-  const [requestedPage, setPage] = useState(0);
-  const pageCount = Math.max(1, Math.ceil(target.clip.length / (PAGE_BEATS * target.ppq)));
-  const page = Math.min(requestedPage, pageCount - 1);
+  const origin=useRef(0),cursor=useRef(0);
+  const [viewport,setViewport]=useState({start:0,beats:16,inset:0,controlBeats:16});
+  const locate=useRef<(tick:number)=>void>(()=>{});
+  const keys=useRef({quantize:"Q",duplicate:"B"});
+  const shortcuts=useRef<(key:string)=>void>(()=>{});
+  const transport=useRef<(tick:number,playing:boolean,follow:string)=>void>(()=>{});
+  const followPaused=useRef(false);
   const [rulerSlot, setRulerSlot] = useState<HTMLElement | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [zoom, setZoom] = useState(64);
@@ -48,8 +53,7 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
   const selection = useRef(new Set<string>());
   const inputTarget = useRef<ClipTarget | null>(null);
   const inputSelection = useRef<string[]>([]);
-  const offset = page * PAGE_BEATS * target.ppq;
-  const visible = pageNotes(target.clip.notes ?? [],page,target.ppq);
+  const visible = intersectNotes(target.clip.notes??[],viewport.start,viewport.start+viewport.beats*target.ppq);
 
   useEffect(() => {
     let disposed = false;
@@ -61,6 +65,7 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
       const p = document.createElement("gsui-pianoroll") as GridElement;
       grid.current = p;
       p.setAttribute("tabindex", "0");
+      p.setAttribute("icetudio-hosted", "");
       p.setAttribute("aria-label", "钢琴卷帘音符编辑区");
       mount.current.append(p);
       p.$octaves(0, 11);
@@ -74,11 +79,13 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
       slot.className = "music-ruler-slot";
       p.querySelector(".gsuiTimewindow-time")!.append(slot);
       setRulerSlot(slot);
-      p.$changeDuration(PAGE_BEATS);
+      p.$changeDuration(WINDOW_BEATS);
+      const body=p.querySelector<HTMLElement>(".gsuiTimewindow-mainBody");
+      if(body)body.style.width=`${WINDOW_BEATS*zoom}px`;
       const timewindow = p.querySelector("gsui-timewindow")!;
       const zoomObserver = new MutationObserver(() => {
         const value = Number(timewindow.getAttribute("pxperbeat"));
-        if (!disposed && Number.isFinite(value) && value >= 16 && value <= 200) setZoom(value);
+        if (!disposed && Number.isFinite(value) && value >= 16 && value <= 200) {setZoom(value);if(body)body.style.width=`${WINDOW_BEATS*value}px`}
       });
       zoomObserver.observe(timewindow, { attributes: true, attributeFilter: ["pxperbeat"] });
       const data: Record<string, GridNote> = {};
@@ -86,9 +93,9 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
       const render = () => {
         if (disposed || gesture.current) return;
         const started = performance.now();
-        renderPianoProjection(p,data,latest.current.target,page,selection.current,latest.current.preview);
-        p.dataset.projectionMs = String(performance.now() - started);
-        setSelected([...selection.current]);
+        renderPianoProjection(p,data,latest.current.target,origin.current,selection.current,latest.current.preview);
+        p.dataset.projectionMs = String(performance.now() - started);p.dataset.windowOrigin=String(origin.current);
+        setSelected(old=>old.length===selection.current.size&&old.every(id=>selection.current.has(id))?old:[...selection.current]);
       };
       applyView.current = render;
       const command = (kind: string, ...args: any[]) => {
@@ -103,9 +110,9 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
         if (busy) { queueMicrotask(render); return; }
         const frozen = gesture.current ?? currentTarget;
         try {
-          if (kind === "add" && (args[1] < 0 || args[1] >= PAGE_BEATS)) throw Error("请先翻页到目标位置，再添加音符。");
+          if (kind === "add" && (args[1] < 0 || args[1] >= WINDOW_BEATS)) throw Error("添加位置超出当前编辑窗口，请先滚动到目标位置。");
           if (["move", "cropEnd", "remove", "clone"].includes(kind) && Array.isArray(args[0]) && args[0].length && args[0].every((id: string) => selection.current.has(id))) args[0] = [...selection.current];
-          const ops = noteIntent(frozen, kind, args, page * PAGE_BEATS * frozen.ppq);
+          const ops = noteIntent(frozen, kind, args, origin.current);
           if (ops.length) void edit(frozen, ops).finally(render);
         } catch (e) { reportError(e); }
         queueMicrotask(render);
@@ -113,7 +120,7 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
       action.current = command;
       p.$setCallbacks(command);
       const cancel = () => {
-        gesture.current = null;
+        gesture.current = null;marquee=null;rulerDrag=null;cancelAnimationFrame(autoFrame);
         p.$cancel();
         for (const el of [p, ...p.querySelectorAll("*")]) {
           // Release any capture held by the block manager's root.
@@ -123,41 +130,64 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
         queueMicrotask(render);
       };
       let pointerID: number | null = null;
+      let marquee:{tick:number,pitch:number,selection:string[]}|null=null;
+      let rulerDrag:{tick:number,x:number}|null=null;
+      let pointerX=0;
+      const pointerTick=(x:number)=>Math.max(0,Math.round(origin.current+(x-(p.querySelector(".gsuiTimewindow-mainContent")?.getBoundingClientRect().left??0))/Number(timewindow.getAttribute("pxperbeat")??64)*latest.current.target.ppq));
+      const pointerPitch=(y:number)=>{let nearest=60,dist=Infinity;p.querySelectorAll<HTMLElement>(".gsui-row[data-midi]").forEach(row=>{const r=row.getBoundingClientRect(),d=Math.abs(y-(r.top+r.height/2));if(d<dist){nearest=Number(row.dataset.midi);dist=d}});return nearest};
       const down = (e: PointerEvent) => {
         // The host ruler is display-only. Suppress the vendor's separate
         // cursor/loop state, which is not the native playback transport.
-        if ((e.target as Element).closest(".gsuiTimewindow-time")) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+        if ((e.target as Element).closest(".gsuiTimewindow-time")) {
+          const tick=pointerTick(e.clientX);cursor.current=tick;
+          if(e.detail===2)latest.current.navigate?.("seek",latest.current.target.clip.start+tick);
+          else rulerDrag={tick,x:e.clientX};
+          e.preventDefault();e.stopImmediatePropagation();return;
+        }
         if (latest.current.busy) { e.preventDefault(); e.stopImmediatePropagation(); return; }
         // The vendor keyboard includes four extra rows; do not let those start
         // a gesture even though the host would also reject the resulting pitch.
         const row = (e.target as Element).closest<HTMLElement>("[data-midi]");
         if (row && Number(row.dataset.midi) > 127) { e.stopImmediatePropagation(); return; }
         if (pointerID !== null) { e.stopImmediatePropagation(); return; }
-        pointerID = e.pointerId;
+        pointerID = e.pointerId;pointerX=e.clientX;autoFrame=requestAnimationFrame(autoscroll);
+        cursor.current=pointerTick(e.clientX);
+        if(e.shiftKey)marquee={tick:cursor.current,pitch:pointerPitch(e.clientY),selection:[...selection.current]};
+        timewindow.setAttribute("step",String(e.altKey?4/latest.current.target.ppq:latest.current.snap*4));
         gesture.current = structuredClone(latest.current.target);
       };
-      const up = () => {
+      const up = (event:PointerEvent) => {
+        if(rulerDrag){const start=rulerDrag.tick,end=pointerTick(event.clientX);if(Math.abs(event.clientX-rulerDrag.x)>4&&start!==end)latest.current.navigate?.("loop",latest.current.target.clip.start+Math.min(start,end),latest.current.target.clip.start+Math.max(start,end));rulerDrag=null;}
+        if(marquee){const box=marquee;marquee=null;const ids=boxSelection(gesture.current?.clip.notes??latest.current.target.clip.notes??[],box.tick,pointerTick(event.clientX),box.pitch,pointerPitch(event.clientY));queueMicrotask(()=>{selection.current=new Set([...box.selection,...ids]);render()});}
+
         // Upstream's body listener commits first; release the frozen snapshot
         // only after it has generated the complete batch.
-        queueMicrotask(() => { gesture.current = null; pointerID = null; render(); });
+        queueMicrotask(() => { gesture.current = null; pointerID = null;cancelAnimationFrame(autoFrame); updateViewport(); });
       };
       const keydown = (e: KeyboardEvent) => {
         if (e.isComposing || (e.target as HTMLElement).closest("input,textarea,select,[contenteditable=true]")) { e.stopImmediatePropagation(); return; }
-        if (e.key === "Escape") { cancel(); e.stopImmediatePropagation(); return; }
+        if (e.key === "Escape") { cancel();e.preventDefault(); e.stopImmediatePropagation(); return; }
+        if(e.code==="Space"||e.key==="Home"){e.preventDefault();e.stopImmediatePropagation();if(e.key==="Home"){if(!gesture.current)locate.current(0);latest.current.navigate?.("home")}else latest.current.navigate?.("toggle");return}
         if (latest.current.busy || gesture.current) { e.stopImmediatePropagation(); return; }
         const mod = e.ctrlKey || e.metaKey;
+        if(!mod&&!e.altKey&&[keys.current.quantize,keys.current.duplicate].includes(e.key.toUpperCase())){e.preventDefault();e.stopImmediatePropagation();shortcuts.current(e.key.toUpperCase());return}
+
+
+        if(mod&&["c","v"].includes(e.key.toLowerCase())){e.preventDefault();e.stopImmediatePropagation();if(e.key.toLowerCase()==="c")pianoClipboard.value=copyNotes(latest.current.target,[...selection.current]);else if(pianoClipboard.value){const frozen=structuredClone(latest.current.target);try{void latest.current.edit(frozen,pasteNotes(frozen,pianoClipboard.value,cursor.current)).finally(render)}catch(error){latest.current.reportError(error)}}return}
+
         if (mod && e.key.toLowerCase() === "z") {
           e.preventDefault(); e.stopImmediatePropagation(); latest.current.shift(e.shiftKey ? "redo" : "undo"); return;
         }
         const ids = [...selection.current];
         if (mod && ["a", "d"].includes(e.key.toLowerCase())) {
           e.preventDefault(); e.stopImmediatePropagation();
-          selection.current = e.key.toLowerCase() === "a" ? new Set((latest.current.target.clip.notes ?? []).filter(n => n.start >= page * PAGE_BEATS * latest.current.target.ppq && n.start < (page + 1) * PAGE_BEATS * latest.current.target.ppq).map(n => n.id)) : new Set(); render(); return;
+          selection.current = e.key.toLowerCase() === "a" ? new Set((latest.current.target.clip.notes ?? []).map(n => n.id)) : new Set(); render(); return;
         }
         if (ids.length && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
           e.preventDefault(); e.stopImmediatePropagation();
-          const step = Number(p.querySelector("gsui-timewindow")?.getAttribute("step") ?? 1) / 4;
+          const step = e.altKey?1/latest.current.target.ppq:Number(timewindow.getAttribute("step") ?? 4) / 4;
           command("move", ids, e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0, e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0);
+        } else if (ids.length && ["Delete","Backspace"].includes(e.key)) {e.preventDefault();e.stopImmediatePropagation();command("remove",ids);
         } else if (ids.length && mod && e.key.toLowerCase() === "b") {
           e.preventDefault(); e.stopImmediatePropagation();
           const ns = latest.current.target.clip.notes?.filter(n => selection.current.has(n.id)) ?? [];
@@ -167,7 +197,10 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
       };
       p.addEventListener("pointerdown", down, true);
       const wheel = (e: WheelEvent) => {
-        if (e.ctrlKey && (gesture.current || latest.current.busy)) { e.preventDefault(); e.stopImmediatePropagation(); }
+        if(e.ctrlKey && (gesture.current || latest.current.busy)) {e.preventDefault();e.stopImmediatePropagation();return}
+        followPaused.current=true;latest.current.navigate?.("manual");
+        if(e.shiftKey&&!e.ctrlKey){const area=p.querySelector<HTMLElement>(".gsuiTimewindow-scrollArea");if(area){area.scrollLeft+=e.deltaY||e.deltaX;e.preventDefault();e.stopImmediatePropagation()}}
+
       };
       p.addEventListener("wheel", wheel, { capture: true, passive: false });
       p.addEventListener("keydown", keydown, true);
@@ -180,28 +213,58 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
       p.ondrop = e => { e.preventDefault(); e.stopPropagation(); };
       let scrollFrame = 0;
       const scrollArea = p.querySelector<HTMLElement>(".gsuiTimewindow-scrollArea");
-      const scroll = () => { if (!scrollFrame) scrollFrame = requestAnimationFrame(() => { scrollFrame = 0; render(); }); };
+      const updateViewport=()=>{
+        if(!scrollArea)return;
+        const ppq=latest.current.target.ppq,px=Number(timewindow.getAttribute("pxperbeat"))||64;
+        if(!gesture.current){
+          const left=origin.current+scrollArea.scrollLeft/px*ppq;
+          if(scrollArea.scrollLeft>WINDOW_BEATS*px-scrollArea.clientWidth*2 || scrollArea.scrollLeft<scrollArea.clientWidth&&origin.current>0){
+            const next=Math.max(0,Math.floor(left/ppq/128-1)*128*ppq);
+            if(next!==origin.current){origin.current=next;scrollArea.scrollLeft=(left-next)/ppq*px;}
+          }
+        }
+        const nextStart = Math.round((origin.current + scrollArea.scrollLeft / px * ppq) * 32) / 32;
+        const nextBeats = Math.max(1, scrollArea.clientWidth / px);
+        const inset = p.querySelector<HTMLElement>(".gsuiTimewindow-panel")?.offsetWidth ?? 0;
+        const controlBeats = Math.max(1 / ppq, (scrollArea.clientWidth - inset) / px);
+        setViewport(old => old.start === nextStart && old.beats === nextBeats &&
+          old.inset === inset && old.controlBeats === controlBeats ? old :
+          {start: nextStart, beats: nextBeats, inset, controlBeats});
+        slot.style.left = `${scrollArea.scrollLeft}px`;
+        render();
+      };
+      const scroll = () => { if (!scrollFrame) scrollFrame = requestAnimationFrame(() => { scrollFrame = 0;updateViewport() }); };
+      locate.current=(tick)=>{if(gesture.current)return;const ppq=latest.current.target.ppq,px=Number(timewindow.getAttribute("pxperbeat"))||64;cursor.current=Math.max(0,Math.min(2147483647,Math.round(tick)));origin.current=Math.max(0,Math.floor(cursor.current/ppq/128-1)*128*ppq);if(scrollArea)scrollArea.scrollLeft=(cursor.current-origin.current)/ppq*px;render();updateViewport()};
+      const playhead=document.createElement("div");playhead.className="piano-playhead";p.querySelector(".gsuiTimewindow-mainContent")?.append(playhead);
+      transport.current=(absolute,playing,follow)=>{const tick=absolute-latest.current.target.clip.start,px=Number(timewindow.getAttribute("pxperbeat"))||64;playhead.hidden=!playing||tick<0;playhead.style.left=`${(tick-origin.current)/latest.current.target.ppq*px}px`;
+        if(!scrollArea||gesture.current||!playing)return;
+        if(follow!=="关闭"&&follow){followPaused.current=false;const local=(tick-origin.current)/latest.current.target.ppq*px;if(follow==="连续跟随"||local<scrollArea.scrollLeft||local>scrollArea.scrollLeft+scrollArea.clientWidth-80){locate.current(Math.max(0,tick-(follow==="连续跟随"?scrollArea.clientWidth/px*latest.current.target.ppq/3:0)))}}
+      };
+      window.addEventListener("resize",scroll);
+      const move=(e:PointerEvent)=>{pointerX=e.clientX};window.addEventListener("pointermove",move);
+      let autoFrame=0;
+      const autoscroll=()=>{if(gesture.current&&scrollArea){const bounds=scrollArea.getBoundingClientRect();if(pointerX>bounds.right-25)scrollArea.scrollLeft+=12;if(pointerX<bounds.left+80)scrollArea.scrollLeft-=12;}if(gesture.current)autoFrame=requestAnimationFrame(autoscroll)};
       scrollArea?.addEventListener("scroll", scroll, { passive: true });
       render(); setReady(true);
       p.querySelector("gsui-timewindow")?.setAttribute("pxperbeat", String(zoom));
-      p.querySelector("gsui-timewindow")?.setAttribute("step", String(snap));
+      p.querySelector("gsui-timewindow")?.setAttribute("step", String(snap*4));
       p.toggleAttribute("disabled", latest.current.busy);
       // The upstream helper scrolls the custom-element wrapper; the actual
-      // scroll container is nested. Center only on mount/page change, after
+      // scroll container is nested. Center only on mount/clip change, after
       // layout, so imported notes are visible without scrolling from MIDI 131.
       requestAnimationFrame(() => {
         if (disposed) return;
         const area = p.querySelector<HTMLElement>(".gsuiTimewindow-scrollArea");
-        const pitch = latest.current.target.clip.notes?.find(n => n.start >= page * PAGE_BEATS * latest.current.target.ppq && n.start < (page + 1) * PAGE_BEATS * latest.current.target.ppq)?.pitch ?? 60;
+        const pitch = latest.current.target.clip.notes?.[0]?.pitch ?? 60;
         const row = p.querySelector<HTMLElement>(`.gsui-row[data-midi="${pitch}"]`);
         if (area && row) {
           area.scrollTo({ top: area.scrollTop + row.getBoundingClientRect().top - area.getBoundingClientRect().top - area.clientHeight / 2, left: 0, behavior: "instant" });
-          render();
+          updateViewport();
         }
       });
       cleanup = () => {
         disposed = true; gesture.current = null; p.$cancel();
-        zoomObserver.disconnect();
+        zoomObserver.disconnect();window.removeEventListener("resize",scroll);cancelAnimationFrame(autoFrame);window.removeEventListener("pointermove",move);
         cancelAnimationFrame(scrollFrame); scrollArea?.removeEventListener("scroll", scroll);
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", cancel);
@@ -210,7 +273,7 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
       };
     }).catch(e => { if (!disposed) setLoadError(String(e)); });
     return () => { disposed = true; cleanup(); };
-  }, [target.id, target.track.id, target.clip.id, page]);
+  }, [target.id, target.track.id, target.clip.id]);
 
   useEffect(() => { applyView.current(); }, [target,preview]);
   useEffect(() => {
@@ -223,16 +286,16 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
     if (!grid.current) return;
     const tw = grid.current.querySelector("gsui-timewindow");
     tw?.setAttribute("pxperbeat", String(zoom));
-    tw?.setAttribute("step", String(snap));
+    tw?.setAttribute("step", String(snap*4));
   }, [zoom, snap]);
 
-  const absoluteStart = target.clip.start + offset;
+  const absoluteStart = target.clip.start + viewport.start;
   const mapIndex = useMemo(() => meterIndex(target.ppq, meter), [target.ppq, meter]);
   // 点击左侧琴键直接试听当前轨道音色（P2 工作区契约 §7，同一试听 API）。
   useEffect(() => {
     const host = mount.current;
     if (!host) return;
-    const down = (e: PointerEvent) => {
+      const down = (e: PointerEvent) => {
       if (e.button !== 0) return;
       const key = (e.target as Element | null)?.closest?.(".gsuiKeys-key[data-midi]");
       const midi = Number(key?.getAttribute("data-midi"));
@@ -254,15 +317,19 @@ export function usePianoRoll({ title,target,meter,busy,edit,shift,reportError,sn
     } catch (e) { reportError(e); }
     finally { transformLock.current = false; setTransformBusy(false); }
   }
+  shortcuts.current=(key)=>{if(key===keys.current.quantize)void transformNotes({quantize:{unit:quantizeUnit,strength:100}});else {const ns=target.clip.notes?.filter(n=>selection.current.has(n.id))??[];if(ns.length)action.current("clone",[...selection.current],(Math.max(...ns.map(n=>n.start+n.duration))-Math.min(...ns.map(n=>n.start)))/target.ppq)}};
   return {
+    keymap:(quantize:string,duplicate:string)=>{if(quantize!==duplicate&&/^[QWERTBL]$/.test(quantize)&&/^[QWERTBL]$/.test(duplicate))keys.current={quantize,duplicate}},
     currentSelection: () => [...selection.current],
     gestureActive: () => gesture.current !== null,
     transformBusy, quantizeUnit, setQuantizeUnit,
     transpose: (semitones: number) => void transformNotes({ transpose: { semitones } }),
     quantize: () => void transformNotes({ quantize: { unit: quantizeUnit, strength: 100 } }),
     quantizeTo: (unit: string) => void transformNotes({ quantize: { unit, strength: 100 } }),
-    mount,rulerSlot,ready,loadError,page,pageCount,setPage,zoom,setZoom,absoluteStart,mapIndex,selected,visible,velocityField,velocityIDs,velocity,
-    selectPage: () => action.current("selection",visible.map(n=>n.id)),
+    mount,rulerSlot,ready,loadError,zoom,setZoom,absoluteStart,mapIndex,selected,visible,velocityField,velocityIDs,velocity,viewport,
+    locate:(tick:number)=>locate.current(tick),playhead:(tick:number,playing:boolean,follow:string)=>transport.current(tick,playing,follow),
+    copy:()=>{pianoClipboard.value=copyNotes(target,[...selection.current])},paste:()=>{if(pianoClipboard.value){const frozen=structuredClone(target);void edit(frozen,pasteNotes(frozen,pianoClipboard.value,cursor.current)).catch(reportError)}},
+    selectAll: () => action.current("selection",(target.clip.notes??[]).map(n=>n.id)),
     clearSelection: () => action.current("unselection"),
     removeNotes: () => action.current("remove",selected),
     cloneNotes: () => {

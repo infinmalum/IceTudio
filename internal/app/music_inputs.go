@@ -59,11 +59,26 @@ func validateMusicInputsPayload(payload string) error {
 		return errors.New("音乐输入草稿超过 256 条")
 	}
 	for _, e := range shape.Entries {
-		if e.Key == "" || len(e.Key) > 512 || e.Label == "" || len(e.Raw) > 1024 || !project.ValidID(e.Target.ID) || e.Target.Revision < 0 || len(e.Title) > 200 {
+		if e.Key == "" || len(e.Key) > 512 || e.Label == "" || len(e.Raw) > MusicInputRawLimit(e.Label) || !project.ValidID(e.Target.ID) || e.Target.Revision < 0 || len(e.Title) > 200 {
 			return errors.New("音乐输入草稿条目无效")
 		}
 	}
 	return nil
+}
+
+// MusicInputRawLimit lets Native MIDI forms preserve a full bounded clip
+// selection. The WebView draft bridge still rejects the Native partition.
+func MusicInputRawLimit(label string) int {
+	switch label {
+	case "Native · mixer":
+		return 1 << 20
+	case "Native · audio_polish", "Native · sampler", "Native · comp":
+		return 128 << 10
+	case "Native · midi_arrange", "Native · midi_steps":
+		return 8192
+	default:
+		return 1024
+	}
 }
 
 func (s *Service) musicInputsPath() (string, error) {

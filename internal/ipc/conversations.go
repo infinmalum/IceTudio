@@ -6,8 +6,7 @@ import (
 	"icetudio/internal/storage"
 )
 
-// The same application contract is used by the RuntimeConfig (执行配置)
-// oriented CLI and desktop.
+// The desktop uses the same RuntimeConfig and conversation services.
 func (s *Server) dispatchConversation(request Request) (any, error) {
 	var params struct {
 		Attachments  []materials.Upload          `json:"attachments"`

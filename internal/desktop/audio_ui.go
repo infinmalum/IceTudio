@@ -2,7 +2,6 @@ package desktop
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -19,21 +18,21 @@ func (a *Workspace) beginTransport() {
 		return
 	}
 	v := &a.form.values
-	v.Position = strconv.FormatInt(a.playPosition, 10)
-	v.LoopStart = "0"
+	v.Position = musicTime(a.form.meter, a.playPosition)
+	v.LoopStart = musicTime(a.form.meter, 0)
 	end := int64(a.active.PPQ) * 4
 	for _, t := range a.active.State.Tracks {
 		for _, clip := range t.Clips {
 			end = max(end, clip.Start+clip.Length)
 		}
 	}
-	v.LoopEnd = strconv.FormatInt(end, 10)
+	v.LoopEnd = musicTime(a.form.meter, end)
 	if a.audio.ProjectID == a.active.ID {
-		v.Position = strconv.FormatInt(int64(a.audio.Tick), 10)
+		v.Position = musicTime(a.form.meter, int64(a.audio.Tick))
 		v.Loop = a.audio.Loop
-		v.LoopStart = strconv.FormatInt(a.audio.LoopStart, 10)
+		v.LoopStart = musicTime(a.form.meter, a.audio.LoopStart)
 		if a.audio.LoopEnd > 0 {
-			v.LoopEnd = strconv.FormatInt(a.audio.LoopEnd, 10)
+			v.LoopEnd = musicTime(a.form.meter, a.audio.LoopEnd)
 		}
 	}
 }
@@ -43,9 +42,9 @@ func transportRequest(f *propertyForm) (playback.Request, error) {
 		label, raw string
 		value      *int64
 	}{{"播放位置", f.values.Position, &r.Tick}, {"循环起点", f.values.LoopStart, &r.LoopStart}, {"循环终点", f.values.LoopEnd, &r.LoopEnd}} {
-		v, err := strconv.ParseInt(field.raw, 10, 64)
+		v, err := parseMusicTime(f.meter, field.raw)
 		if err != nil || v < 0 || v > project.MaxTick*2 {
-			return r, fmt.Errorf("%s须为有效整数 tick", field.label)
+			return r, fmt.Errorf("%s须为有效小节:拍:tick 或整数 tick", field.label)
 		}
 		*field.value = v
 	}
@@ -58,11 +57,17 @@ func (a *Workspace) applyTransport(f *propertyForm, seek bool) {
 	if f.writes > 0 || f.err != "" || a.closeFrozen || a.audioBusy {
 		return
 	}
+	if f.entry.Target.ID != a.active.ID || f.entry.Target.Revision != a.active.Revision {
+		f.err = "工程或修订已变化，原位置输入保留；请核对后重新打开位置表单"
+		return
+	}
 	r, err := transportRequest(f)
 	if err != nil {
 		f.err = err.Error()
 		return
 	}
+	r.Metronome = a.transportOptions.Metronome
+	r.CountIn = a.transportOptions.CountIn
 	f.applying = true
 	a.audioPending++
 	a.audioBusy = true

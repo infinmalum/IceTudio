@@ -17,11 +17,17 @@ func ScopeRegion(st *State, tracks, clips []string) *State {
 		clipSet[id] = true
 	}
 	out.Tracks = nil
+	out.Patterns = nil
+	out.Mixer = nil
+	out.AudioAssets = nil
 	for _, tr := range st.Tracks {
 		if len(trackSet) > 0 && !trackSet[tr.ID] {
 			continue
 		}
 		kept := tr
+		if len(clips) > 0 {
+			kept.Audio = nil
+		}
 		kept.Clips = nil
 		for _, c := range tr.Clips {
 			if len(clipSet) > 0 && !clipSet[c.ID] {
@@ -34,7 +40,7 @@ func ScopeRegion(st *State, tracks, clips []string) *State {
 		}
 		out.Tracks = append(out.Tracks, kept)
 	}
-	return &out
+	return scopedAudioAssets(&out, st.AudioAssets)
 }
 
 // ClipTrack returns the owning track of a clip.
@@ -62,11 +68,17 @@ func Region(st *State, trackID, clipID string, start, end *int64) *State {
 		return &out
 	}
 	out.Tracks = nil
+	out.Patterns = nil
+	out.Mixer = nil
+	out.AudioAssets = nil
 	for _, tr := range st.Tracks {
 		if trackID != "" && tr.ID != trackID {
 			continue
 		}
 		kept := tr
+		if clipID != "" || start != nil || end != nil {
+			kept.Audio = nil
+		}
 		kept.Clips = nil
 		for _, c := range tr.Clips {
 			if clipID != "" && c.ID != clipID {
@@ -76,7 +88,7 @@ func Region(st *State, trackID, clipID string, start, end *int64) *State {
 		}
 		out.Tracks = append(out.Tracks, kept)
 	}
-	return &out
+	return scopedAudioAssets(&out, st.AudioAssets)
 }
 
 func clipWindow(c Clip, start, end *int64) Clip {
@@ -107,6 +119,26 @@ func clipWindow(c Clip, start, end *int64) Clip {
 	for _, e := range c.Raw {
 		if e.Tick >= lo && e.Tick < hi {
 			out.Raw = append(out.Raw, e)
+		}
+	}
+	return out
+}
+
+func scopedAudioAssets(out *State, assets []AudioAsset) *State {
+	used := map[string]bool{}
+	for _, t := range out.Tracks {
+		if t.Sampler != nil {
+			for _, z := range t.Sampler.Zones {
+				used[z.AssetID] = true
+			}
+		}
+		for _, c := range t.Audio {
+			used[c.AssetID] = true
+		}
+	}
+	for _, a := range assets {
+		if used[a.ID] {
+			out.AudioAssets = append(out.AudioAssets, a)
 		}
 	}
 	return out

@@ -7,26 +7,43 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+	"icetudio/internal/app"
+	"icetudio/internal/audioasset"
 	"icetudio/internal/playback"
 	"icetudio/internal/project"
 )
 
 type propertyValues struct {
+	Sampler                                      *project.Sampler `json:",omitempty"`
+	Polish                                       *polishInputs    `json:",omitempty"`
+	Comp                                         *compInputs      `json:",omitempty"`
+	Mixer                                        *project.Mixer   `json:",omitempty"`
+	Audio                                        *audioFormValues `json:",omitempty"`
 	Name, Start, Length, Channel, Program, Color string
 	Position, LoopStart, LoopEnd, Driver         string
 	Loop                                         bool
+	MIDI                                         *midiInputs `json:",omitempty"`
 }
 type propertyForm struct {
-	open       bool
-	kind       string
-	entry      musicDraft
-	values     propertyValues
-	dirty      bool
-	applying   bool
-	saveFailed bool
-	writes     int
-	version    uint64
-	err        string
+	preparing              bool
+	cancelPrepare          func()
+	sampleAsset            string
+	sampleIndex            int
+	compTake, compPosition string
+	compSource, compFrames int64
+	compTakes              []audioasset.TakeStatus
+	mixer                  mixerControls
+	meter                  meterProjection
+	open                   bool
+	kind                   string
+	entry                  musicDraft
+	values                 propertyValues
+	dirty                  bool
+	applying               bool
+	saveFailed             bool
+	writes                 int
+	version                uint64
+	err                    string
 }
 
 func (a *Workspace) beginProperties(kind string, track project.Track, clip project.Clip) {
@@ -48,10 +65,10 @@ func (a *Workspace) beginProperties(kind string, track project.Track, clip proje
 		target = EditTarget{"new_project", 0}
 	}
 	tid, cid := "", ""
-	if kind == "track" || kind == "clip" || kind == "velocity" {
+	if kind == "sampler" || kind == "track" || kind == "clip" || kind == "velocity" || kind == "audio_clip" || kind == "audio_polish" || midiFormKind(kind) {
 		tid = track.ID
 	}
-	if kind == "clip" || kind == "velocity" {
+	if kind == "clip" || kind == "velocity" || kind == "audio_clip" || kind == "audio_polish" || midiFormKind(kind) {
 		cid = clip.ID
 	}
 	entry := newMusicDraft(target, a.active.Title, tid, cid, kind, "")
@@ -62,7 +79,7 @@ func (a *Workspace) beginProperties(kind string, track project.Track, clip proje
 			return
 		}
 	}
-	a.form = &propertyForm{open: true, kind: kind, entry: entry, values: v}
+	a.form = &propertyForm{open: true, kind: kind, entry: entry, values: v, meter: func() meterProjection { m, _ := newMeterProjection(a.active.PPQ, a.active.State.Meter); return m }()}
 	a.preview.freeze(true)
 	a.notifyPiano()
 }
@@ -75,9 +92,9 @@ func (a *Workspace) changedForm(f *propertyForm) {
 		f.err = err.Error()
 		return
 	}
-	if len(b) > 1024 {
+	if limit := app.MusicInputRawLimit(f.entry.Label); len(b) > limit {
 		f.saveFailed = true
-		f.err = "输入超过草稿上限（1024 字节），请缩短"
+		f.err = fmt.Sprintf("输入超过草稿上限（%d 字节），请缩短", limit)
 		return
 	}
 	f.entry.Raw = string(b)
@@ -134,6 +151,10 @@ func (a *Workspace) reloadDrafts() {
 	}()
 }
 func (a *Workspace) dismissForm() {
+	a.stopMaterialPreview()
+	if a.form != nil {
+		a.finishMixerWrite(a.form)
+	}
 	a.form = nil
 	a.preview.freeze(a.closeFrozen || a.mapForm != nil)
 	a.notifyPiano()
@@ -165,6 +186,25 @@ func (a *Workspace) clearForm(f *propertyForm, done func()) {
 func propertyOps(f *propertyForm) ([]project.Op, error) {
 	v := f.values
 	switch f.kind {
+	case "sampler":
+		if v.Sampler == nil {
+			return nil, fmt.Errorf("采样器草稿无效")
+		}
+		var sampler *project.Sampler
+		if len(v.Sampler.Zones) > 0 {
+			sampler = v.Sampler.Copy()
+		}
+		return []project.Op{{Kind: "sampler.set", TrackID: f.entry.TrackID, Sampler: sampler}}, nil
+	case "audio_polish":
+		if v.Polish == nil || len(v.Polish.Ops) == 0 {
+			return nil, fmt.Errorf("请先生成候选")
+		}
+		return v.Polish.Ops, nil
+	case "mixer":
+		if v.Mixer == nil {
+			return nil, fmt.Errorf("混音草稿缺少快照")
+		}
+		return []project.Op{{Kind: "mixer.set", Mixer: v.Mixer}}, nil
 	case "field":
 		return ordinaryFieldOps(f)
 	case "velocity":
@@ -206,14 +246,56 @@ func propertyOps(f *propertyForm) ([]project.Op, error) {
 	return nil, fmt.Errorf("不支持的表单")
 }
 func (a *Workspace) applyForm(f *propertyForm) {
-	if f.writes != 0 || f.err != "" || a.closeFrozen || (f.kind != "create" && !a.writable()) || a.editBusy || a.fileBusy {
+	if f.preparing || f.mixer.write != nil || f.writes != 0 || f.err != "" || a.closeFrozen || (f.kind != "create" && !a.writable()) || a.editBusy || a.fileBusy {
+		return
+	}
+	if f.kind == "comp" {
+		a.applyComp(f)
 		return
 	}
 	if f.kind == "create" {
 		a.createFromForm(f)
 		return
 	}
-	ops, err := propertyOps(f)
+	var ops []project.Op
+	var err error
+	if f.kind == "sampler" || f.kind == "audio_polish" {
+		if f.entry.Target.ID != a.active.ID || f.entry.Target.Revision != a.active.Revision {
+			f.err = "原工程或修订已变化，保留输入供核对"
+			return
+		}
+		if sampler := f.values.Sampler; f.kind == "sampler" && sampler != nil && len(sampler.Zones) > 0 {
+			if e := project.ValidateSampler(&a.active.State, sampler); e != nil {
+				f.err = e.Error()
+				return
+			}
+		}
+		ops, err = propertyOps(f)
+	} else if f.kind == "mixer" {
+		if f.entry.Target.ID != a.active.ID || f.entry.Target.Revision != a.active.Revision {
+			f.err = "原工程修订已变化，草稿保留供核对"
+			return
+		}
+		if f.values.Mixer != nil {
+			if _, _, e := project.MixOrder(&a.active.State, *f.values.Mixer); e != nil {
+				f.err = e.Error()
+				return
+			}
+		}
+		ops, err = propertyOps(f)
+	} else if midiFormKind(f.kind) || f.kind == "audio_clip" {
+		if f.entry.Target.ID != a.active.ID || f.entry.Target.Revision != a.active.Revision {
+			f.err = "原工程或修订已变化，保留输入供核对"
+			return
+		}
+		if f.kind == "audio_clip" {
+			ops, err = audioFormOps(f, &a.active.State)
+		} else {
+			ops, err = midiFormOps(f, &a.active.State)
+		}
+	} else {
+		ops, err = propertyOps(f)
+	}
 	if err != nil {
 		f.err = err.Error()
 		return
@@ -232,13 +314,14 @@ func (a *Workspace) propertiesDialog(c *ui.Context) {
 		return
 	}
 	if !f.open {
+		a.finishMixerWrite(f)
 		f.open = true
-		if f.writes == 0 && !f.saveFailed && !f.applying && !a.editBusy {
+		if f.writes == 0 && !f.saveFailed && !f.applying && !f.preparing && !a.editBusy {
 			a.dismissForm()
 		}
 		return
 	}
-	names := map[string]string{"track": "轨道属性", "clip": "片段属性", "rename": "工程名称", "create": "新建工程", "transport": "播放位置与循环", "field": f.entry.Label, "velocity": "所选音符力度"}
+	names := map[string]string{"sampler": "采样器与鼓垫", "audio_polish": "音频精修", "comp": "Take 选段与 Comp", "mixer": "混音与自动化", "audio_clip": "音频片段", "track": "轨道属性", "clip": "片段属性", "rename": "工程名称", "create": "新建工程", "transport": "播放位置与循环", "field": f.entry.Label, "velocity": "所选音符力度", "midi_arrange": "批量片段", "midi_control": "MIDI 控制事件", "midi_steps": "鼓组步进器", "midi_chords": "音阶与和弦", "midi_marker": "段落标记", "midi_pattern": "Pattern 资源库"}
 	ui.Modal(c, &f.open, func() {
 		ui.Text(c, names[f.kind]).FontSize(18).Bold()
 		ui.Textf(c, "冻结基准修订 %d；应用时校验，冲突不覆盖", f.entry.Target.Revision).FontSize(11)
@@ -249,7 +332,7 @@ func (a *Workspace) propertiesDialog(c *ui.Context) {
 					ui.TextInput(c, v).Grow(1).Label(label).Disabled(a.editBusy || f.writes > 32).OnChange(func() { a.changedForm(f) })
 				})
 			}
-			if f.kind != "transport" {
+			if f.kind != "sampler" && f.kind != "comp" && f.kind != "audio_polish" && f.kind != "mixer" && f.kind != "transport" && f.kind != "audio_clip" && !midiFormKind(f.kind) {
 				label := "名称"
 				if f.kind == "field" || f.kind == "velocity" {
 					label = "原始整数值"
@@ -257,9 +340,10 @@ func (a *Workspace) propertiesDialog(c *ui.Context) {
 				field(label, &f.values.Name)
 			}
 			if f.kind == "transport" {
-				field("播放位置 tick", &f.values.Position)
-				field("循环起点 tick", &f.values.LoopStart)
-				field("循环终点 tick", &f.values.LoopEnd)
+				field("播放位置", &f.values.Position)
+				field("循环起点", &f.values.LoopStart)
+				field("循环终点", &f.values.LoopEnd)
+				ui.Text(c, "小节:拍:拍内tick；也可输入整数 tick。变拍以当前工程为准。").FontSize(11).MaxWidth(400)
 				ui.Checkbox(c, &f.values.Loop, "循环").Label("循环").OnChange(func() { a.changedForm(f) })
 			}
 			if f.kind == "track" {
@@ -273,11 +357,33 @@ func (a *Workspace) propertiesDialog(c *ui.Context) {
 				field("长度 tick", &f.values.Length)
 				ui.Text(c, "缩短不得截断已有音符、控制或原始事件。").FontSize(11)
 			}
+			if midiFormKind(f.kind) {
+				a.midiEditorFields(c, f, field)
+			}
+			if f.kind == "mixer" {
+				a.mixerFields(c, f)
+			}
+			if f.kind == "sampler" {
+				a.samplerFields(c, f)
+			}
+			if f.kind == "audio_polish" {
+				a.polishFields(c, f)
+			}
+			if f.kind == "comp" {
+				ui.Box(c).Disabled(f.cancelPrepare != nil).Children(func() { a.compFields(c, f) })
+			}
+			if f.kind == "audio_clip" {
+				a.audioClipFields(c, f, field)
+				a.audioExtraFields(c, f)
+			}
 			if f.kind == "track" || f.kind == "clip" {
 				colorPicker(c, &f.values.Color, func() { a.changedForm(f) })
 			}
 			if f.err != "" {
 				ui.Text(c, f.err).TextColor(c.Theme().Warning)
+				if (f.kind == "mixer" || f.kind == "sampler" || f.kind == "audio_polish" || f.kind == "comp") && !f.saveFailed {
+					ui.Button(c, "确认提示").OnClick(func() { f.err = "" })
+				}
 			}
 			if f.writes > 0 {
 				ui.Text(c, "正在持久保存输入…")
@@ -286,12 +392,16 @@ func (a *Workspace) propertiesDialog(c *ui.Context) {
 				if f.saveFailed {
 					ui.Button(c, "重试保留输入").Disabled(f.writes > 0).OnClick(func() { a.changedForm(f) })
 				}
-				ui.Button(c, "保留输入并返回").Disabled(f.writes > 0 || f.saveFailed || a.editBusy).OnClick(a.dismissForm)
-				ui.Button(c, "丢弃输入").Disabled(f.writes > 0 || a.editBusy).OnClick(func() { a.clearForm(f, a.dismissForm) })
+				ui.Button(c, "保留输入并返回").Disabled(f.preparing || f.mixer.write != nil || f.writes > 0 || f.saveFailed || a.editBusy).OnClick(a.dismissForm)
+				ui.Button(c, "丢弃输入").Disabled(f.preparing || f.mixer.write != nil || f.writes > 0 || a.editBusy).OnClick(func() { a.clearForm(f, a.dismissForm) })
 				if f.kind == "transport" {
 					ui.Button(c, "定位 / 应用循环").Disabled(f.writes > 0 || f.err != "" || a.audioBusy).OnClick(func() { a.applyTransport(f, true) })
 				}
-				ui.PrimaryButton(c, "应用").Disabled(f.writes > 0 || f.err != "" || a.editBusy || a.fileBusy || (f.kind != "create" && !a.writable())).OnClick(func() {
+				if f.kind == "comp" && f.preparing && f.cancelPrepare != nil {
+					ui.Button(c, "取消后台处理").OnClick(f.cancelPrepare)
+				}
+				ui.PrimaryButton(c, "应用").Disabled(f.kind == "comp" && (f.values.Comp == nil || len(f.values.Comp.Parts) == 0 || f.values.Comp.Track == "") ||
+					f.kind == "audio_polish" && (f.values.Polish == nil || len(f.values.Polish.Ops) == 0) || f.preparing || f.mixer.write != nil || f.writes > 0 || f.err != "" || a.editBusy || a.fileBusy || (f.kind != "create" && !a.writable())).OnClick(func() {
 					if f.kind == "transport" {
 						a.applyTransport(f, false)
 					} else {
@@ -391,7 +501,7 @@ func restoreMusicDraft(e musicDraft) (string, propertyValues, error) {
 	if strings.HasPrefix(e.Label, nativeInputPrefix) {
 		kind := strings.TrimPrefix(e.Label, nativeInputPrefix)
 		switch kind {
-		case "track", "clip", "rename", "create", "transport", "velocity":
+		case "track", "clip", "rename", "create", "transport", "velocity", "midi_arrange", "midi_control", "midi_steps", "midi_chords", "midi_marker", "midi_pattern", "audio_clip", "mixer", "sampler", "audio_polish", "comp":
 		default:
 			return "", v, fmt.Errorf("不支持的 Native 草稿类型；原记录保留")
 		}

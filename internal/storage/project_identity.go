@@ -15,7 +15,7 @@ func (s *Store) projectIdentityHistoryTx(ctx context.Context, tx *sql.Tx, projec
 	creates := false
 	for _, op := range ops {
 		switch op.Kind {
-		case "track.add", "clip.add", "note.add", "control.add":
+		case "mixer.set", "track.add", "clip.add", "note.add", "control.add", "clip.arrange", "marker.add", "pattern.place", "audio.asset", "audio.add":
 			creates = true
 		}
 	}
