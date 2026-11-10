@@ -3,6 +3,7 @@ package desktop
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -14,11 +15,12 @@ import (
 )
 
 type propertyValues struct {
-	Sampler                                      *project.Sampler `json:",omitempty"`
-	Polish                                       *polishInputs    `json:",omitempty"`
-	Comp                                         *compInputs      `json:",omitempty"`
-	Mixer                                        *project.Mixer   `json:",omitempty"`
-	Audio                                        *audioFormValues `json:",omitempty"`
+	Sampler                                      *project.Sampler      `json:",omitempty"`
+	Polish                                       *polishInputs         `json:",omitempty"`
+	Comp                                         *compInputs           `json:",omitempty"`
+	FreezeAssets                                 *[]project.AudioAsset `json:",omitempty"`
+	Mixer                                        *project.Mixer        `json:",omitempty"`
+	Audio                                        *audioFormValues      `json:",omitempty"`
 	Name, Start, Length, Channel, Program, Color string
 	Position, LoopStart, LoopEnd, Driver         string
 	Loop                                         bool
@@ -27,6 +29,7 @@ type propertyValues struct {
 type propertyForm struct {
 	preparing              bool
 	cancelPrepare          func()
+	capturePlugin          func()
 	sampleAsset            string
 	sampleIndex            int
 	compTake, compPosition string
@@ -204,7 +207,18 @@ func propertyOps(f *propertyForm) ([]project.Op, error) {
 		if v.Mixer == nil {
 			return nil, fmt.Errorf("混音草稿缺少快照")
 		}
-		return []project.Op{{Kind: "mixer.set", Mixer: v.Mixer}}, nil
+		var ops []project.Op
+		var assets []project.AudioAsset
+		if v.FreezeAssets != nil {
+			assets = *v.FreezeAssets
+		}
+		for i := range assets {
+			asset := &assets[i]
+			if slices.ContainsFunc(v.Mixer.Channels, func(ch project.MixChannel) bool { return ch.FrozenAssetID == asset.ID }) {
+				ops = append(ops, project.Op{Kind: "audio.asset", AudioAsset: asset})
+			}
+		}
+		return append(ops, project.Op{Kind: "mixer.set", Mixer: v.Mixer}), nil
 	case "field":
 		return ordinaryFieldOps(f)
 	case "velocity":
@@ -322,92 +336,102 @@ func (a *Workspace) propertiesDialog(c *ui.Context) {
 		return
 	}
 	names := map[string]string{"sampler": "采样器与鼓垫", "audio_polish": "音频精修", "comp": "Take 选段与 Comp", "mixer": "混音与自动化", "audio_clip": "音频片段", "track": "轨道属性", "clip": "片段属性", "rename": "工程名称", "create": "新建工程", "transport": "播放位置与循环", "field": f.entry.Label, "velocity": "所选音符力度", "midi_arrange": "批量片段", "midi_control": "MIDI 控制事件", "midi_steps": "鼓组步进器", "midi_chords": "音阶与和弦", "midi_marker": "段落标记", "midi_pattern": "Pattern 资源库"}
+	width, height := c.Size()
+	formWidth := min(420, width-64)
 	ui.Modal(c, &f.open, func() {
 		ui.Text(c, names[f.kind]).FontSize(18).Bold()
 		ui.Textf(c, "冻结基准修订 %d；应用时校验，冲突不覆盖", f.entry.Target.Revision).FontSize(11)
-		ui.Column(c).Width(420).Gap(8).Disabled(f.applying || f.writes > 32).Children(func() {
-			field := func(label string, v *string) {
-				ui.Row(c.Key(label)).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, label).Width(90)
-					ui.TextInput(c, v).Grow(1).Label(label).Disabled(a.editBusy || f.writes > 32).OnChange(func() { a.changedForm(f) })
-				})
-			}
-			if f.kind != "sampler" && f.kind != "comp" && f.kind != "audio_polish" && f.kind != "mixer" && f.kind != "transport" && f.kind != "audio_clip" && !midiFormKind(f.kind) {
-				label := "名称"
-				if f.kind == "field" || f.kind == "velocity" {
-					label = "原始整数值"
+		ui.Scroll(c).Width(formWidth).MaxHeight(height - 174).Disabled(f.applying || f.writes > 32).Children(func() {
+			ui.Column(c).FillWidth().Gap(8).Children(func() {
+				field := func(label string, v *string) {
+					ui.Row(c.Key(label)).Gap(8).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, label).Width(90)
+						ui.TextInput(c, v).Grow(1).Label(label).Disabled(a.editBusy || f.writes > 32).OnChange(func() { a.changedForm(f) })
+					})
 				}
-				field(label, &f.values.Name)
-			}
-			if f.kind == "transport" {
-				field("播放位置", &f.values.Position)
-				field("循环起点", &f.values.LoopStart)
-				field("循环终点", &f.values.LoopEnd)
-				ui.Text(c, "小节:拍:拍内tick；也可输入整数 tick。变拍以当前工程为准。").FontSize(11).MaxWidth(400)
-				ui.Checkbox(c, &f.values.Loop, "循环").Label("循环").OnChange(func() { a.changedForm(f) })
-			}
-			if f.kind == "track" {
-				field("新音符通道", &f.values.Channel)
-				field("乐器程序", &f.values.Program)
-				ui.Text(c, "通道 10 使用 GM 打击组；改通道不改已有音符路由。").FontSize(11)
-				a.instrumentChoices(c, f)
-			}
-			if f.kind == "clip" {
-				field("起点 tick", &f.values.Start)
-				field("长度 tick", &f.values.Length)
-				ui.Text(c, "缩短不得截断已有音符、控制或原始事件。").FontSize(11)
-			}
-			if midiFormKind(f.kind) {
-				a.midiEditorFields(c, f, field)
-			}
-			if f.kind == "mixer" {
-				a.mixerFields(c, f)
-			}
-			if f.kind == "sampler" {
-				a.samplerFields(c, f)
-			}
-			if f.kind == "audio_polish" {
-				a.polishFields(c, f)
-			}
-			if f.kind == "comp" {
-				ui.Box(c).Disabled(f.cancelPrepare != nil).Children(func() { a.compFields(c, f) })
-			}
-			if f.kind == "audio_clip" {
-				a.audioClipFields(c, f, field)
-				a.audioExtraFields(c, f)
-			}
-			if f.kind == "track" || f.kind == "clip" {
-				colorPicker(c, &f.values.Color, func() { a.changedForm(f) })
-			}
-			if f.err != "" {
-				ui.Text(c, f.err).TextColor(c.Theme().Warning)
-				if (f.kind == "mixer" || f.kind == "sampler" || f.kind == "audio_polish" || f.kind == "comp") && !f.saveFailed {
-					ui.Button(c, "确认提示").OnClick(func() { f.err = "" })
-				}
-			}
-			if f.writes > 0 {
-				ui.Text(c, "正在持久保存输入…")
-			}
-			ui.Row(c).Gap(6).Justify(ui.End).Children(func() {
-				if f.saveFailed {
-					ui.Button(c, "重试保留输入").Disabled(f.writes > 0).OnClick(func() { a.changedForm(f) })
-				}
-				ui.Button(c, "保留输入并返回").Disabled(f.preparing || f.mixer.write != nil || f.writes > 0 || f.saveFailed || a.editBusy).OnClick(a.dismissForm)
-				ui.Button(c, "丢弃输入").Disabled(f.preparing || f.mixer.write != nil || f.writes > 0 || a.editBusy).OnClick(func() { a.clearForm(f, a.dismissForm) })
-				if f.kind == "transport" {
-					ui.Button(c, "定位 / 应用循环").Disabled(f.writes > 0 || f.err != "" || a.audioBusy).OnClick(func() { a.applyTransport(f, true) })
-				}
-				if f.kind == "comp" && f.preparing && f.cancelPrepare != nil {
-					ui.Button(c, "取消后台处理").OnClick(f.cancelPrepare)
-				}
-				ui.PrimaryButton(c, "应用").Disabled(f.kind == "comp" && (f.values.Comp == nil || len(f.values.Comp.Parts) == 0 || f.values.Comp.Track == "") ||
-					f.kind == "audio_polish" && (f.values.Polish == nil || len(f.values.Polish.Ops) == 0) || f.preparing || f.mixer.write != nil || f.writes > 0 || f.err != "" || a.editBusy || a.fileBusy || (f.kind != "create" && !a.writable())).OnClick(func() {
-					if f.kind == "transport" {
-						a.applyTransport(f, false)
-					} else {
-						a.applyForm(f)
+				if f.kind != "sampler" && f.kind != "comp" && f.kind != "audio_polish" && f.kind != "mixer" && f.kind != "transport" && f.kind != "audio_clip" && !midiFormKind(f.kind) {
+					label := "名称"
+					if f.kind == "field" || f.kind == "velocity" {
+						label = "原始整数值"
 					}
+					field(label, &f.values.Name)
+				}
+				if f.kind == "transport" {
+					field("播放位置", &f.values.Position)
+					field("循环起点", &f.values.LoopStart)
+					field("循环终点", &f.values.LoopEnd)
+					ui.Text(c, "小节:拍:拍内tick；也可输入整数 tick。变拍以当前工程为准。").FontSize(11).MaxWidth(400)
+					ui.Checkbox(c, &f.values.Loop, "循环").Label("循环").OnChange(func() { a.changedForm(f) })
+				}
+				if f.kind == "track" {
+					field("新音符通道", &f.values.Channel)
+					field("乐器程序", &f.values.Program)
+					ui.Text(c, "通道 10 使用 GM 打击组；改通道不改已有音符路由。").FontSize(11)
+					a.instrumentChoices(c, f)
+				}
+				if f.kind == "clip" {
+					field("起点 tick", &f.values.Start)
+					field("长度 tick", &f.values.Length)
+					ui.Text(c, "缩短不得截断已有音符、控制或原始事件。").FontSize(11)
+				}
+				if midiFormKind(f.kind) {
+					a.midiEditorFields(c, f, field)
+				}
+				if f.kind == "mixer" {
+					a.mixerFields(c, f)
+				}
+				if f.kind == "sampler" {
+					a.samplerFields(c, f)
+				}
+				if f.kind == "audio_polish" {
+					a.polishFields(c, f)
+				}
+				if f.kind == "comp" {
+					ui.Box(c).Disabled(f.cancelPrepare != nil).Children(func() { a.compFields(c, f) })
+				}
+				if f.kind == "audio_clip" {
+					a.audioClipFields(c, f, field)
+					a.audioExtraFields(c, f)
+				}
+				if f.kind == "track" || f.kind == "clip" {
+					colorPicker(c, &f.values.Color, func() { a.changedForm(f) })
+				}
+				if f.err != "" {
+					ui.Text(c, f.err).TextColor(c.Theme().Warning)
+					if (f.kind == "mixer" || f.kind == "sampler" || f.kind == "audio_polish" || f.kind == "comp") && !f.saveFailed {
+						ui.Button(c, "确认提示").OnClick(func() { f.err = "" })
+					}
+				}
+				if f.writes > 0 {
+					ui.Text(c, "正在持久保存输入…")
+				}
+			})
+		})
+		ui.Row(c).Width(formWidth).Wrap().Gap(6).Justify(ui.End).Disabled(f.applying || f.writes > 32).Children(func() {
+			if f.saveFailed {
+				ui.Button(c, "重试保留输入").Disabled(f.writes > 0).OnClick(func() { a.changedForm(f) })
+			}
+			ui.Button(c, "保留输入并返回").Disabled(f.preparing || f.mixer.write != nil || f.writes > 0 || f.saveFailed || a.editBusy).OnClick(a.dismissForm)
+			ui.Button(c, "丢弃输入").Disabled(f.preparing || f.mixer.write != nil || f.writes > 0 || a.editBusy).OnClick(func() { a.clearForm(f, a.dismissForm) })
+			if f.kind == "transport" {
+				ui.Button(c, "定位 / 应用循环").Disabled(f.writes > 0 || f.err != "" || a.audioBusy).OnClick(func() { a.applyTransport(f, true) })
+			}
+			if f.capturePlugin != nil {
+				ui.PrimaryButton(c, "获取插件窗口更改").OnClick(func() {
+					f.capturePlugin()
+					f.capturePlugin = nil
 				})
+			}
+			if f.preparing && f.cancelPrepare != nil {
+				ui.Button(c, "取消后台处理").OnClick(f.cancelPrepare)
+			}
+			ui.PrimaryButton(c, "应用").Disabled(f.kind == "comp" && (f.values.Comp == nil || len(f.values.Comp.Parts) == 0 || f.values.Comp.Track == "") ||
+				f.kind == "audio_polish" && (f.values.Polish == nil || len(f.values.Polish.Ops) == 0) || f.preparing || f.mixer.write != nil || f.writes > 0 || f.err != "" || a.editBusy || a.fileBusy || (f.kind != "create" && !a.writable())).OnClick(func() {
+				if f.kind == "transport" {
+					a.applyTransport(f, false)
+				} else {
+					a.applyForm(f)
+				}
 			})
 		})
 	})

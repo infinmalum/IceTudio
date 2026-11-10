@@ -36,8 +36,13 @@ func putAutomation(m *project.Mixer, target, param string, point project.Automat
 func (a *Workspace) mixerAutomation(c *ui.Context, f *propertyForm, ch project.MixChannel, changed func()) {
 	s, m := &f.mixer, f.values.Mixer
 	targets := []mixChoice{{ch.ID, "通道推子 / 声像"}}
+	slots := slices.Clone(ch.Effects)
+	if ch.Instrument != nil {
+		targets = append(targets, mixChoice{ch.Instrument.ID, effectTitle(*ch.Instrument)})
+		slots = append(slots, *ch.Instrument)
+	}
 	for i, fx := range ch.Effects {
-		targets = append(targets, mixChoice{fx.ID, fmt.Sprintf("%d · %s", i+1, mixEffectName(fx.Kind))})
+		targets = append(targets, mixChoice{fx.ID, fmt.Sprintf("%d · %s", i+1, effectTitle(fx))})
 	}
 	if !slices.ContainsFunc(targets, func(p mixChoice) bool { return p.id == s.target }) {
 		s.target = ch.ID
@@ -48,11 +53,25 @@ func (a *Workspace) mixerAutomation(c *ui.Context, f *propertyForm, ch project.M
 			s.parameter = ""
 		}
 		params := []mixChoice{{"gain", "推子"}, {"pan", "声像"}}
-		if s.target != ch.ID {
-			params = []mixChoice{{"amount", "效果强度"}, {"wet", "湿信号"}}
+		if i := slices.IndexFunc(slots, func(fx project.MixEffect) bool { return fx.ID == s.target }); i >= 0 {
+			fx := slots[i]
+			params = nil
+			if ch.Instrument == nil || ch.Instrument.ID != fx.ID {
+				params = append(params, mixChoice{"wet", "湿信号"})
+			}
+			if fx.Plugin == nil {
+				params = append(params, mixChoice{"amount", "效果强度"})
+			} else {
+				for _, p := range fx.Plugin.Parameters {
+					params = append(params, mixChoice{project.PluginParameterKey(p.ID), pluginParameterLabel(p)})
+				}
+			}
 		}
-		if s.parameter == "" {
-			s.parameter = params[0].id
+		if !slices.ContainsFunc(params, func(p mixChoice) bool { return p.id == s.parameter }) {
+			s.parameter = ""
+			if len(params) > 0 {
+				s.parameter = params[0].id
+			}
 		}
 		mixSelect(c, "参数", &s.parameter, params)
 	})
@@ -319,12 +338,26 @@ func mixerParameter(m *project.Mixer, target, param string) float64 {
 		return m.Channel(target).Pan
 	}
 	for _, ch := range m.Channels {
-		for _, fx := range ch.Effects {
-			if fx.ID == target {
-				if param == "wet" {
-					return fx.Wet
+		slots := ch.Effects
+		if ch.Instrument != nil {
+			slots = append(slices.Clone(slots), *ch.Instrument)
+		}
+		for _, fx := range slots {
+			if fx.ID != target {
+				continue
+			}
+			if param == "wet" {
+				return ch.MacroValue(target, param, fx.Wet)
+			}
+			if param == "amount" {
+				return ch.MacroValue(target, param, fx.Amount)
+			}
+			if fx.Plugin != nil {
+				for _, p := range fx.Plugin.Parameters {
+					if project.PluginParameterKey(p.ID) == param {
+						return ch.MacroValue(target, param, p.Value)
+					}
 				}
-				return fx.Amount
 			}
 		}
 	}

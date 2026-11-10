@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"icetudio/internal/audioasset"
+	"icetudio/internal/pluginhost"
 	"icetudio/internal/project"
 )
 
@@ -22,6 +23,21 @@ type audioRegion struct {
 func compileAudio(st *project.State, score *Score, solo bool) error {
 	count := 0
 	for ti, t := range st.Tracks {
+		if st.Mixer != nil {
+			if id := st.Mixer.Channel(t.ID).FrozenAssetID; id != "" {
+				asset, ok := project.FindAudioAsset(st, id)
+				if !ok {
+					return fmt.Errorf("冻结轨缺少音频资产")
+				}
+				score.EndFrame = max(score.EndFrame, asset.Frames)
+				score.EndTick = max(score.EndTick, int64(math.Ceil(score.Timeline.Tick(asset.Frames))))
+				if !t.Muted && (!solo || t.Solo) {
+					score.Audio = append(score.Audio, audioRegion{Track: ti, Asset: asset,
+						Clip: project.AudioClip{AssetID: id, Frames: asset.Frames, Gain: 100}})
+				}
+				continue
+			}
+		}
 		for _, c := range t.Audio {
 			count++
 			asset, ok := project.FindAudioAsset(st, c.AssetID)
@@ -57,10 +73,14 @@ func (m *Manager) compileContext(ctx context.Context, snapshot Snapshot, metrono
 	if err != nil {
 		return nil, err
 	}
+	score.catalog = pluginhost.New(m.dir)
 	samples := map[string][]int16{}
 	var bytes int64
 	for i := range score.Audio {
 		r := &score.Audio[i]
+		if len(r.Samples) != 0 {
+			continue
+		}
 		if cached, ok := samples[r.Asset.Digest]; ok {
 			if int64(len(cached)) != r.Asset.Frames*2 {
 				return nil, fmt.Errorf("相同音频哈希的帧数不一致")

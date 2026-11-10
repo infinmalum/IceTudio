@@ -9,11 +9,21 @@ package playback
 */
 import "C"
 import (
+	"context"
 	"errors"
+	"fmt"
+	"slices"
 	"unsafe"
+
+	"icetudio/internal/pluginhost"
 )
 
-type native struct{ ptr *C.ice_engine }
+type native struct {
+	ptr     *C.ice_engine
+	offline bool
+	workers []*pluginhost.Instance
+	mix     *mixPlan
+}
 type nativeStatus struct {
 	Frame, Callbacks, Misses, Loops int64
 	Playing, CountIn                bool
@@ -35,7 +45,7 @@ func openNativePeriod(font, driver string, offline bool, period int) (*native, e
 	if p == nil {
 		return nil, errors.New("FluidSynth 无法打开音色或音频设备；请检查 SoundFont、驱动及系统音频服务")
 	}
-	return &native{p}, nil
+	return &native{ptr: p, offline: offline}, nil
 }
 func nativeVersion() string { return C.GoString(C.ice_version()) }
 func nativeAvailable() bool { return true }
@@ -46,17 +56,50 @@ func (n *native) close() {
 	if n != nil && n.ptr != nil {
 		C.ice_delete(n.ptr)
 		n.ptr = nil
+		closePlugins(n.workers)
+		n.workers, n.mix = nil, nil
 	}
 }
-func (n *native) stop() { C.ice_stop(n.ptr) }
+func (n *native) stop() {
+	C.ice_stop(n.ptr)
+	n.releasePluginPlan()
+}
+func (n *native) releasePluginPlan() {
+	if len(n.workers) == 0 {
+		return
+	}
+	C.ice_release_plan(n.ptr)
+	closePlugins(n.workers)
+	n.workers, n.mix = nil, nil
+}
 func (n *native) status() nativeStatus {
 	s := C.ice_get_status(n.ptr)
+	if s.playing == 0 && !n.offline {
+		n.releasePluginPlan()
+	}
 	return nativeStatus{int64(s.frame), int64(s.callbacks), int64(s.misses), int64(s.loops), s.playing != 0, s.counting != 0}
 }
 func (n *native) install(s *Score, start, loopA, loopB int64, loop, playing bool) error {
 	return n.installCount(s, start, loopA, loopB, loop, playing, 0, 0)
 }
 func (n *native) installCount(s *Score, start, loopA, loopB int64, loop, playing bool, beats int, beatFrames int64) error {
+	return n.installContext(context.Background(), s, start, loopA, loopB, loop, playing, beats, beatFrames)
+}
+func (n *native) installContext(ctx context.Context, s *Score, start, loopA, loopB int64, loop, playing bool, beats int, beatFrames int64) error {
+	mix, workers, err := s.pluginMixer(ctx, n.offline, playing, s.Timeline.Frame(float64(start)))
+	if err != nil {
+		return err
+	}
+	return n.installPrepared(s, start, loopA, loopB, loop, playing, beats, beatFrames, mix, workers)
+}
+
+func (n *native) installPrepared(s *Score, start, loopA, loopB int64, loop, playing bool, beats int, beatFrames int64, mix *mixPlan, workers []*pluginhost.Instance) error {
+	installed := false
+	defer func() {
+		if !installed {
+			closePlugins(workers)
+		}
+	}()
 	if err := s.ValidateRange(start, loopA, loopB, loop); err != nil {
 		return err
 	}
@@ -90,14 +133,14 @@ func (n *native) installCount(s *Score, start, loopA, loopB int64, loop, playing
 		p = 1
 	}
 	end := s.EndFrame + SampleRate/4
-	if s.mix != nil {
-		end = s.EndFrame + int64(s.mix.latency) + max(SampleRate/4, int64(s.mix.tail))
+	if mix != nil {
+		end = s.EndFrame + int64(mix.latency) + max(SampleRate/4, int64(mix.tail))
 	}
 	plan := C.ice_plan_new(ptr(events), C.int(len(events)), ptr(initial), C.int(len(initial)), ptr(chase), C.int(len(chase)), channels, C.int(len(s.Channels)), C.int64_t(startFrame), C.int64_t(end), C.int64_t(a), C.int64_t(b), l)
 	if plan == nil {
 		return errors.New("无法分配播放快照")
 	}
-	if err := attachMixer(plan, s.mix); err != nil {
+	if err := attachMixer(plan, mix, n.offline); err != nil {
 		C.ice_plan_delete(plan)
 		return err
 	}
@@ -128,6 +171,9 @@ func (n *native) installCount(s *Score, start, loopA, loopB int64, loop, playing
 			reverse: reverse, track: C.int(region.Track)}
 		if v := region.Voice; v != nil {
 			reg.length = C.int64_t(region.Length)
+			if v.loop {
+				reg.loop_source = 1
+			}
 			reg.rate = C.double(v.rate)
 			reg.attack, reg.decay, reg.gate, reg.release = C.int64_t(v.attack), C.int64_t(v.decay), C.int64_t(v.gate), C.int64_t(v.release)
 			reg.sustain = C.float(v.sustain)
@@ -140,6 +186,9 @@ func (n *native) installCount(s *Score, start, loopA, loopB int64, loop, playing
 	}
 	C.ice_plan_audio_sort(plan)
 	C.ice_install(n.ptr, plan, p, C.int(beats), C.int64_t(beatFrames))
+	closePlugins(n.workers)
+	n.workers, n.mix = workers, mix
+	installed = true
 	return nil
 }
 func (n *native) render(frames int) ([]float32, []float32) {
@@ -163,3 +212,53 @@ func (n *native) audition(channel, program, bank int, keys []int, velocity int, 
 	return nil
 }
 func (n *native) auditionStop() { C.ice_audition_stop(n.ptr) }
+
+func (n *native) mixerLatency() int {
+	if n.mix == nil {
+		return 0
+	}
+	return n.mix.latency
+}
+
+func (n *native) pluginIssues() []string {
+	if n.mix == nil {
+		return nil
+	}
+	issues := slices.Clone(n.mix.issues)
+	for i, node := range n.mix.nodes {
+		if f := node.instrument; f != nil && f.worker != nil && C.ice_failed_plugin(n.ptr, C.int(i), -1) != 0 {
+			if !f.worker.NeedsRebuild() {
+				f.worker.Kill()
+			}
+			issues = append(issues, pluginFailure(f, "乐器静音"))
+		}
+		for j, f := range node.effects {
+			if f.worker != nil && C.ice_failed_plugin(n.ptr, C.int(i), C.int(j)) != 0 {
+				if !f.worker.NeedsRebuild() {
+					f.worker.Kill()
+				}
+				issues = append(issues, pluginFailure(&f, "效果旁通"))
+			}
+		}
+	}
+	return issues
+}
+
+func (n *native) hasPluginWorkers() bool { return len(n.workers) != 0 }
+
+func (n *native) needsPluginRebuild() bool {
+	for _, worker := range n.workers {
+		if worker.NeedsRebuild() {
+			return true
+		}
+	}
+	return false
+}
+
+func pluginFailure(f *mixFX, fallback string) string {
+	detail := f.worker.Diagnostic()
+	if detail == "" {
+		detail = "插件实例停止或超时"
+	}
+	return fmt.Sprintf("%s：%s，%s", f.plugin.Name, detail, fallback)
+}

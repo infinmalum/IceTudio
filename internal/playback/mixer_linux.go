@@ -10,7 +10,7 @@ import "C"
 
 import "fmt"
 
-func attachMixer(plan *C.ice_plan, mix *mixPlan) error {
+func attachMixer(plan *C.ice_plan, mix *mixPlan, offline bool) error {
 	if mix == nil {
 		return nil
 	}
@@ -20,7 +20,7 @@ func attachMixer(plan *C.ice_plan, mix *mixPlan) error {
 	}
 	// Transfer ownership immediately. All error paths free the plan.
 	C.ice_plan_mixer(plan, m)
-	param := func(i, slot, which int, p mixParam) bool {
+	withPoints := func(p mixParam, apply func(*C.ice_mix_point, C.int) bool) bool {
 		points := make([]C.ice_mix_point, len(p.points))
 		var ptr *C.ice_mix_point
 		for j, pt := range p.points {
@@ -32,7 +32,38 @@ func attachMixer(plan *C.ice_plan, mix *mixPlan) error {
 		if len(points) > 0 {
 			ptr = &points[0]
 		}
-		return C.ice_mix_parameter(m, C.int(i), C.int(slot), C.int(which), C.float(p.value), ptr, C.int(len(points))) != 0
+		return apply(ptr, C.int(len(points)))
+	}
+	param := func(i, slot, which int, p mixParam) bool {
+		return withPoints(p, func(ptr *C.ice_mix_point, count C.int) bool {
+			return C.ice_mix_parameter(m, C.int(i), C.int(slot), C.int(which), C.float(p.value), ptr, count) != 0
+		})
+	}
+	plugin := func(i, j int, fx mixFX) bool {
+		var wire *C.ice_plugin_wire
+		var count int
+		if fx.worker != nil {
+			wire = (*C.ice_plugin_wire)(fx.worker.Shared())
+			count = len(fx.parameters)
+		}
+		off := C.int(0)
+		if offline {
+			off = 1
+		}
+		if C.ice_mix_plugin(m, C.int(i), C.int(j), wire, C.int(fx.latency), off, C.int(count)) == 0 {
+			return false
+		}
+		if wire == nil {
+			return true
+		}
+		for k, p := range fx.parameters {
+			if !withPoints(p, func(ptr *C.ice_mix_point, n C.int) bool {
+				return C.ice_mix_plugin_param(m, C.int(i), C.int(j), C.int(k), C.uint32_t(fx.plugin.Parameters[k].ID), C.float(p.value), C.float(fx.initial[k]), ptr, n) != 0
+			}) {
+				return false
+			}
+		}
+		return true
 	}
 	fail := fmt.Errorf("无法分配混音参数或延迟缓冲")
 	for i, n := range mix.nodes {
@@ -40,7 +71,16 @@ func attachMixer(plan *C.ice_plan, mix *mixPlan) error {
 			!param(i, -1, 0, n.gain) || !param(i, -1, 1, n.pan) {
 			return fail
 		}
+		if n.instrument != nil && !plugin(i, -1, *n.instrument) {
+			return fail
+		}
 		for j, fx := range n.effects {
+			if fx.plugin != nil {
+				if !plugin(i, j, fx) || !param(i, j, 1, fx.wet) {
+					return fail
+				}
+				continue
+			}
 			if C.ice_mix_effect(m, C.int(i), C.int(j), C.int(fx.kind)) == 0 ||
 				!param(i, j, 0, fx.amount) || !param(i, j, 1, fx.wet) {
 				return fail
@@ -86,3 +126,7 @@ func (n *native) callbackLoad() (int, int64) {
 }
 
 func (n *native) callbackFrames() int { return int(C.ice_callback_frames(n.ptr)) }
+
+func (n *native) pluginOverride(i, j int, id uint32, value float64) bool {
+	return C.ice_plugin_override(n.ptr, C.int(i), C.int(j), C.uint32_t(id), C.float(value)) != 0
+}

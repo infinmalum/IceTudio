@@ -1,6 +1,7 @@
 package playback
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"icetudio/internal/pluginhost"
 )
 
 // FontEntry 是用户添加的本地 SoundFont；列表顺序即回退优先级（先者优先）。
@@ -89,9 +92,11 @@ type Status struct {
 	Error          string           `json:"error"`
 	PreviewID      string           `json:"previewId,omitempty"`
 	PreviewVariant string           `json:"previewVariant,omitempty"`
+	PluginIssues   []string         `json:"pluginIssues,omitempty"`
 }
 type Getter func(string) (Snapshot, error)
 type Manager struct {
+	pluginRestarts int
 	mu             sync.Mutex
 	control        sync.Mutex // serialize user controls, not audio callbacks
 	dir            string
@@ -864,15 +869,21 @@ func (m *Manager) play(req Request, supplied *Snapshot, token, variant string) e
 			return errors.New("工程已修改，候选试听已过时")
 		}
 	}
+	mix, workers, err := score.pluginMixer(context.Background(), false, true, score.Timeline.Frame(float64(req.Tick)))
+	if err != nil {
+		return err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed || generation != m.generation {
+		closePlugins(workers)
 		return errors.New("播放请求已取消")
 	}
-	if err = m.engine.installCount(score, req.Tick, req.LoopStart, req.LoopEnd, req.Loop, true, beats, beatFrames); err != nil {
+	if err = m.engine.installPrepared(score, req.Tick, req.LoopStart, req.LoopEnd, req.Loop, true, beats, beatFrames, mix, workers); err != nil {
 		return err
 	}
 	m.score = score
+	m.pluginRestarts = 0
 	m.request = req
 	m.previewID, m.previewTarget, m.previewVariant = token, token, variant
 	installed = true
@@ -995,7 +1006,9 @@ func (m *Manager) Status() Status {
 		out.EndTick = m.score.EndTick
 		out.Meters = m.engine.meters(m.score.mix)
 		if m.score.mix != nil {
-			out.MixerLatency = m.score.mix.latency
+			out.MixerLatency = m.engine.mixerLatency()
+			out.PluginIssues = m.engine.pluginIssues()
+
 		}
 		out.SkippedEvents = m.score.Skipped
 		out.Loop = m.request.Loop
@@ -1046,10 +1059,14 @@ func (m *Manager) Deleted(id string) {
 }
 func (m *Manager) worker() {
 	defer m.wg.Done()
+	tick := time.NewTicker(250 * time.Millisecond)
+	defer tick.Stop()
 	for {
 		select {
 		case <-m.done:
 			return
+		case <-tick.C:
+			m.watchPlugins()
 		case <-m.updates:
 			m.mu.Lock()
 			id := ""
@@ -1063,6 +1080,25 @@ func (m *Manager) worker() {
 		}
 	}
 }
+func (m *Manager) watchPlugins() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed || m.engine == nil || !m.engine.hasPluginWorkers() {
+		return
+	}
+	status := m.engine.status()
+	if !status.Playing {
+		return
+	}
+	_ = m.engine.pluginIssues() // reap failed or stalled workers off the device callback
+	if m.previewID == "" && m.engine.needsPluginRebuild() && m.pluginRestarts < 2 {
+		select {
+		case m.updates <- struct{}{}:
+		default:
+		}
+	}
+}
+
 func (m *Manager) refresh(id string) {
 	m.mu.Lock()
 	if m.closed || m.score == nil || m.score.ID != id || m.previewID != "" || m.previewTarget != "" {
@@ -1070,13 +1106,34 @@ func (m *Manager) refresh(id string) {
 		return
 	}
 	generation := m.generation
+	previous := m.score
+	previousStatus := m.engine.status()
+	restart := previousStatus.Playing && m.engine.needsPluginRebuild() && m.pluginRestarts < 2
+	if restart {
+		m.pluginRestarts++
+	}
 	metronome := m.request.Metronome
 	m.mu.Unlock()
 	snapshot, err := m.get(id)
 	var score *Score
+	var mix *mixPlan
+	var workers []*pluginhost.Instance
+	if err == nil && snapshot.Revision <= previous.Revision && !restart {
+		return
+	}
 	if err == nil {
 		score, err = m.compile(snapshot, metronome)
 	}
+	if err == nil {
+		tick := previous.Timeline.Tick(previousStatus.Frame)
+		mix, workers, err = score.pluginMixer(context.Background(), false, previousStatus.Playing, score.Timeline.Frame(tick))
+	}
+	claimed := false
+	defer func() {
+		if !claimed {
+			closePlugins(workers)
+		}
+	}()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed || generation != m.generation || m.score == nil || m.score.ID != id {
@@ -1086,7 +1143,7 @@ func (m *Manager) refresh(id string) {
 		m.errorText = "新修订未应用于播放：" + err.Error()
 		return
 	}
-	if score.Revision <= m.score.Revision {
+	if score.Revision < m.score.Revision || score.Revision == m.score.Revision && !restart {
 		return
 	}
 	status := m.engine.status()
@@ -1101,9 +1158,17 @@ func (m *Manager) refresh(id string) {
 	if req.Loop && tick >= req.LoopEnd {
 		req.Tick = req.LoopStart
 	}
-	if err = m.engine.install(score, req.Tick, req.LoopStart, req.LoopEnd, req.Loop, status.Playing); err != nil {
+	claimed = true
+	if !status.Playing && len(workers) > 0 {
+		closePlugins(workers)
+		mix, workers, _ = score.pluginMixer(context.Background(), false, false, 0)
+	}
+	if err = m.engine.installPrepared(score, req.Tick, req.LoopStart, req.LoopEnd, req.Loop, status.Playing, 0, 0, mix, workers); err != nil {
 		m.errorText = "播放快照更新失败：" + err.Error()
 		return
+	}
+	if score.Revision > m.score.Revision {
+		m.pluginRestarts = 0
 	}
 	m.score = score
 	m.request = req

@@ -17,14 +17,14 @@ IceTudio 是一款开发中的 **AI native 音乐创作应用**。音乐工程�
 - E3 提供 WAV/FLAC 导入与波形片段、音频/MIDI take、混音或指定轨导出、以及可携带工程资源包。[E3 实现与验收记录](docs/daw-expansion/e3-audio.md)
 - E4 的原生混音台提供总线、发送、压缩侧链、内置效果、延迟补偿和自动化。[E4 实施记录](docs/daw-expansion/e4-mixer.md)
 - E5 提供本地素材索引与预听、复制或引用、采样器与鼓垫、瞬态切片、非破坏性拉伸、稳定单声部音高校正和 Take Comp。[E5 实施记录](docs/daw-expansion/e5-sampling.md)
-- E6 已增加 Linux 内置效果和 Native 插件库。插件库可隔离扫描本地 CLAP/VST3 并重试失败模块。第三方插件的轨道和混音槽加载仍在开发。[E6 执行记录](docs/daw-expansion/e6-plugins.md)
+- E6 已接入 Linux CLAP/VST3 插件轨道和效果槽、参数自动化、状态保存、离线导出与冻结，以及内置音色和组合预设。实际设备与厂商窗口仍待验收。[E6 执行记录](docs/daw-expansion/e6-plugins.md)
 - Agent 对话、附件、发送范围确认、工具审批、候选差异/只读 ghost、原版与候选试听，以及共享撤销。
 - 模型与凭据配置、权限与外发授权、MCP、搜索、反馈驱动的 Skill 草案和版本管理、任务详情及内部执行配置。
 - 未应用输入检查点、退出保护和中断后按原操作 ID 查询实际提交结果，不自动重放未知操作。
 
 **代码迁移完成不等于全部产品验收完成。** 本机已通过 Go 测试、race、vet、音乐规则测试和实际 MyGo/WebKit 回归，包含本地模型夹具审批与 1k/10k 音符批量编辑。物理音频/IME/DPI、完整故障矩阵、真实供应商连接及干净系统/跨平台安装仍待验收，范围见[迁移收尾记录](docs/mygo-acceptance.md)。
 
-[DAW 扩展计划](docs/daw-expansion/README.md)记录后续的插件宿主、创作工具及跨平台交付。执行顺序为 **MyGo 迁移验收 → 完整 DAW 编辑器 → Agent 框架评估**。维护者于 2026-11-05 恢复编辑器开发，Linux 主体功能已实现至 E5，E6 正在进行。迁移的设备和跨平台验收仍单独追踪，Agent 执行内核继续冻结。
+[DAW 扩展计划](docs/daw-expansion/README.md)记录后续的插件宿主、创作工具及跨平台交付。执行顺序为 **MyGo 迁移验收 → 完整 DAW 编辑器 → Agent 框架评估**。维护者于 2026-11-05 恢复编辑器开发，Linux 已接入 E6 主体功能，设备与厂商窗口验收继续追踪。迁移的设备和跨平台验收仍单独追踪，Agent 执行内核继续冻结。
 
 ## 架构
 
@@ -80,7 +80,7 @@ go build -o bin/icetudio .
 
 开发命令 `node scripts/dev.mjs` 会构建到稳定的 `bin/` 目录后启动；已安装 Task 时也可使用 `task build`、`task dev`。Windows 构建入口为 `task windows:build`，生成 `bin/icetudio.exe`；平台任务的实际安装验收状态见收尾记录。
 
-Linux 插件库扫描需要与主程序同目录的 `icetudio-plugin-scan`，以及系统的 Bubblewrap 和 `prlimit`。[扫描助手构建与使用](docs/daw-expansion/e6-plugins.md#linux-native-插件库)
+Linux 插件功能需要主程序旁的 `icetudio-plugin-scan` 和 `icetudio-plugin-run`，以及系统的 Bubblewrap 和 `prlimit`。厂商窗口另需 Xephyr 与 X11/Xwayland。[构建、打包与使用](docs/daw-expansion/e6-plugins.md#linux-native-插件库)
 
 Linux 便携包使用标准库脚本生成，不自动安装系统运行库：
 

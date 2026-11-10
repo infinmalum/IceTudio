@@ -18,3 +18,12 @@ add_executable(icetudio-plugin-scan scan.cpp "${VST3_ROOT}/public.sdk/source/vst
 target_include_directories(icetudio-plugin-scan PRIVATE "${CLAP_ROOT}/include")
 target_compile_features(icetudio-plugin-scan PRIVATE cxx_std_20)
 target_link_libraries(icetudio-plugin-scan PRIVATE sdk_hosting ${CMAKE_DL_LIBS})
+
+set(hosting "${VST3_ROOT}/public.sdk/source/vst/hosting")
+add_executable(icetudio-plugin-run runtime.cpp runtime_clap.cpp runtime_vst3.cpp editor.cpp
+    "${hosting}/module_linux.cpp" "${hosting}/plugprovider.cpp"
+    "${VST3_ROOT}/public.sdk/source/common/memorystream.cpp")
+target_include_directories(icetudio-plugin-run PRIVATE "${CLAP_ROOT}/include")
+target_compile_features(icetudio-plugin-run PRIVATE cxx_std_20)
+find_package(X11 REQUIRED)
+target_link_libraries(icetudio-plugin-run PRIVATE X11::X11 sdk_hosting ${CMAKE_DL_LIBS})

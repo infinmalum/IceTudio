@@ -28,3 +28,17 @@ tasks:
     cmds: ['rpmsign --addsign bin/*.rpm']
   sign:packages:
     cmds: [{task: sign:deb}, {task: sign:rpm}]
+  build:plugins:
+    desc: Build Linux plugin helpers from existing CLAP and VST3 SDK checkouts
+    requires:
+      vars: [ICETUDIO_CLAP_SDK, ICETUDIO_VST3_SDK]
+    cmds:
+      - cmake -S internal/pluginhost/native -B bin/plugin-host-build -DCMAKE_BUILD_TYPE=Release -DCLAP_ROOT="{{.ICETUDIO_CLAP_SDK}}" -DVST3_ROOT="{{.ICETUDIO_VST3_SDK}}"
+      - cmake --build bin/plugin-host-build --target icetudio-plugin-scan icetudio-plugin-run
+      - install -m 755 bin/plugin-host-build/icetudio-plugin-scan bin/plugin-host-build/icetudio-plugin-run bin
+  package:plugins:
+    desc: Package Linux portable build with both plugin helpers
+    cmds:
+      - task: build
+      - task: build:plugins
+      - python3 scripts/package.py --os linux --binary bin/icetudio --plugin-helpers

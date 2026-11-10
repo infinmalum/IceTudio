@@ -121,7 +121,7 @@ func (a *Workspace) patternBrowser(c *ui.Context) {
 						return false
 					}
 					_, h := c.Size()
-					if a.preferences.View == "piano" || h < 640 && a.preferences.View != "arrangement" {
+					if !a.arrangementVisible(h) {
 						return false
 					}
 					v.patternDrag = &patternDrag{target: EditTarget{a.active.ID, a.active.Revision}, pattern: p}

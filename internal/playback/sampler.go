@@ -15,6 +15,7 @@ import (
 const maxSamplerVoices = 16384
 
 type sampleVoice struct {
+	loop                         bool
 	rate                         float64
 	attack, decay, gate, release int64
 	sustain, velocity            float64

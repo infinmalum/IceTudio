@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"time"
 
@@ -57,9 +58,22 @@ func (a *Workspace) captureSmoke(dir string) error {
 	if !filepath.IsAbs(dir) {
 		return fmt.Errorf("smoke-dir 必须是绝对路径")
 	}
+	// Normal startup shows the Playlist. Mount a tall enough Piano Roll
+	// for the fixture's three pitches to be inside its virtualized viewport.
+	if err := a.onMain(func() {
+		a.preferences.View = "split"
+		a.split = 48
+	}); err != nil {
+		return err
+	}
 	first, err := a.waitPage(0)
 	if err != nil {
 		return err
+	}
+	if runtime.GOOS == "linux" {
+		if err := a.verifyPianoViewport(); err != nil {
+			return err
+		}
 	}
 	// Exercise the Native callback -> typed event -> bound Context -> DOM path
 	// again, with another clip, not just the page's initial read.
@@ -135,8 +149,8 @@ func (a *Workspace) captureSmoke(dir string) error {
 			return fmt.Errorf("E5 素材与采样：%w", err)
 		}
 		if folder := os.Getenv("ICETUDIO_PLUGIN_SMOKE_DIR"); folder != "" {
-			if err = a.verifyPluginCatalogE6(folder); err != nil {
-				return fmt.Errorf("E6 插件扫描：%w", err)
+			if err = a.verifyPluginCatalogE6(folder, dir); err != nil {
+				return fmt.Errorf("E6 插件库与运行：%w", err)
 			}
 		}
 		if err = a.verifyPianoEdits(); err != nil {
@@ -184,4 +198,90 @@ func (a *Workspace) captureSmoke(dir string) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(dir, "result.json"), payload, 0600)
+}
+
+// A view change must resize the real embedded page without a window resize
+// or a page reload. GTK previously left the child at its old allocation.
+func (a *Workspace) verifyPianoViewport() error {
+	size := func() (int, error) { return mygo.EvalAs[int](a.piano.Page(), "innerHeight") }
+	var splitHeight int
+	if err := waitCondition(func() bool {
+		splitHeight, _ = size()
+		return splitHeight > 150
+	}); err != nil {
+		return fmt.Errorf("分屏卷帘未获得初始视口（高度 %d）：%w", splitHeight, err)
+	}
+	generation := a.preview.Context().Generation
+	pageStart, err := mygo.EvalAs[float64](a.piano.Page(), "performance.timeOrigin")
+	if err != nil {
+		return err
+	}
+	for _, mode := range []string{"arrangement", "piano", "split", "piano", "split"} {
+		if err := a.onMain(func() { a.preferences.View = mode }); err != nil {
+			return err
+		}
+		if mode == "arrangement" {
+			continue
+		}
+		var height int
+		if err := waitCondition(func() bool {
+			height, _ = size()
+			if mode == "piano" {
+				return height >= splitHeight+120
+			}
+			return height >= splitHeight-4 && height <= splitHeight+4
+		}); err != nil {
+			return fmt.Errorf("切换到 %s 后卷帘高度为 %d，原分屏高度 %d：%w", mode, height, splitHeight, err)
+		}
+	}
+	// Resize while the WebView is hidden, then reveal it without another
+	// top-level resize. This is the failing path on the Linux preview.
+	wide, err := mygo.EvalAs[int](a.piano.Page(), "innerWidth")
+	if err != nil {
+		return err
+	}
+	var originalW, originalH int
+	if err := a.onMain(func() {
+		originalW, originalH = a.win.Size()
+		a.preferences.View = "arrangement"
+		a.win.SetSize(900, 640)
+	}); err != nil {
+		return err
+	}
+	if err := waitCondition(func() bool {
+		w, _ := a.win.Size()
+		return w <= 920
+	}); err != nil {
+		return fmt.Errorf("无法建立窄窗口：%w", err)
+	}
+	if err := a.onMain(func() { a.preferences.View = "piano" }); err != nil {
+		return err
+	}
+	var narrow int
+	if err := waitCondition(func() bool {
+		narrow, _ = mygo.EvalAs[int](a.piano.Page(), "innerWidth")
+		return narrow > 300 && narrow < wide-250
+	}); err != nil {
+		return fmt.Errorf("窄窗口重新显示卷帘后仍使用原尺寸（宽度 %d，原宽度 %d）：%w", narrow, wide, err)
+	}
+	if err := a.onMain(func() {
+		a.preferences.View = "split"
+		a.win.SetSize(originalW, originalH)
+	}); err != nil {
+		return err
+	}
+	if err := waitCondition(func() bool {
+		w, _ := mygo.EvalAs[int](a.piano.Page(), "innerWidth")
+		return w >= wide-4 && w <= wide+4
+	}); err != nil {
+		return fmt.Errorf("恢复宽窗口后卷帘尺寸未恢复：%w", err)
+	}
+	settledPage, err := mygo.EvalAs[float64](a.piano.Page(), "performance.timeOrigin")
+	if err != nil {
+		return err
+	}
+	if settledPage != pageStart || a.preview.Context().Generation != generation {
+		return fmt.Errorf("切换布局重载了卷帘页面或编辑上下文")
+	}
+	return nil
 }

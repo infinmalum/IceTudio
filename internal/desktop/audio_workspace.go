@@ -169,23 +169,27 @@ func (a *Workspace) audioExportDialog(c *ui.Context) {
 	if f == nil || !f.open || a.closeFrozen {
 		return
 	}
+	width, height := c.Size()
+	formWidth := min(360, width-64)
 	ui.Modal(c, &f.open, func() {
 		ui.Text(c, "导出音频").Bold()
-		ui.Column(c).Width(360).Gap(6).Disabled(f.cancel != nil).Children(func() {
-			ui.Select(c, &f.format, []string{"wav", "flac"}).Label("格式")
-			ui.Select(c, &f.rate, []string{"44100", "48000", "96000"}).Label("采样率")
-			ui.Select(c, &f.bits, []string{"16", "24"}).Label("位深")
-			ui.TextInput(c, &f.start).Label("起点").Placeholder("起点 · 小节:拍:tick")
-			ui.TextInput(c, &f.end).Label("终点").Placeholder("终点 · 留空为工程末尾")
-			ui.TextInput(c, &f.tail).Label("尾音毫秒").Placeholder("尾音毫秒")
-			audioTrackSelect(c, a.active.State.Tracks, &f.trackID, "主混音")
-			ui.Checkbox(c, &f.normalize, "归一化")
-			ui.Checkbox(c, &f.dither, "抖动")
+		ui.Scroll(c).Width(formWidth).MaxHeight(height - 145).Children(func() {
+			ui.Column(c).FillWidth().Gap(6).Disabled(f.cancel != nil).Children(func() {
+				ui.Select(c, &f.format, []string{"wav", "flac"}).Label("格式")
+				ui.Select(c, &f.rate, []string{"44100", "48000", "96000"}).Label("采样率")
+				ui.Select(c, &f.bits, []string{"16", "24"}).Label("位深")
+				ui.TextInput(c, &f.start).Label("起点").Placeholder("起点 · 小节:拍:tick")
+				ui.TextInput(c, &f.end).Label("终点").Placeholder("终点 · 留空为工程末尾")
+				ui.TextInput(c, &f.tail).Label("尾音毫秒").Placeholder("尾音毫秒")
+				audioTrackSelect(c, a.active.State.Tracks, &f.trackID, "主混音")
+				ui.Checkbox(c, &f.normalize, "归一化")
+				ui.Checkbox(c, &f.dither, "抖动")
+			})
+			if f.err != "" {
+				ui.Text(c, f.err).TextColor(c.Theme().Warning)
+			}
 		})
-		if f.err != "" {
-			ui.Text(c, f.err).MaxWidth(360).TextColor(c.Theme().Warning)
-		}
-		ui.Row(c).Gap(6).Children(func() {
+		ui.Row(c).Width(formWidth).Wrap().Gap(6).Children(func() {
 			if f.cancel != nil {
 				ui.Button(c, "取消渲染").OnClick(f.cancel)
 				return

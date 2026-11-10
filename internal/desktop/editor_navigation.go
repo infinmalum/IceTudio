@@ -65,33 +65,37 @@ func (a *Workspace) seekPosition(tick int64) {
 	}()
 }
 func (a *Workspace) navigationTools(c *ui.Context) {
-	ui.ScrollHorizontal(c).Height(30).Children(func() {
-		ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "定位").FontSize(11)
-			ui.TextInput(c, &a.positionInput).Width(130).Label("定位小节拍位置").Placeholder("小节:拍:tick")
-			ui.Button(c, "定位").Disabled(a.active.ID == "" || a.closeFrozen).OnClick(func() {
-				index, err := newMeterProjection(a.active.PPQ, a.active.State.Meter)
-				var tick int64
-				if err == nil {
-					tick, err = parseMusicTime(index, a.positionInput)
-				}
-				if err != nil {
-					a.positionError = err.Error()
-					return
-				}
-				a.positionError = ""
-				a.arrangementUI.start = tick
-				a.followPaused = true
-				a.seekPosition(tick)
-				ctx := a.preview.Context()
-				local := max(0, tick-ctx.Clip.Start)
-				a.sendPianoCommand("locate", int(local))
+	anchor := ui.Button(c, "导航 ▾").Label("导航和播放跟随").Disabled(a.closeFrozen).OnClick(func() { a.navigationOpen = !a.navigationOpen })
+	ui.Popover(c, anchor, &a.navigationOpen, func() {
+		ui.Column(c).Width(260).Gap(8).Children(func() {
+			ui.Text(c, "定位小节与拍").Bold().FontSize(12)
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.TextInput(c, &a.positionInput).Grow(1).MinWidth(0).Label("定位小节拍位置").Placeholder("小节:拍:tick")
+				ui.Button(c, "定位").Disabled(a.active.ID == "" || a.closeFrozen).OnClick(func() {
+					index, err := newMeterProjection(a.active.PPQ, a.active.State.Meter)
+					var tick int64
+					if err == nil {
+						tick, err = parseMusicTime(index, a.positionInput)
+					}
+					if err != nil {
+						a.positionError = err.Error()
+						return
+					}
+					a.positionError = ""
+					a.navigationOpen = false
+					a.arrangementUI.start = tick
+					a.followPaused = true
+					a.seekPosition(tick)
+					ctx := a.preview.Context()
+					a.sendPianoCommand("locate", int(max(0, tick-ctx.Clip.Start)))
+				})
 			})
 			follow := &a.preferences.Follow
 			if *follow == "" {
 				*follow = "关闭"
 			}
-			ui.Select(c, follow, []string{"关闭", "页跟随", "连续跟随"}).Width(100).Label("播放跟随").OnChange(func() { a.followPaused = false; a.savePreferences() })
+			ui.Text(c, "播放跟随").FontSize(12)
+			ui.Select(c, follow, []string{"关闭", "页跟随", "连续跟随"}).FillWidth().Label("播放跟随").OnChange(func() { a.followPaused = false; a.savePreferences() })
 			if a.followPaused {
 				ui.Button(c, "恢复跟随").OnClick(func() { a.followPaused = false })
 			}

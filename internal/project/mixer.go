@@ -9,26 +9,33 @@ import (
 const MasterChannel = "@master"
 
 type Mixer struct {
-	Channels []MixChannel `json:"channels,omitempty"`
-	Routes   []MixRoute   `json:"routes,omitempty"`
-	Lanes    []Automation `json:"lanes,omitempty"`
-	Presets  []MixPreset  `json:"presets,omitempty"`
+	Channels       []MixChannel `json:"channels,omitempty"`
+	Routes         []MixRoute   `json:"routes,omitempty"`
+	Lanes          []Automation `json:"lanes,omitempty"`
+	RackPresets    []RackPreset `json:"rackPresets,omitempty"`
+	FavoriteSounds []string     `json:"favoriteSounds,omitempty"`
+	Presets        []MixPreset  `json:"presets,omitempty"`
 }
 
 type MixChannel struct {
-	ID      string      `json:"id"`
-	BusName string      `json:"busName,omitempty"`
-	Gain    float64     `json:"gain"` // linear amplitude, 1 = unity
-	Pan     float64     `json:"pan"`  // stereo balance, -1..1
-	Effects []MixEffect `json:"effects,omitempty"`
+	ID            string      `json:"id"`
+	BusName       string      `json:"busName,omitempty"`
+	Gain          float64     `json:"gain"` // linear amplitude, 1 = unity
+	Pan           float64     `json:"pan"`  // stereo balance, -1..1
+	Rack          *MixRack    `json:"rack,omitempty"`
+	Synth         *SynthPatch `json:"synth,omitempty"`
+	FrozenAssetID string      `json:"frozenAssetId,omitempty"`
+	Instrument    *MixEffect  `json:"instrument,omitempty"`
+	Effects       []MixEffect `json:"effects,omitempty"`
 }
 
 type MixEffect struct {
-	ID     string  `json:"id"`
-	Kind   string  `json:"kind"`
-	Amount float64 `json:"amount"`
-	Wet    float64 `json:"wet"`
-	Bypass bool    `json:"bypass,omitempty"`
+	ID     string       `json:"id"`
+	Kind   string       `json:"kind"`
+	Amount float64      `json:"amount"`
+	Wet    float64      `json:"wet"`
+	Bypass bool         `json:"bypass,omitempty"`
+	Plugin *PluginState `json:"plugin,omitempty"`
 }
 
 type MixPreset struct {
@@ -75,17 +82,43 @@ func (m *Mixer) SetChannel(ch MixChannel) {
 	m.Channels = append(m.Channels, ch)
 }
 
+func (c MixChannel) copy() MixChannel {
+	c.Rack = c.Rack.Copy()
+	if c.Synth != nil {
+		patch := *c.Synth
+		c.Synth = &patch
+	}
+	c.Effects = slices.Clone(c.Effects)
+	for j := range c.Effects {
+		c.Effects[j].Plugin = c.Effects[j].Plugin.copy()
+	}
+	if c.Instrument != nil {
+		f := *c.Instrument
+		f.Plugin = f.Plugin.copy()
+		c.Instrument = &f
+	}
+	return c
+}
+
 func (m Mixer) Copy() Mixer {
 	m.Channels = slices.Clone(m.Channels)
 	for i := range m.Channels {
-		m.Channels[i].Effects = slices.Clone(m.Channels[i].Effects)
+		m.Channels[i] = m.Channels[i].copy()
+	}
+	m.RackPresets = slices.Clone(m.RackPresets)
+	for i := range m.RackPresets {
+		m.RackPresets[i].Chain = m.RackPresets[i].Chain.copy()
 	}
 	m.Routes = slices.Clone(m.Routes)
 	m.Lanes = slices.Clone(m.Lanes)
 	for i := range m.Lanes {
 		m.Lanes[i].Points = slices.Clone(m.Lanes[i].Points)
 	}
+	m.FavoriteSounds = slices.Clone(m.FavoriteSounds)
 	m.Presets = slices.Clone(m.Presets)
+	for i := range m.Presets {
+		m.Presets[i].Effect.Plugin = m.Presets[i].Effect.Plugin.copy()
+	}
 	return m
 }
 
@@ -94,6 +127,9 @@ func (m Mixer) IDs() []string {
 	for _, c := range m.Channels {
 		if c.BusName != "" {
 			ids = append(ids, c.ID)
+		}
+		if c.Instrument != nil {
+			ids = append(ids, c.Instrument.ID)
 		}
 		for _, f := range c.Effects {
 			ids = append(ids, f.ID)
@@ -110,7 +146,7 @@ func (m *Mixer) RemoveChannel(id string) {
 	m.Channels = slices.DeleteFunc(m.Channels, func(c MixChannel) bool { return c.ID == id })
 	m.Routes = slices.DeleteFunc(m.Routes, func(r MixRoute) bool { return r.From == id || r.To == id })
 	m.Lanes = slices.DeleteFunc(m.Lanes, func(l Automation) bool {
-		return l.Target == id || slices.ContainsFunc(c.Effects, func(f MixEffect) bool { return f.ID == l.Target })
+		return l.Target == id || (c.Instrument != nil && c.Instrument.ID == l.Target) || slices.ContainsFunc(c.Effects, func(f MixEffect) bool { return f.ID == l.Target })
 	})
 }
 
@@ -123,6 +159,9 @@ func MixRange(parameter string) (lo, hi float64, ok bool) {
 	case "amount", "wet":
 		return 0, 1, true
 	default:
+		if _, ok := pluginParameterID(parameter); ok {
+			return 0, 1, true
+		}
 		return 0, 0, false
 	}
 }
@@ -130,13 +169,16 @@ func MixRange(parameter string) (lo, hi float64, ok bool) {
 func mixValue(v, lo, hi float64) bool { return !math.IsNaN(v) && v >= lo && v <= hi }
 
 func validateEffect(f MixEffect) bool {
-	return slices.Contains([]string{"eq", "compressor", "limiter", "delay", "reverb", "chorus", "lowpass", "drive", "gate"}, f.Kind) &&
+	if f.Kind == "plugin" {
+		return f.Plugin.valid() && mixValue(f.Wet, 0, 1) && f.Amount == 0
+	}
+	return f.Plugin == nil && slices.Contains([]string{"eq", "compressor", "limiter", "delay", "reverb", "chorus", "lowpass", "drive", "gate"}, f.Kind) &&
 		mixValue(f.Amount, 0, 1) && mixValue(f.Wet, 0, 1)
 }
 
 // MixOrder returns the canonical graph with implicit output-to-Master edges.
 func MixOrder(st *State, m Mixer) ([]string, []MixRoute, error) {
-	if len(m.Channels) > MaxTracks+17 || len(m.Routes) > 192 || len(m.Lanes) > 128 || len(m.Presets) > 32 {
+	if len(m.Channels) > MaxTracks+17 || len(m.Routes) > 192 || len(m.Lanes) > 128 || len(m.Presets) > 32 || len(m.RackPresets) > 16 {
 		return nil, nil, fmt.Errorf("混音图超出资源上限")
 	}
 	nodes := []string{MasterChannel}
@@ -146,6 +188,8 @@ func MixOrder(st *State, m Mixer) ([]string, []MixRoute, error) {
 		channels[t.ID] = true
 	}
 	seen, effects := map[string]bool{}, map[string]bool{}
+	plugins := map[string]*PluginState{}
+	pluginBytes := 0
 	buses, fxCount := 0, 0
 	for _, c := range m.Channels {
 		if seen[c.ID] || len(c.Effects) > 8 || !mixValue(c.Gain, 0, 2) || !mixValue(c.Pan, -1, 1) {
@@ -163,6 +207,27 @@ func MixOrder(st *State, m Mixer) ([]string, []MixRoute, error) {
 		if !channels[c.ID] {
 			return nil, nil, fmt.Errorf("混音通道没有对应轨道")
 		}
+		if err := c.validateRack(c.ID != MasterChannel && c.BusName == ""); err != nil {
+			return nil, nil, err
+		}
+		if c.Synth != nil && (c.ID == MasterChannel || c.BusName != "" || c.Instrument != nil || !c.Synth.Valid()) {
+			return nil, nil, fmt.Errorf("轨道内置音色无效")
+		}
+		if c.FrozenAssetID != "" {
+			_, ok := FindAudioAsset(st, c.FrozenAssetID)
+			if !ok || c.ID == MasterChannel || c.BusName != "" {
+				return nil, nil, fmt.Errorf("冻结轨缺少对应音频资产")
+			}
+		}
+		if c.Instrument != nil {
+			f := c.Instrument
+			if c.ID == MasterChannel || c.BusName != "" || f.Bypass || f.Wet != 1 ||
+				!ValidID(f.ID) || effects[f.ID] || f.Kind != "plugin" || !validateEffect(*f) {
+				return nil, nil, fmt.Errorf("轨道插件乐器无效")
+			}
+			effects[f.ID], plugins[f.ID] = true, f.Plugin
+			pluginBytes += len(f.Plugin.State)
+		}
 		fxCount += len(c.Effects)
 		if fxCount > 128 {
 			return nil, nil, fmt.Errorf("工程最多 128 个效果实例")
@@ -172,7 +237,18 @@ func MixOrder(st *State, m Mixer) ([]string, []MixRoute, error) {
 				return nil, nil, fmt.Errorf("效果参数或身份无效")
 			}
 			effects[f.ID] = true
+			if f.Plugin != nil {
+				plugins[f.ID] = f.Plugin
+				pluginBytes += len(f.Plugin.State)
+			}
 		}
+	}
+	favoriteSounds := map[string]bool{}
+	for _, id := range m.FavoriteSounds {
+		if _, ok := FindSoundPreset(id); !ok || favoriteSounds[id] {
+			return nil, nil, fmt.Errorf("收藏音色 ID 无效或重复")
+		}
+		favoriteSounds[id] = true
 	}
 	presetNames := map[string]bool{}
 	for _, p := range m.Presets {
@@ -180,15 +256,38 @@ func MixOrder(st *State, m Mixer) ([]string, []MixRoute, error) {
 			return nil, nil, fmt.Errorf("效果预设无效或重名")
 		}
 		presetNames[p.Name] = true
+		if p.Effect.Plugin != nil {
+			pluginBytes += len(p.Effect.Plugin.State)
+		}
+	}
+	rackNames := map[string]bool{}
+	for _, p := range m.RackPresets {
+		n, err := p.validate()
+		if err != nil || rackNames[p.Name] {
+			return nil, nil, fmt.Errorf("组合预设无效或重名")
+		}
+		rackNames[p.Name] = true
+		pluginBytes += n
+	}
+	if len(plugins) > MaxPluginInstances || pluginBytes > 8<<20 {
+		return nil, nil, fmt.Errorf("插件实例或状态总量超出限制")
 	}
 	lanes := map[[2]string]bool{}
 	points := 0
 	for _, l := range m.Lanes {
 		key := [2]string{l.Target, l.Parameter}
 		lo, hi, ok := MixRange(l.Parameter)
+		parameterID, isPlugin := pluginParameterID(l.Parameter)
 		isEffect := l.Parameter == "amount" || l.Parameter == "wet"
+		validTarget := channels[l.Target]
+		if isEffect {
+			validTarget = effects[l.Target] && (l.Parameter == "wet" || plugins[l.Target] == nil)
+		}
+		if isPlugin {
+			validTarget = plugins[l.Target].hasParameter(parameterID)
+		}
 		if !ok || !ValidID(l.ID) || lanes[key] || len(l.Points) < 1 ||
-			(isEffect && !effects[l.Target]) || (!isEffect && !channels[l.Target]) {
+			!validTarget {
 			return nil, nil, fmt.Errorf("自动化目标无效或重复")
 		}
 		lanes[key] = true
@@ -286,7 +385,7 @@ func replaceMixer(st *State, ids map[string]bool, next Mixer) ([]string, error) 
 			created = append(created, id)
 		}
 	}
-	if len(next.Channels)+len(next.Lanes)+len(next.Routes)+len(next.Presets) == 0 {
+	if len(next.Channels)+len(next.Lanes)+len(next.Routes)+len(next.Presets)+len(next.FavoriteSounds)+len(next.RackPresets) == 0 {
 		st.Mixer = nil
 	} else {
 		st.Mixer = &next

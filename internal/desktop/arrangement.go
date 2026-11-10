@@ -12,7 +12,14 @@ import (
 	"icetudio/internal/storage"
 )
 
-const clipRowHeight float32 = 46
+const (
+	clipRowHeight          float32 = 42
+	arrangementRulerHeight float32 = 52
+)
+
+func arrangementLaneHeight(lanes int) float32 {
+	return max(51, float32(lanes)*clipRowHeight+8)
+}
 
 type clipGesture struct {
 	Batch         []string
@@ -48,6 +55,7 @@ type arrangementView struct {
 	followPaused   bool
 	position       string
 	positionError  string
+	gridOpen       bool
 	rulerTarget    EditTarget
 	rulerDown      bool
 	rulerTick      int64
@@ -191,7 +199,7 @@ func (v *arrangementView) tracks(p storage.Project) []project.Track {
 	}
 	return tracks
 }
-func (v *arrangementView) draw(c *ui.Context, p storage.Project, selected string, actions arrangementActions, head func(*ui.Context, project.Track)) {
+func (v *arrangementView) draw(c *ui.Context, p storage.Project, selected string, actions arrangementActions, tools func(*ui.Context), head func(*ui.Context, project.Track)) {
 	v.defaults()
 	if v.width <= 0 {
 		v.width = 1024
@@ -201,41 +209,21 @@ func (v *arrangementView) draw(c *ui.Context, p storage.Project, selected string
 		ui.Text(c, "选择工程后显示编排")
 		return
 	}
+	theme := c.Theme()
+	beatLine := theme.Border
+	beatLine.A = 112
 	start := v.start
 	end := start + int64(math.Ceil(float64(v.width)/v.zoom*float64(p.PPQ)))
 	width := v.width
 	locked := v.gesture != nil || v.marquee != nil || v.patternDrag != nil || v.materialDrag != nil || v.audioDrag != nil
-	ui.Column(c).Fill().AlignItems(ui.Stretch).Gap(4).Children(func() {
-		ui.ScrollHorizontal(c).Height(32).Children(func() {
-			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "ARRANGEMENT").FontSize(12).Bold()
-				ui.Button(c, "回到开头").Disabled(locked).OnClick(func() {
-					v.start = 0
-					if actions.Navigate != nil {
-						actions.Navigate()
-					}
-				})
-				index, _ := newMeterProjection(p.PPQ, p.State.Meter)
-				ui.Text(c, musicTime(index, start)).FontSize(12)
-
-				ui.Button(c, "定位片段").Disabled(locked || selected == "").OnClick(func() { v.locateClip(p, selected) })
-				ui.Text(c, "缩放").FontSize(12)
-				ui.Slider(c, &v.zoom, 16, 200).Width(90).Disabled(locked).Label("编排缩放").OnChange(func() {
-					if actions.SnapChanged != nil {
-						actions.SnapChanged()
-					}
-				})
-				ui.Text(c, "吸附").FontSize(12)
-				snap := ui.Select(c, &v.snap, snapLabels).Width(64).Disabled(locked).Label("编排吸附")
-				if snap.Changed() && actions.SnapChanged != nil {
-					actions.SnapChanged()
-				}
-			})
-		})
-		ui.Row(c).Height(28).Gap(6).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "全部片段").FontSize(12)
+	ui.Column(c).Fill().MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+		ui.Row(c).FillWidth().Padding(4, 7).Wrap().Gap(5).AlignItems(ui.Center).Background(theme.Surface).Children(func() {
+			ui.Text(c, "编排").FontSize(12).Bold()
+			if tools != nil {
+				tools(c)
+			}
 			parts := ui.SelectBase[string](c, &v.locate)
-			parts.Trigger.Width(260).Disabled(locked).Label("全部编排片段")
+			parts.Trigger.Width(150).MinWidth(110).Grow(1).MaxWidth(250).Height(26).Disabled(locked).Label("全部编排片段")
 			chosen := "选择片段 ▾"
 			for _, t := range p.State.Tracks {
 				for _, clip := range t.Clips {
@@ -244,10 +232,11 @@ func (v *arrangementView) draw(c *ui.Context, p storage.Project, selected string
 					}
 				}
 			}
-			parts.Trigger.Padding(4, 8).Background(c.Theme().Surface).Border(1, c.Theme().Border).Children(func() { ui.Text(c, chosen).SingleLine() })
+			parts.Trigger.Padding(4, 8).Background(c.Theme().Surface).Border(1, c.Theme().Border).Children(func() { ui.Text(c, chosen).SingleLine().MinWidth(0).FontSize(12) })
 			parts.Popup(func(panel ui.Element) {
 				panel.Padding(4).Background(c.Theme().Surface)
-				ui.Scroll(c).Width(360).MaxHeight(320).Children(func() {
+				windowWidth, _ := c.Size()
+				ui.Scroll(c).Width(min(340, windowWidth-32)).MaxHeight(320).Children(func() {
 					for _, t := range p.State.Tracks {
 						for _, clip := range t.Clips {
 							item := parts.Item(clip.ID).Padding(5, 8)
@@ -270,18 +259,52 @@ func (v *arrangementView) draw(c *ui.Context, p storage.Project, selected string
 					}
 				}
 			}
-			ui.Text(c, "Shift 拖动框选 · 拖动选区可一起移动 · Shift 滚轮连续导航").FontSize(12).TextColor(c.Theme().TextMuted)
+			grid := ui.Button(c, "网格 "+v.snap+" ▾").Height(26).Label("编排网格").Disabled(locked).OnClick(func() { v.gridOpen = !v.gridOpen })
+			ui.Popover(c, grid, &v.gridOpen, func() {
+				ui.Column(c).Width(246).Gap(8).Children(func() {
+					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, "缩放").FontSize(12)
+						ui.Slider(c, &v.zoom, 16, 200).Grow(1).Disabled(locked).Label("编排缩放").OnChange(func() {
+							if actions.SnapChanged != nil {
+								actions.SnapChanged()
+							}
+						})
+					})
+					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, "吸附").FontSize(12)
+						snap := ui.Select(c, &v.snap, snapLabels).Grow(1).Disabled(locked).Label("编排吸附")
+						if snap.Changed() && actions.SnapChanged != nil {
+							actions.SnapChanged()
+						}
+					})
+					ui.Row(c).Gap(6).Wrap().Children(func() {
+						ui.Button(c, "回到开头").Disabled(locked).OnClick(func() {
+							v.start = 0
+							v.gridOpen = false
+							if actions.Navigate != nil {
+								actions.Navigate()
+							}
+						})
+						ui.Button(c, "定位当前片段").Disabled(locked || selected == "").OnClick(func() {
+							v.locateClip(p, selected)
+							v.gridOpen = false
+						})
+					})
+					ui.Text(c, "Shift 拖动框选 · Shift 滚轮横向浏览").FontSize(11).TextColor(theme.TextMuted)
+				})
+			})
 		})
+		ui.Box(c).Height(1).FillWidth().Background(theme.Border)
 		start = v.start
 		end = start + int64(math.Ceil(float64(v.width)/v.zoom*float64(p.PPQ)))
 		// One vertical scroll tree keeps headers and lanes aligned; only the right
 		// group scrolls horizontally; both groups share the same vertical parent.
-		outer := ui.Scroll(c).Grow(1).Background(ui.Hex("#191c20"))
+		outer := ui.Scroll(c).Grow(1).MinHeight(0).Background(theme.Background)
 		outer.HandleInput(func(ev ui.InputEvent) bool {
 			return (v.gesture != nil || v.marquee != nil || v.patternDrag != nil || v.materialDrag != nil || v.audioDrag != nil) && (ev.Kind == ui.InputScroll || ev.Kind == ui.InputZoom)
 		})
 		outer.Children(func() {
-			ui.Row(c).FillWidth().AlignItems(ui.Stretch).Children(func() {
+			ui.Row(c).FillWidth().MinHeight(outer.Bounds().H).AlignItems(ui.Stretch).Children(func() {
 				tracks := v.tracks(p)
 				timeline, timelineErr := playback.NewTimeline(&p.State)
 				assets := make(map[string]project.AudioAsset, len(p.State.AudioAssets))
@@ -294,17 +317,28 @@ func (v *arrangementView) draw(c *ui.Context, p storage.Project, selected string
 					}
 					return waveClips(t, assets, timeline, start, end, v.zoom)
 				}
-				ui.Column(c).Width(172).Gap(1).Children(func() {
-					ui.Text(c, "TRACK").Height(52).Padding(8).FontSize(12).TextColor(c.Theme().TextMuted)
-					for _, t := range tracks {
+				ui.Column(c).Width(155).Gap(1).Background(theme.Surface).Children(func() {
+					ui.Text(c, "轨道").Height(arrangementRulerHeight).FillWidth().Padding(8).Background(theme.Surface).FontSize(12).TextColor(theme.TextMuted)
+					for i, t := range tracks {
 						_, lanes := arrangementClips(t.Clips, start, end, p.PPQ, v.zoom)
 						_, waves := waveform(t)
-						ui.Column(c.Key(t.ID)).Height(max(64, float32(lanes)*clipRowHeight+8) + float32(waves)*waveHeight + float32(len(trackAutomation(p.State.Mixer, t.ID))*automationRowHeight)).Padding(8).Gap(4).Background(c.Theme().Surface).Children(func() { head(c, t) })
+						height := arrangementLaneHeight(lanes) + float32(waves)*waveHeight + float32(len(trackAutomation(p.State.Mixer, t.ID))*automationRowHeight)
+						color := displayObjectColor("", t.Color, i)
+						ui.Row(c.Key(t.ID)).Height(height).FillWidth().AlignItems(ui.Stretch).Background(theme.Surface).Children(func() {
+							ui.Box(c).Width(4).Background(color)
+							ui.Column(c).Grow(1).MinWidth(0).Padding(4, 5).Gap(3).Children(func() { head(c, t) })
+						})
 					}
 				})
 				right := ui.Column(c).Width(1).Grow(1).MinWidth(0).Clip().Focusable()
 				right.Bind(&v.marqueeHandle)
 				right.DrawOver(func(paint *ui.Painter, r ui.Rect) {
+					if v.playing {
+						x := r.X + float32((v.playTick-float64(start))/float64(p.PPQ)*v.zoom)
+						if x >= r.X && x <= r.X+r.W {
+							paint.Line(x, r.Y+arrangementRulerHeight, x, r.Y+r.H, 2, theme.Accent)
+						}
+					}
 					if m := v.marquee; m != nil {
 						x1, x2 := r.X+min(m.x, m.endX), r.X+max(m.x, m.endX)
 						y1, y2 := r.Y+min(m.y, m.endY), r.Y+max(m.y, m.endY)
@@ -319,6 +353,24 @@ func (v *arrangementView) draw(c *ui.Context, p storage.Project, selected string
 					v.width = bounds.W
 					width = v.width
 				}
+				meter, _ := newMeterProjection(p.PPQ, p.State.Meter)
+				marks, _ := meter.ruler(p.PPQ, start, end, v.zoom, nil)
+				tickX := func(tick float64) float32 { return float32((tick - float64(start)) / float64(p.PPQ) * v.zoom) }
+				right.Draw(func(paint *ui.Painter, r ui.Rect) {
+					for _, mark := range marks {
+						var color ui.Color
+						switch mark.Kind {
+						case "bar":
+							color = theme.Border
+						case "beat":
+							color = beatLine
+						default:
+							continue
+						}
+						x := r.X + tickX(mark.Tick)
+						paint.Line(x, r.Y+arrangementRulerHeight, x, r.Y+r.H, 1, color)
+					}
+				})
 				right.HandleInput(func(ev ui.InputEvent) bool {
 					if v.marqueeInput(ev, c, p, tracks, start, end, actions) {
 						return true
@@ -331,22 +383,15 @@ func (v *arrangementView) draw(c *ui.Context, p storage.Project, selected string
 						for i, t := range tracks {
 							clips, lanes := arrangementClips(t.Clips, start, end, p.PPQ, v.zoom)
 							waves, waveCount := waveform(t)
-							baseHeight := max(64, float32(lanes)*clipRowHeight+8)
+							baseHeight := arrangementLaneHeight(lanes)
 							automation := trackAutomation(p.State.Mixer, t.ID)
 							audioBottom := baseHeight + float32(waveCount)*waveHeight
-							ui.Box(c.Key(t.ID)).Bind(v.trackDrop(t.ID)).Width(width).Height(audioBottom + float32(len(automation)*automationRowHeight)).Clip().Draw(func(paint *ui.Painter, r ui.Rect) {
-								for beat := math.Ceil(float64(start) / float64(p.PPQ)); beat <= float64(end)/float64(p.PPQ); beat++ {
-									x := r.X + float32((beat-float64(start)/float64(p.PPQ))*v.zoom)
-									paint.Line(x, r.Y, x, r.Y+r.H, 1, ui.Hex("#2b3037"))
-								}
-							}).DrawOver(func(paint *ui.Painter, r ui.Rect) {
-								if v.playing {
-									x := r.X + float32((v.playTick-float64(start))/float64(p.PPQ)*v.zoom)
-									if x >= r.X && x <= r.X+r.W {
-										paint.Line(x, r.Y, x, r.Y+r.H, 2, c.Theme().Accent)
-									}
-								}
-							}).Children(func() {
+							laneColor := ui.Color{}
+							if i%2 == 1 {
+								laneColor = theme.Surface
+								laneColor.A = 64
+							}
+							ui.Box(c.Key(t.ID)).Bind(v.trackDrop(t.ID)).Width(width).Height(audioBottom + float32(len(automation)*automationRowHeight)).Background(laneColor).Clip().Children(func() {
 								if g := v.gesture; g != nil && g.Track.ID == t.ID {
 									found := false
 									for _, item := range clips {
@@ -409,12 +454,27 @@ func (v *arrangementView) clip(c *ui.Context, p storage.Project, track project.T
 		label = "↔ " + label
 	}
 	color := displayObjectColor(clip.Color, track.Color, index)
-	b := ui.Button(c.Key(clip.ID), label).Absolute().Left(item.Left).Top(4 + float32(item.Lane)*clipRowHeight).Width(item.Width).Height(clipRowHeight - 4).Background(color).TextColor(ui.Hex("#15202b")).Label(label)
-	if item.RealEnd && item.Width >= 12 {
-		b.Draw(func(paint *ui.Painter, r ui.Rect) {
-			paint.Line(r.X+r.W-5, r.Y+9, r.X+r.W-5, r.Y+r.H-9, 2, ui.RGBA(20, 32, 43, .5))
-		})
-	}
+	ink := ui.Hex("#15202b")
+	b := ui.Button(c.Key(clip.ID), "").Absolute().Left(item.Left).Top(4 + float32(item.Lane)*clipRowHeight).Width(item.Width).Height(clipRowHeight - 4).Background(color).Radius(3).Label(label).Clip()
+	zoom := v.zoom
+	b.Draw(func(paint *ui.Painter, r ui.Rect) {
+		bodyInk := ink
+		bodyShade := ui.RGBA(255, 255, 255, .28)
+		if c.Theme().Dark {
+			bodyShade = ui.RGBA(11, 17, 24, .67)
+			bodyInk = ui.Hex("#f1f4f8")
+		}
+		paint.Fill(ui.Rect{X: r.X, Y: r.Y + 16, W: r.W, H: r.H - 16}, bodyShade, 0)
+		if r.W >= 18 {
+			paint.Text(r.X+5, r.Y+1, label, 11, ink)
+		}
+		if r.W >= 36 && len(clip.Notes) > 0 {
+			drawClipNotes(paint, r, clip, start, float64(p.PPQ), zoom, bodyInk)
+		}
+		if item.RealEnd && r.W >= 12 {
+			paint.Line(r.X+r.W-5, r.Y+20, r.X+r.W-5, r.Y+r.H-5, 1, bodyInk)
+		}
+	})
 	b.Tooltip("拖动移动；右端拉伸；双击打开卷帘；Ctrl/Cmd 点击选入批量片段")
 	b.ContextMenu(func(m *ui.Menu) {
 		if m.Item("选择片段").Chosen() {
@@ -553,3 +613,29 @@ func (v *arrangementView) isOtherGesture(id string) bool {
 
 // Snap is shared by Native and the WebView; musical labels are quarter-note units.
 func arrangementSnap(value string) float64 { return editorSnap(value, 64, 480) }
+
+// Draw a bounded miniature of the visible clip region without allocating note widgets.
+func drawClipNotes(paint *ui.Painter, r ui.Rect, clip project.Clip, viewStart int64, ppq, zoom float64, ink ui.Color) {
+	offset := max(0, viewStart-clip.Start)
+	ticksPerPixel := ppq / zoom
+	end := min(float64(clip.Length), float64(offset)+float64(r.W)*ticksPerPixel)
+	// Dense clips retain an overview while keeping paint cost bounded.
+	stride := max(1, (len(clip.Notes)+511)/512)
+	low, high := 127, 0
+	for i := 0; i < len(clip.Notes); i += stride {
+		n := clip.Notes[i]
+		if float64(n.Start) < end && n.Start+n.Duration > offset {
+			low, high = min(low, n.Pitch), max(high, n.Pitch)
+		}
+	}
+	for i := 0; i < len(clip.Notes); i += stride {
+		n := clip.Notes[i]
+		if float64(n.Start) >= end || n.Start+n.Duration <= offset {
+			continue
+		}
+		left := float32(float64(max(n.Start-offset, 0)) / ticksPerPixel)
+		right := float32((min(end, float64(n.Start+n.Duration)) - float64(offset)) / ticksPerPixel)
+		y := r.Y + r.H - 5 - float32(n.Pitch-low)/float32(max(1, high-low))*(r.H-22)
+		paint.Line(r.X+left, y, r.X+max(left+1, right), y, 1.5, ink)
+	}
+}

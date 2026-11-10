@@ -8,7 +8,7 @@ import (
 )
 
 func (a *Workspace) writable() bool {
-	if a.edits == nil || a.editBusy || a.closeFrozen || a.fileBusy || a.arrangementUI.gesture != nil || a.arrangementUI.marquee != nil || a.arrangementUI.patternDrag != nil || a.arrangementUI.materialDrag != nil || a.arrangementUI.audioDrag != nil {
+	if a.edits == nil || a.mixGesture != nil || a.editBusy || a.closeFrozen || a.fileBusy || a.arrangementUI.gesture != nil || a.arrangementUI.marquee != nil || a.arrangementUI.patternDrag != nil || a.arrangementUI.materialDrag != nil || a.arrangementUI.audioDrag != nil {
 		return false
 	}
 	s := a.edits.State()
@@ -89,16 +89,16 @@ func (a *Workspace) queryEdit() {
 	}()
 }
 func (a *Workspace) editToolbar(c *ui.Context) {
-	ui.Row(c).Gap(6).Children(func() {
-		ui.Button(c, "撤销").Disabled(!a.writable() || a.form != nil || a.mapForm != nil).OnClick(func() { a.mutate("undo", nil) })
-		ui.Button(c, "重做").Disabled(!a.writable() || a.form != nil || a.mapForm != nil).OnClick(func() { a.mutate("redo", nil) })
+	ui.Row(c).Wrap().Gap(3).Children(func() {
+		ui.Button(c, "撤销").Height(27).Disabled(!a.writable() || a.form != nil || a.mapForm != nil).OnClick(func() { a.mutate("undo", nil) })
+		ui.Button(c, "重做").Height(27).Disabled(!a.writable() || a.form != nil || a.mapForm != nil).OnClick(func() { a.mutate("redo", nil) })
 		if a.edits != nil {
 			s := a.edits.State()
 			if !s.Ready {
-				ui.Button(c, "重试恢复检查").Disabled(a.editBusy || a.closeFrozen).OnClick(a.checkEdits)
+				ui.Button(c, "重试恢复检查").Height(27).Disabled(a.editBusy || a.closeFrozen).OnClick(a.checkEdits)
 			}
 			if s.Pending != nil {
-				ui.Button(c, "查询保存结果").Disabled(a.editBusy || a.closeFrozen).OnClick(a.queryEdit)
+				ui.Button(c, "查询保存结果").Height(27).Disabled(a.editBusy || a.closeFrozen).OnClick(a.queryEdit)
 			}
 		}
 	})
@@ -115,7 +115,7 @@ func (a *Workspace) muteSolo(c *ui.Context, t project.Track) {
 			name = "独奏"
 			patch = project.TrackPatch{Solo: &value}
 		}
-		button := ui.Button(c.Key(fmt.Sprint(t.ID, kind)), label).Label(name + " " + t.Name).Width(26).Disabled(!a.writable() || a.form != nil || a.mapForm != nil)
+		button := ui.Button(c.Key(fmt.Sprint(t.ID, kind)), label).Label(name+" "+t.Name).Size(23, 22).Disabled(!a.writable() || a.form != nil || a.mapForm != nil)
 		if (kind == "mute" && t.Muted) || (kind == "solo" && t.Solo) {
 			button.Background(c.Theme().Accent).TextColor(c.Theme().AccentText)
 		}

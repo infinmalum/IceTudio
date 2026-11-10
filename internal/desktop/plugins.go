@@ -103,33 +103,36 @@ func (a *Workspace) pluginCatalogDialog(c *ui.Context) {
 	if !p.open || a.closeFrozen {
 		return
 	}
+	width, height := c.Size()
 	ui.Modal(c, &p.open, func() {
-		ui.Column(c).Width(600).Gap(8).Children(func() {
-			ui.Text(c, "音频插件库").FontSize(18).Bold()
-			ui.Text(c, "扫描会在隔离进程中加载目录里的 CLAP 和 VST3。请选择信任的插件目录。").TextColor(c.Theme().TextMuted)
-			ui.Text(c, "当前可登记和检查插件。轨道与混音槽的加载入口仍在开发。").TextColor(c.Theme().TextMuted)
-			ui.Row(c).Gap(6).Children(func() {
-				ui.Button(c, "选择目录").Disabled(p.busy).OnClick(a.choosePluginFolder)
-				ui.PrimaryButton(c, "扫描所选目录").Disabled(p.busy || p.folder == "").OnClick(func() { a.runPluginCatalog(p.folder, false) })
-				ui.Button(c, "取消扫描").Disabled(p.cancel == nil).OnClick(a.cancelPluginScan)
-				ui.Box(c).Grow(1)
-				ui.Button(c, "返回").OnClick(func() { p.open = false })
-			})
-			if p.folder != "" {
-				ui.Text(c, p.folder).MaxWidth(580).TextColor(c.Theme().TextMuted)
-			}
-			if p.busy {
-				if p.total > 0 {
-					ui.Textf(c, "正在检查模块 %d / %d", min(p.done+1, p.total), p.total)
-				} else {
-					ui.Text(c, "正在处理插件目录…")
+		ui.Scroll(c).Width(min(600, width-64)).MaxHeight(height - 80).Children(func() {
+			ui.Column(c).FillWidth().Gap(8).Children(func() {
+				ui.Text(c, "音频插件库").FontSize(18).Bold()
+				ui.Text(c, "扫描会在隔离进程中加载目录里的 CLAP 和 VST3。请选择信任的插件目录。").TextColor(c.Theme().TextMuted)
+				ui.Text(c, "扫描成功后，在混音台的通道或效果页挂载插件。").TextColor(c.Theme().TextMuted)
+				ui.Row(c).FillWidth().Wrap().Gap(6).Children(func() {
+					ui.Button(c, "选择目录").Disabled(p.busy).OnClick(a.choosePluginFolder)
+					ui.PrimaryButton(c, "扫描所选目录").Disabled(p.busy || p.folder == "").OnClick(func() { a.runPluginCatalog(p.folder, false) })
+					ui.Button(c, "取消扫描").Disabled(p.cancel == nil).OnClick(a.cancelPluginScan)
+					ui.Box(c).Grow(1)
+					ui.Button(c, "返回").OnClick(func() { p.open = false })
+				})
+				if p.folder != "" {
+					ui.Text(c, p.folder).MaxWidth(580).TextColor(c.Theme().TextMuted)
 				}
-			}
-			if p.message != "" {
-				ui.Text(c, p.message).MaxWidth(580).TextColor(c.Theme().TextMuted)
-			}
-			ui.TextInput(c, &p.query).Label("搜索插件名称、厂商或路径").Placeholder("搜索插件").OnChange(func() { p.page = 0 })
-			a.pluginCatalogResults(c, p)
+				if p.busy {
+					if p.total > 0 {
+						ui.Textf(c, "正在检查模块 %d / %d", min(p.done+1, p.total), p.total)
+					} else {
+						ui.Text(c, "正在处理插件目录…")
+					}
+				}
+				if p.message != "" {
+					ui.Text(c, p.message).MaxWidth(580).TextColor(c.Theme().TextMuted)
+				}
+				ui.TextInput(c, &p.query).Label("搜索插件名称、厂商或路径").Placeholder("搜索插件").OnChange(func() { p.page = 0 })
+				a.pluginCatalogResults(c, p)
+			})
 		})
 	})
 }
@@ -177,14 +180,22 @@ func matchesPlugin(module pluginhost.Module, query string) bool {
 
 func (a *Workspace) pluginModuleRow(c *ui.Context, module pluginhost.Module, busy bool) {
 	ui.Column(c).Gap(2).Padding(6).Background(c.Theme().Surface).Children(func() {
-		ui.Row(c).Gap(5).Children(func() {
-			ui.Text(c, fmt.Sprintf("%s · %s", filepath.Base(module.Path), strings.ToUpper(module.Format))).Grow(1).Bold()
+		ui.Row(c).FillWidth().Wrap().Gap(5).Children(func() {
+			ui.Text(c, fmt.Sprintf("%s · %s", filepath.Base(module.Path), strings.ToUpper(module.Format))).MinWidth(110).Grow(1).SingleLine().Bold()
 			retry := "重新扫描"
 			if module.Status != pluginhost.Ready {
 				retry = "重试扫描"
 			}
-			ui.Button(c, retry).Disabled(busy).OnClick(func() { a.runPluginCatalog(module.Path, true) })
+			label := "停用模块"
+			if module.Blocked {
+				label = "重新启用"
+			}
+			ui.Button(c, label).Disabled(busy).OnClick(func() { a.togglePluginModule(module) })
+			ui.Button(c, retry).Disabled(busy || module.Blocked).OnClick(func() { a.runPluginCatalog(module.Path, true) })
 		})
+		if module.Blocked {
+			ui.Text(c, "已停用，保留现有工程槽位").TextColor(c.Theme().Warning)
+		}
 		ui.Text(c, module.Path).MaxWidth(565).FontSize(11).TextColor(c.Theme().TextMuted)
 		switch module.Status {
 		case pluginhost.Ready:
@@ -198,4 +209,33 @@ func (a *Workspace) pluginModuleRow(c *ui.Context, module pluginhost.Module, bus
 			ui.Text(c, module.Detail).MaxWidth(565).TextColor(c.Theme().Warning)
 		}
 	})
+}
+
+func (a *Workspace) togglePluginModule(m pluginhost.Module) {
+	p := &a.pluginShelf
+	if p.busy || a.closeFrozen {
+		return
+	}
+	p.busy = true
+	go func() {
+		err := a.service.SetPluginBlocked(m.Path, !m.Blocked)
+		modules, readErr := a.service.PluginCatalog()
+		a.update(func() {
+			p.busy = false
+			if err != nil {
+				p.message = err.Error()
+				return
+			}
+			if readErr != nil {
+				p.message = readErr.Error()
+				return
+			}
+			p.modules = modules
+			if m.Blocked {
+				p.message = "插件已重新启用"
+			} else {
+				p.message = "插件已停用，工程状态保留"
+			}
+		})
+	}()
 }

@@ -12,11 +12,12 @@ set(SMTG_ENABLE_VST3_HOSTING_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(SMTG_ENABLE_VSTGUI_SUPPORT OFF CACHE BOOL "" FORCE)
 add_subdirectory("${VST3_ROOT}" vst3 EXCLUDE_FROM_ALL)
 set(hosting "${VST3_ROOT}/public.sdk/source/vst/hosting")
-add_executable(icetudio-plugin-probe main.cpp clap.cpp vst3.cpp editor.cpp transport.cpp
+set(native "${CMAKE_CURRENT_SOURCE_DIR}/../../internal/pluginhost/native")
+add_executable(icetudio-plugin-probe main.cpp clap.cpp vst3.cpp editor.cpp transport.cpp "${native}/editor.cpp"
     "${hosting}/module_linux.cpp"
     "${hosting}/plugprovider.cpp"
     "${VST3_ROOT}/public.sdk/source/common/memorystream.cpp")
-target_include_directories(icetudio-plugin-probe PRIVATE "${CLAP_ROOT}/include")
+target_include_directories(icetudio-plugin-probe PRIVATE "${CLAP_ROOT}/include" "${native}")
 target_compile_features(icetudio-plugin-probe PRIVATE cxx_std_20)
 find_package(X11 REQUIRED)
 target_link_libraries(icetudio-plugin-probe PRIVATE X11::X11 sdk_hosting ${CMAKE_DL_LIBS})

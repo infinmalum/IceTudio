@@ -33,9 +33,10 @@ public:
 
     unsigned long id() const { return window; }
     bool resize(int width, int height);
+    bool closed();
     void verify(EventLoop& loop, bool open, const std::function<void()>& dispatch = {});
 
 private:
     void* display;
-    unsigned long window;
+    unsigned long window, closeAtom;
 };

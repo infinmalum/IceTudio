@@ -31,10 +31,10 @@ type nativePreferences struct {
 }
 
 func defaultPreferences() nativePreferences {
-	return nativePreferences{Version: 1, Theme: "dark", Scale: 1, BrowserWidth: 208, EditorShare: 72, Split: 48}
+	return nativePreferences{Version: 1, Theme: "dark", Scale: 1, BrowserWidth: 208, EditorShare: 72, Split: 60, View: "arrangement", HideAgent: true}
 }
 func validPreferences(p nativePreferences) bool {
-	return validEditorKeys(p) && (p.View == "" || p.View == "split" || p.View == "arrangement" || p.View == "piano" || p.View == "mixer") && (p.Follow == "" || p.Follow == "关闭" || p.Follow == "页跟随" || p.Follow == "连续跟随") && p.Version == 1 && (p.Theme == "dark" || p.Theme == "light") && p.Scale >= .5 && p.Scale <= 2 && p.BrowserWidth >= 160 && p.BrowserWidth <= 800 && p.EditorShare >= 15 && p.EditorShare <= 90 && p.Split >= 10 && p.Split <= 90
+	return validEditorKeys(p) && (p.View == "" || p.View == "split" || p.View == "arrangement" || p.View == "piano" || p.View == "mixer" || p.View == "mix-split") && (p.Follow == "" || p.Follow == "关闭" || p.Follow == "页跟随" || p.Follow == "连续跟随") && p.Version == 1 && (p.Theme == "dark" || p.Theme == "light") && p.Scale >= .5 && p.Scale <= 2 && p.BrowserWidth >= 160 && p.BrowserWidth <= 800 && p.EditorShare >= 15 && p.EditorShare <= 90 && p.Split >= 10 && p.Split <= 90
 }
 func readPreferences(dir string) (nativePreferences, error) {
 	p := defaultPreferences()
@@ -137,7 +137,7 @@ func (a *Workspace) appearanceSettings(c *ui.Context, d *nativeSettings) {
 	ui.Text(c, "外观与布局").Bold()
 	nativeSelect(c, "主题", &a.preferences.Theme, []string{"dark", "light"}, d.busy, func() { a.savePreferences(); a.sendPianoCommand("appearance", 0) })
 	ui.Text(c, "界面缩放（Native 与嵌入内容）").FontSize(11)
-	ui.Row(c).Gap(6).Children(func() {
+	ui.Row(c).FillWidth().Wrap().Gap(6).Children(func() {
 		for _, scale := range []float32{.9, 1, 1.1, 1.25, 1.4} {
 			ui.Button(c, fmt.Sprintf("%.0f%%", scale*100)).OnClick(func() { a.cancelArrangement(); a.preferences.Scale = scale; a.savePreferences() })
 		}

@@ -51,10 +51,12 @@ func TestEditorSnapAndPreferences(t *testing.T) {
 	if validPreferences(p) {
 		t.Fatal("conflicting keyboard map accepted")
 	}
-	if b, a := editorPanels(900, defaultPreferences()); b || a {
+	panels := defaultPreferences()
+	panels.HideAgent = false
+	if b, a := editorPanels(900, panels); b || a {
 		t.Fatal("narrow editor lost its canvas")
 	}
-	if b, a := editorPanels(1440, defaultPreferences()); !b || !a {
+	if b, a := editorPanels(1440, panels); !b || !a {
 		t.Fatal("wide editor lost panels")
 	}
 }
@@ -121,8 +123,9 @@ func TestNativeLayoutUsesMyGoZoomedSizeOnce(t *testing.T) {
 	a := &Workspace{preferences: defaultPreferences()}
 	a.install(fixture())
 	a.preferences.Scale = 1.25
+	a.preferences.HideAgent = false
 	v := ui.NewTester(a.view, 1440, 900)
-	if !v.HasText("ARRANGEMENT") {
+	if !v.HasText("轨道") {
 		t.Fatal("125% zoom unnecessarily hid arrangement")
 	}
 	if err := v.Click("浏览器"); err != nil {
@@ -145,5 +148,64 @@ func TestNativeLayoutSegmentSwitchesByMouseAndKeyboard(t *testing.T) {
 	v.Key(0, ui.KeyRight)
 	if a.preferences.View != "mixer" || a.prefsVersion != 2 {
 		t.Fatalf("arrow selected %q with %d preference updates", a.preferences.View, a.prefsVersion)
+	}
+}
+
+func TestCompactEditorMenusKeepProjectAndClipActionsReachable(t *testing.T) {
+	edits, service, p := testEdits(t)
+	if err := edits.Check(); err != nil {
+		t.Fatal(err)
+	}
+	a := &Workspace{edits: edits, service: service, preferences: defaultPreferences()}
+	a.install(p)
+	browser := ui.NewTester(a.browser, 180, 400)
+	for _, label := range []string{"新建", "导入 MIDI", "工程操作"} {
+		r, ok := browser.Find(label)
+		if !ok || r.X < 0 || r.X+r.W > 180 {
+			t.Fatalf("%s exceeds the narrow browser: %+v", label, r)
+		}
+	}
+	if err := browser.Click("工程操作"); err != nil {
+		t.Fatal(err)
+	}
+	if err := browser.Click("导出音频"); err != nil {
+		t.Fatal(err)
+	}
+	if a.audioExport == nil || a.audioExport.projectID != p.ID {
+		t.Fatal("export menu did not preserve the active project")
+	}
+
+	tools := ui.NewTester(a.objectTools, 320, 240)
+	if err := tools.Click("片段"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tools.Click("片段属性"); err != nil {
+		t.Fatal(err)
+	}
+	if a.form == nil || a.form.kind != "clip" {
+		t.Fatal("clip menu did not open the existing property form")
+	}
+}
+
+func TestDeskKeepsTransportAboveEditorModes(t *testing.T) {
+	a := &Workspace{preferences: defaultPreferences()}
+	a.install(fixture())
+	v := ui.NewTester(a.view, 1440, 900)
+	play, found := v.Find("播放工程")
+	if !found || play.Y > 70 || !v.HasText("轨道") || v.HasText("创作助手") {
+		t.Fatalf("default desk did not prioritize the Playlist: %v", v.Texts())
+	}
+	if err := v.Click("混音"); err != nil {
+		t.Fatal(err)
+	}
+	next, found := v.Find("播放工程")
+	if !found || next != play || !v.HasText("插入效果") || v.HasText("轨道") {
+		t.Fatalf("mixer did not retain the global transport: %v", v.Texts())
+	}
+	if err := v.Click("选择混音通道 Master · 主输出"); err != nil {
+		t.Fatal(err)
+	}
+	if a.mixerSelection() != project.MasterChannel {
+		t.Fatal("effects rack selection did not follow Master")
 	}
 }

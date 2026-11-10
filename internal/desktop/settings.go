@@ -137,49 +137,70 @@ func (a *Workspace) settingsDialog(c *ui.Context) {
 	if d == nil || !d.open || a.closeFrozen {
 		return
 	}
+	windowWidth, windowHeight := c.Size()
+	width := min(float32(790), windowWidth-64)
+	pages := []string{"外观", "模型", "权限", "扩展服务", "工作方法", "执行配置", "运行日志"}
+	disabled := d.busy || d.form != nil && d.form.dirty
+	selectPage := func(page string) {
+		d.page, d.form, d.err = page, nil, ""
+		a.reloadSettings(d)
+	}
 	ui.Modal(c, &d.open, func() {
-		ui.Text(c, "设置").FontSize(18).Bold()
-		ui.Row(c).Gap(12).Children(func() {
-			ui.Column(c).Width(128).Gap(6).Children(func() {
-				for _, page := range []string{"外观", "模型", "权限", "扩展服务", "工作方法", "执行配置", "运行日志"} {
-					ui.Button(c, page).FillWidth().Disabled(d.busy || d.form != nil && d.form.dirty).OnClick(func() { d.page = page; d.form = nil; d.err = ""; a.reloadSettings(d) })
-				}
-			})
-			ui.Scroll(c).Width(650).MaxHeight(540).Children(func() {
-				ui.Column(c).FillWidth().Gap(10).Children(func() {
-					switch d.page {
-					case "外观":
-						a.appearanceSettings(c, d)
-					case "模型":
-						a.modelSettings(c, d)
-					case "权限":
-						a.permissionSettings(c, d)
-					case "扩展服务":
-						a.mcpSettings(c, d)
-					case "工作方法":
-						a.skillSettings(c, d)
-					case "执行配置":
-						a.runtimeSettings(c, d)
-					case "运行日志":
-						for _, line := range d.logs {
-							ui.Text(c, line).MaxWidth(630).FontSize(11)
+		ui.Column(c).Width(width).Gap(8).Children(func() {
+			ui.Text(c, "设置").FontSize(18).Bold()
+			if width < 650 {
+				ui.PopoverMenuButton(c, d.page, func(m *ui.Menu) {
+					for _, page := range pages {
+						if m.Item(page).Radio(page == d.page).Disabled(disabled).Chosen() {
+							selectPage(page)
 						}
 					}
+				}).Label("设置页面")
+			}
+			ui.Row(c).FillWidth().Gap(12).AlignItems(ui.Start).Children(func() {
+				if width >= 650 {
+					ui.Column(c).Width(128).Gap(6).Children(func() {
+						for _, page := range pages {
+							ui.Button(c, page).FillWidth().Disabled(disabled).OnClick(func() { selectPage(page) })
+						}
+					})
+				}
+				ui.Scroll(c).Grow(1).MinWidth(0).MaxHeight(min(540, windowHeight-190)).Children(func() {
+					ui.Column(c).FillWidth().Gap(10).Children(func() {
+						switch d.page {
+						case "外观":
+							a.appearanceSettings(c, d)
+						case "模型":
+							a.modelSettings(c, d)
+						case "权限":
+							a.permissionSettings(c, d)
+						case "扩展服务":
+							a.mcpSettings(c, d)
+						case "工作方法":
+							a.skillSettings(c, d)
+						case "执行配置":
+							a.runtimeSettings(c, d)
+						case "运行日志":
+							for _, line := range d.logs {
+								ui.Text(c, line).FontSize(11)
+							}
+						}
+						if d.err != "" {
+							ui.Text(c, d.err).TextColor(c.Theme().Warning)
+						}
+						if d.message != "" {
+							ui.Text(c, d.message)
+						}
+						if d.form != nil && d.form.dirty {
+							ui.Text(c, "有未保存输入。关闭此窗口会在本次运行中保留；退出应用前请保存或明确放弃。")
+						}
+					})
 				})
 			})
-		})
-		if d.err != "" {
-			ui.Text(c, d.err).MaxWidth(790).TextColor(c.Theme().Warning)
-		}
-		if d.message != "" {
-			ui.Text(c, d.message).MaxWidth(790)
-		}
-		if d.form != nil && d.form.dirty {
-			ui.Text(c, "有未保存输入。关闭此窗口会在本次运行中保留；退出应用前请保存或明确放弃。").MaxWidth(790)
-		}
-		ui.Row(c).Gap(8).Children(func() {
-			ui.Button(c, "重新读取 / 放弃本页修改").Disabled(d.busy).OnClick(func() { d.form = nil; a.reloadSettings(d) })
-			ui.Button(c, "返回工作区").Disabled(d.busy).OnClick(func() { d.open = false })
+			ui.Row(c).FillWidth().Wrap().Gap(8).Children(func() {
+				ui.Button(c, "重新读取 / 放弃本页修改").Disabled(d.busy).OnClick(func() { d.form = nil; a.reloadSettings(d) })
+				ui.Button(c, "返回工作区").Disabled(d.busy).OnClick(func() { d.open = false })
+			})
 		})
 	})
 }

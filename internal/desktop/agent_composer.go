@@ -156,7 +156,7 @@ func (a *Workspace) nativeComposer(c *ui.Context) {
 		ui.Text(c, "上次发送结果待核对。请先刷新消息与任务；不会自动重发。确认未发送后才可重新编辑。").MaxWidth(296).TextColor(c.Theme().Warning)
 		ui.Button(c, "已核对，保留输入并解锁").Disabled(a.composerBlocked()).OnClick(a.unlockComposer)
 	}
-	ui.Row(c).Gap(6).Children(func() {
+	ui.Row(c).FillWidth().Wrap().Gap(6).Children(func() {
 		ui.Button(c, "附件").Disabled(a.composerBlocked() || d.Dispatching).OnClick(a.pickAgentAttachments)
 		ui.Button(c, "发送前确认").Disabled(a.composerBlocked() || d.Dispatching || x.errors[key] != "" || strings.TrimSpace(d.Text) == "" && len(d.Uploads) == 0).OnClick(a.prepareNativeSend)
 		if x.writes > 0 {

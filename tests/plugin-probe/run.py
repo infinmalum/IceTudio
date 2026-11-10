@@ -3,12 +3,16 @@
 
 import argparse
 import hashlib
+import mmap
 import os
 from pathlib import Path
 import shlex
 import select
 import signal
 import subprocess
+import struct
+import sys
+import time
 from tempfile import TemporaryDirectory
 
 
@@ -28,13 +32,17 @@ def worker(deps, scratch, path, *args, timeout=15, mapping=None):
         "--tmpfs", "/tmp", "--chdir", "/tmp",
     ]
     probe_args = ["/probe", *args[:2], plugin_path, *args[2:]]
-    if args[1] == "editor":
+    if args[1] in ("editor", "runtime-editor"):
         etc = scratch / "etc"
         if not etc.exists():
             etc.mkdir()
             (etc / "passwd").write_text(f"probe:x:{os.getuid()}:{os.getgid()}:Probe:/tmp:/usr/bin/sh\n")
             (etc / "group").write_text(f"probe:x:{os.getgid()}:\n")
             (etc / "machine-id").write_bytes(subprocess.check_output(["dbus-uuidgen"]))
+        if args[1] == "runtime-editor":
+            runtime = deps.parent / "icetudio-plugin-run"
+            probe_args = ["/usr/bin/python3", "/editor-driver", "--editor-driver", args[0], plugin_path, args[2], args[3]]
+            command += ["--ro-bind", str(runtime), "/runtime", "--ro-bind", str(Path(__file__).resolve()), "/editor-driver"]
         session = etc / "editor-session"
         session.write_text("#!/usr/bin/sh\nexec " + shlex.join(probe_args) + "\n")
         session.chmod(0o700)
@@ -121,10 +129,69 @@ def transport(deps, scratch, path, format_, identity, crash=False):
         os.close(mapping)
 
 
+def runtime_editor_driver(format_, plugin, identity, kind):
+    # Mirrors the versioned runtime header. This driver runs inside the private
+    # KWin/Xwayland display and requests the same checkpoint as the Native UI.
+    wire_size = 1245632
+    state_offset = 256 + 512 * 64
+    input_offset = state_offset + (1 << 20)
+
+    def one(state, override=None):
+        fd = os.memfd_create("ice-editor-test")
+        try:
+            os.ftruncate(fd, wire_size)
+            with mmap.mmap(fd, wire_size) as mem:
+                struct.pack_into("=I", mem, 0, 0x49434531)
+                struct.pack_into("=I", mem, 24, len(state))
+                mem[state_offset:state_offset + len(state)] = state
+                if override:
+                    struct.pack_into("=I", mem, input_offset + 12, 1)
+                    struct.pack_into("=I", mem, input_offset + 20, override[0])
+                    struct.pack_into("=f", mem, input_offset + 20 + 512 * 4, override[1])
+                with subprocess.Popen(["/runtime", format_, plugin, identity, kind, "editor"], stdin=fd) as child:
+                    try:
+                        def wait(expected):
+                            until = time.monotonic() + 5
+                            while time.monotonic() < until:
+                                status = struct.unpack_from("=I", mem, 4)[0]
+                                if status == expected:
+                                    return
+                                if status == 2 or child.poll() is not None:
+                                    raise RuntimeError(mem[28:256].split(b"\0", 1)[0].decode(errors="replace"))
+                                time.sleep(.004)
+                            raise RuntimeError("runtime editor checkpoint timed out")
+                        wait(1)
+                        time.sleep(.08)
+                        struct.pack_into("=I", mem, 8, 1)
+                        wait(3)
+                        count, size = struct.unpack_from("=II", mem, 20)
+                        if not (0 < size <= (1 << 20) and count <= 512):
+                            raise RuntimeError("bad runtime editor state or parameters")
+                        params = {}
+                        for i in range(count):
+                            ident, value, label = struct.unpack_from("=If56s", mem, 256+i*64)
+                            params[label.split(b"\0", 1)[0].decode(errors="replace")] = (ident, value)
+                        return mem[state_offset:state_offset+size], params
+                    finally:
+                        child.kill()
+        finally:
+            os.close(fd)
+
+    state, params = one(b"")
+    change = None
+    if "Cutoff" in params:
+        change = (params["Cutoff"][0], .375)
+    _, reopened = one(state, change)
+    if change and abs(reopened["Cutoff"][1] - change[1]) > .001:
+        raise RuntimeError("edited parameter was not captured")
+    print("runtime editor state captured and reopened", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("deps", type=Path)
     parser.add_argument("--editors", action="store_true", help="also open editors on isolated Xwayland")
+    parser.add_argument("--runtime-editors", action="store_true", help="test production editor checkpoint protocol on isolated Xwayland")
     parser.add_argument("--transport", action="store_true", help="also test paced shared audio buffers")
     parser.add_argument("--latency", action="store_true", help="also test restart and latency with fixtures")
     args = parser.parse_args()
@@ -151,6 +218,11 @@ def main():
                 editor = success(worker(deps, scratch, path, format_, "editor", identity, "/state/unused"))
                 if editor.count("editor visible=1") != 2 or editor.count("editor visible=0") != 2:
                     raise RuntimeError("editor did not complete two open/close cycles")
+            if args.runtime_editors:
+                kind = "effect" if name.endswith("Effects") else "instrument"
+                output = success(worker(deps, scratch, path, format_, "runtime-editor", identity, kind))
+                if "runtime editor state captured and reopened" not in output:
+                    raise RuntimeError("runtime editor did not publish a checkpoint")
             if args.transport and name in ("Dexed", "Surge XT Effects"):
                 transport(deps, scratch, path, format_, identity)
                 if name == "Dexed":
@@ -179,4 +251,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--editor-driver":
+        runtime_editor_driver(*sys.argv[2:])
+    else:
+        main()

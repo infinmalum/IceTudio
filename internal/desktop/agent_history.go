@@ -242,7 +242,7 @@ func (a *Workspace) nativeAgentPanel(c *ui.Context) {
 	h := &a.agent
 	t := c.Theme()
 	ui.Column(c).Fill().Padding(12).Gap(8).Background(t.Surface).Children(func() {
-		ui.Row(c).Gap(6).Children(func() {
+		ui.Row(c).FillWidth().Wrap().Gap(6).Children(func() {
 			ui.Text(c, "创作助手").FontSize(16).Bold().Grow(1)
 			ui.Button(c, "联网").Disabled(h.selected == "" || a.closeFrozen).OnClick(a.openSearch)
 			ui.Button(c, "最新").OnClick(func() { h.revealLatest = true })

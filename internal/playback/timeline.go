@@ -8,6 +8,7 @@ import (
 	"math"
 	"sort"
 
+	"icetudio/internal/pluginhost"
 	"icetudio/internal/project"
 )
 
@@ -89,6 +90,8 @@ type Snapshot struct {
 }
 type Score struct {
 	mix               *mixPlan
+	catalog           *pluginhost.Catalog
+	waveforms         map[string][]int16
 	audioLimit        int64
 	Audio             []audioRegion
 	ID                string
@@ -144,6 +147,18 @@ func Compile(snapshot Snapshot) (*Score, error) {
 		}
 		// Muted tracks still contribute length, so mute does not move the loop end.
 		audible := !tr.Muted && (!solo || tr.Solo)
+		var ch project.MixChannel
+		if st.Mixer != nil {
+			ch = st.Mixer.Channel(tr.ID)
+		}
+		if ch.Synth != nil {
+			p := *ch.Synth
+			p.Tone = ch.MacroValue(project.SynthMacroTarget, "tone", p.Tone)
+			p.Release = ch.MacroValue(project.SynthMacroTarget, "release", p.Release)
+			ch.Synth = &p
+		}
+		sampler := tr.Sampler != nil && ch.Instrument == nil && ch.Synth == nil
+		audible = audible && ch.FrozenAssetID == ""
 		for _, cl := range tr.Clips {
 			if cl.Start < 0 || cl.Length < 1 || cl.Start > math.MaxInt64-cl.Length {
 				return nil, errors.New("片段时间无效")
@@ -157,7 +172,20 @@ func Compile(snapshot Snapshot) (*Score, error) {
 				if n.Channel < 0 || n.Channel > 15 || n.Pitch < 0 || n.Pitch > 127 || n.Velocity < 1 || n.Velocity > 127 || n.Start < 0 || n.Duration < 1 || n.Start > cl.Length || n.Duration > cl.Length-n.Start {
 					return nil, errors.New("播放音符无效")
 				}
-				if tr.Sampler != nil {
+				if ch.Rack != nil {
+					n.Pitch += ch.Rack.Transpose
+					if n.Pitch < 0 || n.Pitch > 127 {
+						continue
+					}
+					n.Velocity = min(127, max(1, int(math.Round(float64(n.Velocity)*ch.Rack.Velocity))))
+				}
+				if ch.Synth != nil {
+					if err := compileSynthNote(score, ti, *ch.Synth, n, cl.Start); err != nil {
+						return nil, err
+					}
+					continue
+				}
+				if sampler {
 					if err := compileSampleNote(st, score, ti, n, cl.Start); err != nil {
 						return nil, err
 					}
@@ -173,7 +201,7 @@ func Compile(snapshot Snapshot) (*Score, error) {
 					return nil, err
 				}
 			}
-			if tr.Sampler != nil {
+			if sampler || ch.Synth != nil {
 				// Preserve all MIDI control data for editing and interchange. A
 				// sampled region has a fixed note, velocity and envelope snapshot.
 				score.Skipped += len(cl.Controls) + len(cl.Raw)
@@ -196,6 +224,12 @@ func Compile(snapshot Snapshot) (*Score, error) {
 					kind, a = Pressure, c.Value
 				case project.KindPolyAftertouch:
 					kind, a, b = KeyPressure, c.Note, c.Value
+					if ch.Rack != nil {
+						a += ch.Rack.Transpose
+						if a < 0 || a > 127 {
+							continue
+						}
+					}
 				default:
 					score.Skipped++
 					continue

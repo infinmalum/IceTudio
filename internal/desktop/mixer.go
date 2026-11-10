@@ -8,6 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"icetudio/internal/playback"
+	"icetudio/internal/pluginhost"
 	"icetudio/internal/project"
 )
 
@@ -47,7 +48,8 @@ func mixSelect(c *ui.Context, label string, value *string, options []mixChoice) 
 }
 
 func (a *Workspace) mixerSelection() string {
-	if a.mixTrack != "" && slices.ContainsFunc(a.active.State.Tracks, func(t project.Track) bool { return t.ID == a.mixTrack }) {
+	if a.mixTrack == project.MasterChannel || slices.ContainsFunc(a.active.State.Tracks, func(t project.Track) bool { return t.ID == a.mixTrack }) ||
+		(a.active.State.Mixer != nil && slices.ContainsFunc(a.active.State.Mixer.Channels, func(ch project.MixChannel) bool { return ch.ID == a.mixTrack && ch.BusName != "" })) {
 		return a.mixTrack
 	}
 	if t := a.preview.Context().Track; t.ID != "" {
@@ -62,29 +64,86 @@ func (a *Workspace) mixerPane(c *ui.Context) {
 		m = &project.Mixer{}
 	}
 	choices := mixerChoices(&a.active.State, m)
-	ui.Column(c).MinHeight(0).Fill().Gap(4).Children(func() {
-		ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-			ui.Text(c, "混音台").Bold()
-			ui.Button(c, "路由 / 效果 / 自动化").Disabled(!a.writable() || a.form != nil).OnClick(func() { a.openMixer(a.mixerSelection(), "通道") })
-			ui.Button(c, "插件库").Disabled(a.service == nil || a.closeFrozen || a.form != nil).OnClick(a.openPluginCatalog)
-			ui.Button(c, "重置峰值").Disabled(a.service == nil).OnClick(a.service.ResetMixerMeters)
-			ui.Textf(c, "补偿 %d 帧 · 回调 p99 %d%% · 超时 %d / 丢块 %d",
-				a.audio.MixerLatency, a.audio.CallbackP99, a.audio.Overruns, a.audio.MissedBlocks).FontSize(11).SingleLine().TextColor(c.Theme().TextMuted)
+	width, height := c.Size()
+	browser, agent := editorPanels(width, a.preferences)
+	if browser {
+		width -= max(180, min(320, a.preferences.BrowserWidth))
+	}
+	if agent {
+		width -= max(280, min(420, width*(100-a.preferences.EditorShare)/100))
+	}
+	standalone := a.editorMode(height) == "mixer"
+	faderHeight := float32(106)
+	if standalone {
+		faderHeight = min(245, max(106, height-360))
+	}
+	ui.Column(c).MinHeight(0).Fill().AlignItems(ui.Stretch).Children(func() {
+		t := c.Theme()
+		ui.Row(c).FillWidth().Wrap().Padding(4, 7).AlignItems(ui.Center).Gap(5).Background(t.Surface).Children(func() {
+			ui.Text(c, "混音台").FontSize(12).Bold()
+			ui.Button(c, "通道详情").Height(26).Label("路由 / 效果 / 自动化").Disabled(!a.writable() || a.form != nil).OnClick(func() { a.openMixer(a.mixerSelection(), "通道") })
+			ui.Button(c, "插件库").Height(26).Disabled(a.service == nil || a.closeFrozen || a.form != nil).OnClick(a.openPluginCatalog)
+			ui.Button(c, "重置峰值").Height(26).Disabled(a.service == nil).OnClick(a.service.ResetMixerMeters)
+			info := fmt.Sprintf("补偿 %d 帧 · 回调 p99 %d%% · 超时 %d / 丢块 %d",
+				a.audio.MixerLatency, a.audio.CallbackP99, a.audio.Overruns, a.audio.MissedBlocks)
+			ui.Text(c, info).FontSize(11).SingleLine().MinWidth(0).TextColor(t.TextMuted).Tooltip(info)
 		})
-		ui.Row(c).Grow(1).MinHeight(0).Gap(6).Children(func() {
-			a.mixerStrip(c.Key("master"), m, choices[0], -1)
-			ui.ScrollHorizontal(c).Grow(1).MinWidth(0).Children(func() {
-				ui.Row(c).Gap(5).Children(func() {
-					for i, choice := range choices[1:] {
-						a.mixerStrip(c.Key(choice.id), m, choice, i)
-					}
+		ui.Box(c).Height(1).FillWidth().Background(t.Border)
+		ui.Row(c).Grow(1).MinHeight(0).FillWidth().AlignItems(ui.Stretch).Children(func() {
+			ui.Scroll(c).Grow(1).MinWidth(0).MinHeight(0).Children(func() {
+				ui.Row(c).FillWidth().AlignItems(ui.Start).Children(func() {
+					a.mixerStrip(c.Key("master"), m, choices[0], -1, faderHeight)
+					ui.ScrollHorizontal(c).Grow(1).MinWidth(0).Children(func() {
+						ui.Row(c).AlignItems(ui.Start).Children(func() {
+							for i, choice := range choices[1:] {
+								a.mixerStrip(c.Key(choice.id), m, choice, i, faderHeight)
+							}
+						})
+					})
 				})
 			})
+			if standalone && width >= 690 {
+				a.mixerRackPane(c, m, choices)
+			}
 		})
 	})
 }
 
-func (a *Workspace) mixerStrip(c *ui.Context, m *project.Mixer, choice mixChoice, index int) {
+func (a *Workspace) mixerRackPane(c *ui.Context, m *project.Mixer, choices []mixChoice) {
+	id := a.mixerSelection()
+	title := "Master · 主输出"
+	for _, choice := range choices {
+		if choice.id == id {
+			title = choice.name
+			break
+		}
+	}
+	ch := m.Channel(id)
+	t := c.Theme()
+	disabled := !a.writable() || a.form != nil
+	ui.Box(c).Width(1).Background(t.Border)
+	ui.Column(c).Width(176).Padding(8).Gap(6).Background(t.Surface).Children(func() {
+		ui.Text(c, title).Bold().SingleLine().MinWidth(0).Tooltip(title)
+		ui.Text(c, "插入效果").FontSize(11).TextColor(t.TextMuted)
+		ui.Scroll(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
+			for i, effect := range ch.Effects {
+				name := fmt.Sprintf("%02d  %s", i+1, effectTitle(effect))
+				if effect.Bypass {
+					name += " · 旁通"
+				}
+				ui.Text(c.Key(effect.ID), name).FillWidth().Padding(5).Background(t.Background).SingleLine().Tooltip(name)
+			}
+			if len(ch.Effects) == 0 {
+				ui.Text(c, "暂无插入效果").FontSize(12).TextColor(t.TextMuted)
+			}
+		})
+		ui.Button(c, "编辑效果链").FillWidth().Disabled(disabled).OnClick(func() { a.openMixer(id, "效果") })
+		ui.Button(c, "路由").FillWidth().Disabled(disabled).OnClick(func() { a.openMixer(id, "路由") })
+		ui.Button(c, "自动化").FillWidth().Disabled(disabled).OnClick(func() { a.openMixer(id, "自动化") })
+	})
+}
+
+func (a *Workspace) mixerStrip(c *ui.Context, m *project.Mixer, choice mixChoice, index int, faderHeight float32) {
 	ch := m.Channel(choice.id)
 	var track *project.Track
 	color := c.Theme().Accent
@@ -111,34 +170,39 @@ func (a *Workspace) mixerStrip(c *ui.Context, m *project.Mixer, choice mixChoice
 	if a.mixerSelection() == choice.id {
 		bg = c.Theme().SurfaceHover
 	}
-	ui.Column(c).Width(132).Gap(4).Padding(6).Background(bg).Children(func() {
+	ui.Column(c).Width(109).Gap(4).Padding(5).Background(bg).Border(1, c.Theme().Border).Children(func() {
 		ui.Box(c).Height(3).FillWidth().Background(color)
-		ui.Button(c, choice.name).Label("编辑混音 " + choice.name).FillWidth().Disabled(!a.writable() || a.form != nil).OnClick(func() {
+		title := choice.name
+		if choice.id == project.MasterChannel {
+			title = "Master"
+		}
+		ui.Button(c, "").Label("选择混音通道 "+choice.name).FillWidth().Height(25).Padding(3, 5).Tooltip(choice.name).Children(func() {
+			ui.Text(c, title).SingleLine().MinWidth(0).Grow(1).FontSize(12)
+		}).OnClick(func() {
+			if a.closeFrozen || a.form != nil || a.editBusy {
+				return
+			}
+			a.mixTrack = choice.id
 			if track != nil {
 				a.focusMixerTrack(*track)
 			}
-			a.openMixer(choice.id, "通道")
 		})
+		destination := "主输出"
 		if choice.id != project.MasterChannel {
-			ui.Text(c, "→ "+output).SingleLine().FontSize(11)
+			destination = "→ " + output
 		}
-		ui.Box(c).FillWidth().Height(9).Background(c.Theme().Border).Draw(func(p *ui.Painter, r ui.Rect) {
-			level := func(v float64) float32 { return float32(max(0, min(1, (60+20*math.Log10(max(v, 0.001)))/60))) }
-			meterColor := color
-			if meter.Hold > 1 {
-				meterColor = c.Theme().Warning
-			}
-			p.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W * level(meter.Peak), H: r.H}, meterColor, 0)
-			x := r.X + r.W*level(meter.Hold)
-			p.Line(x, r.Y, x, r.Y+r.H, 1, c.Theme().Text)
+		ui.Text(c, destination).Height(16).SingleLine().FontSize(11).TextColor(c.Theme().TextMuted)
+		ui.Row(c).Height(faderHeight).Gap(6).AlignItems(ui.Stretch).Children(func() {
+			a.mixerFader(c.Key("gain"), choice, ch.Gain, true)
+			mixerMeter(c, meter)
 		})
 		if meter.Hold > 0 {
-			ui.Textf(c, "%.1f dBFS · 削波 %d", 20*math.Log10(meter.Hold), meter.Clips).FontSize(10)
+			ui.Textf(c, "%.1f dBFS · 削波 %d", 20*math.Log10(meter.Hold), meter.Clips).Height(16).SingleLine().FontSize(10)
 		} else {
-			ui.Text(c, "−∞ dBFS").FontSize(10)
+			ui.Text(c, "−∞ dBFS").Height(16).FontSize(10).TextColor(c.Theme().TextMuted)
 		}
-		ui.Textf(c, "推子 %.0f%% · 声像 %+.0f", ch.Gain*100, ch.Pan*100).FontSize(11)
-		ui.Button(c, fmt.Sprintf("%d 个插入效果", len(ch.Effects))).Disabled(!a.writable() || a.form != nil).OnClick(func() { a.openMixer(choice.id, "效果") })
+		a.mixerFader(c.Key("pan"), choice, ch.Pan, false)
+		ui.Button(c, fmt.Sprintf("效果 %d", len(ch.Effects))).Disabled(!a.writable() || a.form != nil).OnClick(func() { a.openMixer(choice.id, "效果") })
 		if track != nil {
 			ui.Row(c).Gap(4).Children(func() {
 				mute, solo := !track.Muted, !track.Solo
@@ -149,6 +213,8 @@ func (a *Workspace) mixerStrip(c *ui.Context, m *project.Mixer, choice mixChoice
 					a.mutate("edit", []project.Op{{Kind: "track.update", TrackID: track.ID, TrackPatch: &project.TrackPatch{Solo: &solo}}})
 				})
 			})
+		} else {
+			ui.Box(c).Height(32)
 		}
 	})
 }
@@ -168,6 +234,13 @@ func (a *Workspace) focusMixerTrack(t project.Track) {
 }
 
 type mixerControls struct {
+	rackName, rackPreset, rackBinding                                         string
+	soundQuery                                                                string
+	soundFavorites                                                            bool
+	plugins                                                                   []pluginhost.Module
+	pluginQuery, pluginChoice                                                 string
+	pluginParameter                                                           string
+	pluginLoaded                                                              bool
 	tab, channel, routeKind, routeTarget, effect, preset, presetName, busName string
 	parameter, target, position, pointValue, offset, mode                     string
 	step                                                                      bool
@@ -210,7 +283,7 @@ func (a *Workspace) mixerFields(c *ui.Context, f *propertyForm) {
 		if s.write == nil && mixSelect(c, "混音通道", &s.channel, mixerChoices(&a.active.State, m)) {
 			s.effect, s.target = "", ""
 		}
-		ui.Select(c, &s.tab, []string{"通道", "路由", "效果", "自动化"}).Label("混音页面").Disabled(s.write != nil)
+		ui.Select(c, &s.tab, []string{"通道", "路由", "效果", "自动化", "音色", "组合"}).Label("混音页面").Disabled(s.write != nil)
 	})
 	ch := m.Channel(s.channel)
 	changed := func() { a.changedForm(f) }
@@ -218,6 +291,10 @@ func (a *Workspace) mixerFields(c *ui.Context, f *propertyForm) {
 		ui.Column(c).FillWidth().Gap(8).Children(func() {
 			switch s.tab {
 			case "通道":
+				if slices.ContainsFunc(a.active.State.Tracks, func(t project.Track) bool { return t.ID == ch.ID }) {
+					a.mixerFreeze(c, f, ch, changed)
+					a.mixerInstrument(c, f, ch, changed)
+				}
 				mixSlider(c, "推子", &ch.Gain, 0, 2, func() { m.SetChannel(ch); changed() })
 				mixSlider(c, "声像", &ch.Pan, -1, 1, func() { m.SetChannel(ch); changed() })
 				if ch.BusName != "" {
@@ -248,6 +325,10 @@ func (a *Workspace) mixerFields(c *ui.Context, f *propertyForm) {
 				a.mixerEffects(c, f, ch, changed)
 			case "自动化":
 				a.mixerAutomation(c, f, ch, changed)
+			case "音色":
+				a.mixerSounds(c, f, ch, changed)
+			case "组合":
+				a.mixerRack(c, f, ch, changed)
 			}
 		})
 	})
@@ -362,13 +443,14 @@ func (a *Workspace) mixerEffects(c *ui.Context, f *propertyForm, ch project.MixC
 		save := func() { m.SetChannel(ch); changed() }
 		ui.Column(c.Key(fx.ID)).FillWidth().Gap(4).Padding(6).Background(c.Theme().SurfaceHover).Children(func() {
 			ui.Row(c).Gap(4).Children(func() {
-				ui.Text(c, mixEffectName(fx.Kind)).Grow(1).Bold()
+				ui.Text(c, effectTitle(*fx)).Grow(1).Bold()
 				ui.Checkbox(c, &fx.Bypass, "旁通").OnChange(save)
 				ui.Button(c, "↑").Disabled(i == 0).OnClick(func() { ch.Effects[i], ch.Effects[i-1] = ch.Effects[i-1], ch.Effects[i]; save() })
 				ui.Button(c, "↓").Disabled(i+1 == len(ch.Effects)).OnClick(func() { ch.Effects[i], ch.Effects[i+1] = ch.Effects[i+1], ch.Effects[i]; save() })
 				ui.Button(c, "移除").OnClick(func() {
 					id := fx.ID
 					ch.Effects = slices.Delete(ch.Effects, i, i+1)
+					ch.RemoveMacroTarget(id)
 					m.Lanes = slices.DeleteFunc(m.Lanes, func(l project.Automation) bool { return l.Target == id })
 					if !slices.ContainsFunc(ch.Effects, func(e project.MixEffect) bool { return e.Kind == "compressor" }) {
 						m.Routes = slices.DeleteFunc(m.Routes, func(r project.MixRoute) bool { return r.Kind == "sidechain" && r.To == ch.ID })
@@ -387,10 +469,18 @@ func (a *Workspace) mixerEffects(c *ui.Context, f *propertyForm, ch project.MixC
 			case "gate":
 				amountLabel = "阈值（归一化）"
 			}
-			mixSlider(c, amountLabel, &fx.Amount, 0, 1, save)
+			if fx.Plugin == nil {
+				mixSlider(c, amountLabel, &fx.Amount, 0, 1, save)
+			} else {
+				edit := editableEffect(*fx)
+				a.pluginFields(c, f, &edit, "effect", func() {
+					ch.Effects[i] = edit
+					save()
+				})
+			}
 			mixSlider(c, "湿信号", &fx.Wet, 0, 1, save)
 			ui.Button(c, "将此效果存为预设").Disabled(strings.TrimSpace(s.presetName) == "" || len(m.Presets) >= 32).OnClick(func() {
-				p := project.MixPreset{Name: strings.TrimSpace(s.presetName), Effect: *fx}
+				p := project.MixPreset{Name: strings.TrimSpace(s.presetName), Effect: cloneEffect(*fx)}
 				p.Effect.ID = ""
 				m.Presets = slices.DeleteFunc(m.Presets, func(old project.MixPreset) bool { return old.Name == p.Name })
 				m.Presets = append(m.Presets, p)
@@ -411,6 +501,14 @@ func (a *Workspace) mixerEffects(c *ui.Context, f *propertyForm, ch project.MixC
 			changed()
 		})
 	})
+	if len(ch.Effects) < 8 {
+		a.pluginPicker(c.Key("new-effect"), f, "effect", nil, func(plugin *project.PluginState) {
+			current := m.Channel(ch.ID)
+			current.Effects = append(slices.Clone(current.Effects), project.MixEffect{ID: project.NewID("fx"), Kind: "plugin", Plugin: plugin, Wet: 1})
+			m.SetChannel(current)
+			changed()
+		})
+	}
 	if len(m.Presets) > 0 {
 		var presets []mixChoice
 		for _, p := range m.Presets {
@@ -423,7 +521,7 @@ func (a *Workspace) mixerEffects(c *ui.Context, f *propertyForm, ch project.MixC
 					if p.Name != s.preset {
 						continue
 					}
-					fx := p.Effect
+					fx := cloneEffect(p.Effect)
 					fx.ID = project.NewID("fx")
 					ch.Effects = append(ch.Effects, fx)
 					m.SetChannel(ch)

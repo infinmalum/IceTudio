@@ -19,6 +19,7 @@ var pianoChanged = mygo.NewEvent[uint64]("icetudio:piano-context")
 
 // Workspace owns only UI projections. Project reads go through app.Service.
 type Workspace struct {
+	browserSection     int
 	materialShelf      materialShelf
 	pluginShelf        pluginShelf
 	locateAudio        *locateAudioForm
@@ -53,6 +54,7 @@ type Workspace struct {
 	transportOptions   playback.Request
 	win                *mygo.Window
 	piano              *mygo.WebView
+	pianoPlacement     ui.Rect
 	service            *app.Service
 	preview            PianoPreview
 	projects           []storage.ProjectSummary
@@ -61,11 +63,11 @@ type Workspace struct {
 	message            string
 	sequence           uint64
 	split              float32
-	showAgent          bool
 	md                 markdown.Options
 	smokeResult        chan error
 	edits              *Edits
 	editBusy           bool
+	mixGesture         *mixerGesture
 	closeFrozen        bool
 	closeApproved      bool
 	closeVersion       uint64
@@ -100,6 +102,7 @@ type Workspace struct {
 	showKeyHelp        bool
 	followPaused       bool
 	positionInput      string
+	navigationOpen     bool
 	positionError      string
 }
 
@@ -161,24 +164,10 @@ func (a *Workspace) view(c *ui.Context) {
 		}
 	}
 	ui.Column(c).Fill().AlignItems(ui.Stretch).Children(func() {
-		ui.ScrollHorizontal(c).Height(48).Background(t.Surface).Children(func() {
-			ui.Row(c).Height(48).Padding(8, 14).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "IceTudio").FontSize(17).Bold().SingleLine()
-				if a.service == nil {
-					ui.Text(c, "只读预览").FontSize(12).TextColor(t.Accent)
-				}
-				ui.Box(c).Grow(1)
-				a.editToolbar(c)
-				ui.Button(c, "刷新工程").Disabled(a.service == nil || a.editBusy || a.closeFrozen || a.form != nil || a.mapForm != nil || a.fileBusy).OnClick(a.refresh)
-				ui.Button(c, "设置").Disabled(a.service == nil || a.closeFrozen).OnClick(func() { a.openSettings("模型") })
-				a.layoutTools(c)
-			})
-		})
+		a.workspaceHeader(c)
 		a.workspacePanes(c, t)
 
-		ui.Row(c).Height(28).Padding(4, 16).Background(t.Surface).Children(func() {
-			ui.Text(c, a.message).FontSize(12).TextColor(t.TextMuted)
-		})
+		a.workspaceStatus(c)
 	})
 	a.editorDrawers(c)
 	a.keyboardHelp(c)
@@ -203,33 +192,20 @@ func (a *Workspace) view(c *ui.Context) {
 }
 
 func (a *Workspace) editorView(c *ui.Context, t *ui.Theme) {
-	ui.Column(c).Grow(1).MinWidth(0).AlignItems(ui.Stretch).Padding(12).Gap(8).Children(func() {
-		title := a.active.Title
-		if title == "" {
-			title = "选择一个工程"
-		}
-		ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
-			ui.Text(c, title).FontSize(18).Bold()
-			ui.Box(c).Grow(1)
-			ui.Textf(c, "%d PPQ · 修订 %d", a.active.PPQ, a.active.Revision).TextColor(t.TextMuted)
-		})
-		a.transport(c)
-		a.navigationTools(c)
-		view := a.preferences.View
+	ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 		_, height := c.Size()
-		if height < 640 && view != "arrangement" && view != "mixer" {
-			view = "piano"
+		mode := a.editorMode(height)
+		if mode != "split" && mode != "piano" {
+			a.pianoPlacement = ui.Rect{}
 		}
-		switch view {
+		switch mode {
 		case "mixer":
+			a.mixerPane(c)
+		case "mix-split":
 			if a.mixSplit == 0 {
-				a.mixSplit = 54
+				a.mixSplit = 46
 			}
-			if height < 640 {
-				a.mixerPane(c)
-			} else {
-				ui.SplitVerticalPercent(c, &a.mixSplit, func() { a.arrangement(c) }, func() { a.mixerPane(c) }).Grow(1).MinHeight(0)
-			}
+			ui.SplitVerticalPercent(c, &a.mixSplit, func() { a.arrangement(c) }, func() { a.mixerPane(c) }).Grow(1).MinHeight(0)
 		case "arrangement":
 			a.arrangement(c)
 		case "piano":
@@ -243,48 +219,78 @@ func (a *Workspace) editorView(c *ui.Context, t *ui.Theme) {
 
 func (a *Workspace) browser(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Fill().Padding(12).Gap(8).Background(t.Surface).Children(func() {
-		ui.Text(c, "工程浏览器").FontSize(12).Bold()
-		ui.Text(c, "工程").FontSize(12).TextColor(t.TextMuted)
-		a.projectTools(c)
-		a.patternBrowser(c)
-		a.materialBrowser(c)
-		ui.Button(c, "音频插件库").FillWidth().Disabled(a.service == nil || a.closeFrozen || a.form != nil).OnClick(a.openPluginCatalog)
-		ui.Scroll(c).Grow(1).Children(func() {
-			ui.Column(c).FillWidth().Gap(4).Children(func() {
-				for _, p := range a.projects {
-					entry := ui.Button(c.Key(p.ID), p.Title).FillWidth().Label("打开工程 " + p.Title)
-					if p.ID == a.active.ID {
-						entry.Background(t.Accent).TextColor(t.AccentText)
+	ui.Column(c).Fill().Background(t.Surface).Children(func() {
+		ui.Row(c).FillWidth().Padding(5, 8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "浏览器").FontSize(12).Bold().Grow(1)
+			if !a.browserDrawer {
+				ui.Button(c, "‹").Size(24, 23).Label("收起浏览器").OnClick(func() {
+					a.preferences.HideBrowser = true
+					a.savePreferences()
+				})
+			}
+		})
+		ui.Segmented(c, &a.browserSection, "工程", "片段", "素材").Label("浏览器分类").OnChange(func() {
+			if a.browserSection != 2 {
+				a.stopMaterialPreview()
+			}
+		})
+		ui.Box(c).Height(1).FillWidth().Background(t.Border)
+		ui.Scroll(c.Key(fmt.Sprint(a.browserSection))).FillWidth().Grow(1).MinHeight(0).Children(func() {
+			ui.Column(c).FillWidth().Padding(6).Gap(4).Children(func() {
+				switch a.browserSection {
+				case 1:
+					if len(a.active.State.Patterns) == 0 {
+						ui.Text(c, "暂无 Pattern").FontSize(12).TextColor(t.TextMuted)
 					}
-					entry.Disabled(a.editBusy || a.closeFrozen || a.form != nil || a.mapForm != nil || a.fileBusy).OnClick(func() { a.open(p.ID) })
-				}
-				if len(a.projects) == 0 {
-					ui.Text(c, "尚无工程\n点击新建或导入 MIDI。").TextColor(t.TextMuted)
+					a.patternBrowser(c)
+					if len(a.active.State.Tracks) > 0 {
+						ui.Button(c, "采样器 / 鼓垫").FillWidth().Disabled(!a.projectAvailable()).OnClick(a.openSampler)
+					}
+				case 2:
+					a.materialBrowser(c)
+					ui.Button(c, "音频插件库").FillWidth().Disabled(a.service == nil || a.closeFrozen || a.form != nil).OnClick(a.openPluginCatalog)
+				default:
+					a.projectTools(c)
+					ui.Text(c, "最近工程").FontSize(11).Padding(4, 3).TextColor(t.TextMuted)
+					for _, p := range a.projects {
+						entry := ui.Button(c.Key(p.ID), "").FillWidth().Height(26).Padding(3, 6).Radius(4).
+							Label("打开工程 " + p.Title).Tooltip(p.Title).Children(func() {
+							ui.Text(c, p.Title).FontSize(12).SingleLine().MinWidth(0).Grow(1)
+						})
+						if p.ID == a.active.ID {
+							entry.Background(t.Selection)
+						}
+						entry.Disabled(a.editBusy || a.closeFrozen || a.form != nil || a.mapForm != nil || a.fileBusy).OnClick(func() {
+							a.open(p.ID)
+							a.browserDrawer = false
+						})
+					}
+					if len(a.projects) == 0 {
+						ui.Text(c, "尚无工程。可新建或导入 MIDI。").FontSize(12).TextColor(t.TextMuted)
+					}
+					ui.Button(c, fmt.Sprintf("未应用输入 (%d)", len(a.savedInputs))).FillWidth().Disabled(a.service == nil || a.closeFrozen).OnClick(func() { a.showDrafts = true; a.reloadDrafts() })
 				}
 			})
 		})
-		ui.Text(c, "无需连接模型即可编辑工程。\n修改与助手操作共享撤销历史。").FontSize(12).TextColor(t.TextMuted)
 	})
 }
 
 func (a *Workspace) arrangement(c *ui.Context) {
-	ui.Column(c).Fill().AlignItems(ui.Stretch).Children(func() {
-		a.objectTools(c)
-		a.arrangementUI.draw(c, a.active, a.selected, a.arrangementActions(), func(c *ui.Context, t project.Track) {
-			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-				if a.preferences.View == "mixer" {
+	ui.Column(c).Fill().MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+		a.arrangementUI.draw(c, a.active, a.selected, a.arrangementActions(), a.objectTools, func(c *ui.Context, t project.Track) {
+			ui.Row(c).Gap(3).AlignItems(ui.Center).Children(func() {
+				if a.preferences.View == "mix-split" {
 					b := ui.Button(c, t.Name).MinWidth(0).Grow(1).Label("选中混音轨道 " + t.Name)
 					if a.mixerSelection() == t.ID {
 						b.Background(c.Theme().SurfaceHover)
 					}
 					b.OnClick(func() { a.focusMixerTrack(t) })
 				} else {
-					ui.Text(c, t.Name).Bold().Grow(1)
+					ui.Text(c, t.Name).Bold().SingleLine().MinWidth(0).Grow(1).Tooltip(t.Name)
 				}
 				a.muteSolo(c, t)
 			})
-			ui.Textf(c, "CH %d · %s", t.Channel+1, gmNames[t.Program]).FontSize(12).TextColor(c.Theme().TextMuted)
+			ui.Textf(c, "CH %d · %s", t.Channel+1, gmNames[t.Program]).SingleLine().FontSize(12).TextColor(c.Theme().TextMuted)
 			if m := a.active.State.Mixer; m != nil {
 				for _, lane := range trackAutomation(m, t.ID) {
 					ui.Text(c.Key(lane.ID), "◆ "+automationLabel(lane, m.Channel(t.ID))).FontSize(10).SingleLine().TextColor(c.Theme().TextMuted)
@@ -301,7 +307,12 @@ func (a *Workspace) arrangementActions() arrangementActions {
 			f.mixer.position = musicTime(f.meter, tick)
 		}
 	},
-		Open: func() { a.preferences.View = "split"; a.split = 30; a.savePreferences() },
+		Open: func() {
+			if a.preferences.View != "split" {
+				a.preferences.View = "piano"
+			}
+			a.savePreferences()
+		},
 		SnapChanged: func() {
 			a.sendPianoCommand("snap", int(editorSnap(a.arrangementUI.snap, a.arrangementUI.zoom, a.active.PPQ)*4000000))
 		},
@@ -322,7 +333,10 @@ func (a *Workspace) arrangementActions() arrangementActions {
 		Seek: a.seekPosition, Keyboard: a.editorKey, Navigate: func() { a.followPaused = true },
 	}
 }
-func (a *Workspace) cancelArrangement() { a.arrangementUI.cancel(a.arrangementActions()) }
+func (a *Workspace) cancelArrangement() {
+	a.mixGesture = nil
+	a.arrangementUI.cancel(a.arrangementActions())
+}
 
 func (a *Workspace) agentPanel(c *ui.Context) {
 	if a.service != nil {
@@ -499,7 +513,7 @@ type Options struct {
 func Run(service *app.Service, options Options) error {
 	smokeDir := options.SmokeDir
 	prefs, prefsErr := readPreferences(options.StateDir)
-	a := &Workspace{stateDir: options.StateDir, preferences: prefs, smokeEdit: options.SmokeEdit, smokeResult: make(chan error, 1), service: service, split: 48, showAgent: true, message: "正在检查未完成编辑"}
+	a := &Workspace{stateDir: options.StateDir, preferences: prefs, smokeEdit: options.SmokeEdit, smokeResult: make(chan error, 1), service: service, split: prefs.Split, message: "正在检查未完成编辑"}
 	a.split = prefs.Split
 	if prefsErr != nil {
 		a.prefsError = prefsErr.Error()

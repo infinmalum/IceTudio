@@ -60,6 +60,11 @@ func (m *Manager) Export(ctx context.Context, req ExportRequest, path string) er
 			return fmt.Errorf("导出轨道不存在")
 		}
 	}
+	return m.exportSnapshot(ctx, req, path, item)
+}
+
+func (m *Manager) exportSnapshot(ctx context.Context, req ExportRequest, path string, item Snapshot) error {
+	format := audioasset.Format(path)
 	score, err := m.compileContext(ctx, item, false)
 	if err != nil {
 		return err
@@ -109,11 +114,11 @@ func (m *Manager) Export(ctx context.Context, req ExportRequest, path string) er
 		}
 	}
 	score.EndFrame = limit + tail
-	if err = engine.install(score, req.Start, 0, 0, false, true); err != nil {
+	if err = engine.installContext(ctx, score, req.Start, 0, 0, false, true, 0, 0); err != nil {
 		return err
 	}
-	if score.mix != nil && score.mix.latency > 0 {
-		engine.render(score.mix.latency)
+	if latency := engine.mixerLatency(); latency > 0 {
+		engine.render(latency)
 	}
 	writeWAV := func(f *os.File) error {
 		return writeRenderedWAV(ctx, f, engine, frames, req)
@@ -221,6 +226,9 @@ func writeRenderedWAV(ctx context.Context, dest *os.File, engine *native, frames
 		}
 		n := int(min(remaining, 2048))
 		l, r := engine.render(n)
+		if issues := engine.pluginIssues(); len(issues) > 0 {
+			return fmt.Errorf("插件渲染失败，取消发布：%s", issues[0])
+		}
 		samples := make([]float32, n*2)
 		for i := range l {
 			samples[i*2], samples[i*2+1] = l[i], r[i]

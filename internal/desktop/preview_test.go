@@ -31,7 +31,8 @@ func TestPreviewCopiesNotesAndSerializesGenerations(t *testing.T) {
 }
 
 func TestNativeClipSelectionUpdatesOnlyPreview(t *testing.T) {
-	a := &Workspace{preferences: defaultPreferences(), split: 48, showAgent: true}
+	a := &Workspace{preferences: defaultPreferences(), split: 48}
+	a.preferences.HideAgent = false
 	p := fixture()
 	a.install(p)
 	// The same clip name occurs in several tracks; target an unambiguous label
@@ -52,7 +53,7 @@ func TestNativeClipSelectionUpdatesOnlyPreview(t *testing.T) {
 	if err := view.Click("助手面板"); err != nil {
 		t.Fatal(err)
 	}
-	if a.showAgent {
+	if !a.preferences.HideAgent {
 		t.Fatal("native panel toggle failed")
 	}
 	for _, size := range [][2]int{{1280, 800}, {960, 720}} {

@@ -11,8 +11,8 @@ import (
 	"icetudio/internal/project"
 )
 
-const maxMusicInputsPayload = 4 << 20
-const maxMusicInputsFile = 8 << 20
+const maxMusicInputsPayload = 16 << 20
+const maxMusicInputsFile = 32 << 20
 
 // MusicInputsRecord holds unapplied music form input drafts. They are UI
 // recovery state, never music commands; recovery stays explicit in the
@@ -46,7 +46,7 @@ type musicInputsShape struct {
 // the same structural bounds so a corrupted file cannot grow unbounded.
 func validateMusicInputsPayload(payload string) error {
 	if len(payload) > maxMusicInputsPayload {
-		return errors.New("音乐输入草稿超过 4 MiB；原草稿未覆盖")
+		return errors.New("音乐输入草稿超过 16 MiB；原草稿未覆盖")
 	}
 	var shape musicInputsShape
 	if err := strictDraftJSON(payload, &shape); err != nil {
@@ -71,7 +71,7 @@ func validateMusicInputsPayload(payload string) error {
 func MusicInputRawLimit(label string) int {
 	switch label {
 	case "Native · mixer":
-		return 1 << 20
+		return 14 << 20
 	case "Native · audio_polish", "Native · sampler", "Native · comp":
 		return 128 << 10
 	case "Native · midi_arrange", "Native · midi_steps":
@@ -103,7 +103,7 @@ func (s *Service) readMusicInputs() (*MusicInputsRecord, error) {
 		return nil, err
 	}
 	if !info.Mode().IsRegular() || info.Size() > maxMusicInputsFile {
-		return nil, errors.New("音乐输入草稿不是受支持的普通文件或超过 8 MiB；文件已保留")
+		return nil, errors.New("音乐输入草稿不是受支持的普通文件或超过 32 MiB；文件已保留")
 	}
 	f, err := os.Open(path)
 	if err != nil {
@@ -182,7 +182,7 @@ func (s *Service) writeMusicInputs(record MusicInputsRecord) error {
 		return err
 	}
 	if len(data) > maxMusicInputsFile {
-		return errors.New("音乐输入草稿文件超过 8 MiB；原文件未覆盖")
+		return errors.New("音乐输入草稿文件超过 32 MiB；原文件未覆盖")
 	}
 	if err := os.MkdirAll(s.dataDir, 0700); err != nil {
 		return err

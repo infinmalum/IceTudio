@@ -35,7 +35,8 @@ func (a *Workspace) requestClose(prevent func()) {
 		a.finishMixerWrite(a.form)
 	}
 	a.stopMaterialPreview()
-	a.closeHadGesture = a.arrangementUI.gesture != nil || a.arrangementUI.marquee != nil || a.arrangementUI.patternDrag != nil || a.arrangementUI.materialDrag != nil || a.arrangementUI.audioDrag != nil
+	a.closeHadGesture = a.mixGesture != nil || a.arrangementUI.gesture != nil || a.arrangementUI.marquee != nil || a.arrangementUI.patternDrag != nil || a.arrangementUI.materialDrag != nil || a.arrangementUI.audioDrag != nil
+	a.mixGesture = nil
 	a.closeFrozen = true
 	a.closeDialogOpen = true
 	a.closeToken = project.NewID("close")
@@ -90,6 +91,9 @@ func (a *Workspace) inspectClose(confirm bool) {
 					a.closeVersion = state.Version
 					a.closeError = "编辑状态已变化，请核对后再次确认退出"
 					return
+				}
+				if f := a.form; f != nil && f.cancelPrepare != nil {
+					f.cancelPrepare()
 				}
 				a.closeApproved = true
 				mygo.App.Quit()
@@ -169,6 +173,9 @@ func (a *Workspace) closeDialog(c *ui.Context) {
 		}
 		if a.form != nil {
 			ui.Text(c, "原生属性表单尚未应用；请返回核对草稿保存状态。").MaxWidth(480)
+			if a.form.preparing {
+				ui.Text(c, "插件窗口或后台处理尚未写入草稿。").MaxWidth(480)
+			}
 			if a.form.err != "" {
 				ui.Text(c, a.form.err).MaxWidth(480)
 			}
@@ -180,7 +187,7 @@ func (a *Workspace) closeDialog(c *ui.Context) {
 			ui.Textf(c, "保留 %d 项尚未应用的音乐输入；下次显式恢复，不自动提交。", len(a.savedInputs)).MaxWidth(480)
 		}
 		if a.closeHadGesture {
-			ui.Text(c, "片段拖动尚未提交；返回后将取消预览，工程保持原值。").MaxWidth(480)
+			ui.Text(c, "有编辑手势尚未提交；返回后将取消预览，工程保持原值。").MaxWidth(480)
 		}
 		if a.closeInspectBusy {
 			ui.Text(c, "正在冻结并检查卷帘…")
@@ -205,7 +212,7 @@ func (a *Workspace) nativeCloseVersion() string {
 		v = a.savedMap.Token
 	}
 	if f := a.form; f != nil {
-		v += fmt.Sprintf("%d/%d/%s/%t", f.version, f.writes, f.err, f.dirty)
+		v += fmt.Sprintf("%d/%d/%s/%t/%t/%t", f.version, f.writes, f.err, f.dirty, f.preparing, f.capturePlugin != nil)
 	}
 	if f := a.mapForm; f != nil {
 		v += fmt.Sprintf("/map:%d/%d/%s/%t", f.version, f.writes, f.err, f.committed)

@@ -48,6 +48,7 @@ type Module struct {
 	SHA256  string  `json:"sha256"`
 	Status  string  `json:"status"`
 	Detail  string  `json:"detail,omitempty"`
+	Blocked bool    `json:"blocked,omitempty"`
 	Classes []Class `json:"classes,omitempty"`
 }
 
@@ -69,6 +70,30 @@ func (c *Catalog) List() ([]Module, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.read()
+}
+
+// SetBlocked controls new instances and rescans of one local module.
+func (c *Catalog) SetBlocked(path string, blocked bool) error {
+	if !c.mu.TryLock() {
+		return fmt.Errorf("已有插件扫描正在进行")
+	}
+	defer c.mu.Unlock()
+	items, err := c.read()
+	if err != nil {
+		return err
+	}
+	byPath := make(map[string]Module, len(items))
+	found := false
+	for _, item := range items {
+		if item.Path == path {
+			item.Blocked, found = blocked, true
+		}
+		byPath[item.Path] = item
+	}
+	if !found {
+		return fmt.Errorf("插件未登记")
+	}
+	return c.save(byPath)
 }
 
 func (c *Catalog) Scan(ctx context.Context, folder string, progress func(int, int)) error {
@@ -124,6 +149,12 @@ func (c *Catalog) scan(ctx context.Context, paths []string, retry bool, progress
 			return err
 		}
 		old, exists := byPath[path]
+		if old.Blocked {
+			if retry {
+				return fmt.Errorf("请先解除此模块的停用状态")
+			}
+			continue
+		}
 		fingerprint, err := hashBinary(ctx, path)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -264,7 +295,7 @@ func discover(ctx context.Context, root string) ([]string, error) {
 	return paths, err
 }
 
-func hashBinary(ctx context.Context, module string) (string, error) {
+func moduleBinary(module string) (string, error) {
 	if !validPath(module) {
 		return "", fmt.Errorf("插件路径无效")
 	}
@@ -286,6 +317,14 @@ func hashBinary(ctx context.Context, module string) (string, error) {
 		if real, err := filepath.EvalSymlinks(binary); err != nil || real != binary {
 			return "", fmt.Errorf("VST3 包缺少当前架构的常规模块")
 		}
+	}
+	return binary, nil
+}
+
+func hashBinary(ctx context.Context, module string) (string, error) {
+	binary, err := moduleBinary(module)
+	if err != nil {
+		return "", err
 	}
 	f, err := openRegular(binary)
 	if err != nil {

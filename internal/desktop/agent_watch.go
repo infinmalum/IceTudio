@@ -14,7 +14,7 @@ func (a *Workspace) watchAgent(stop <-chan struct{}) {
 			return
 		case <-ticker.C:
 			a.update(func() {
-				if a.agent.selected != "" && a.showAgent && !a.agent.loading {
+				if a.agent.selected != "" && !a.agent.loading {
 					a.loadAgentHistory(false)
 				}
 			})

@@ -192,7 +192,7 @@ func (a *Workspace) materialBrowser(c *ui.Context) {
 	})
 }
 func (a *Workspace) materialShelfFields(c *ui.Context, m *materialShelf) {
-	ui.Row(c).Gap(3).Children(func() {
+	ui.Row(c).FillWidth().Wrap().Gap(4).Children(func() {
 		ui.Button(c, "索引目录").Disabled(m.busy).OnClick(func() { a.loadMaterials(true) })
 		ui.Checkbox(c, &m.favorite, "收藏").OnChange(func() { m.page = 0 })
 	})
@@ -222,7 +222,7 @@ func (a *Workspace) materialShelfFields(c *ui.Context, m *materialShelf) {
 	})
 	if m.selected != "" {
 		ui.Text(c, filepath.Base(m.meta.Path)).SingleLine().Bold()
-		ui.Row(c).Gap(3).Children(func() {
+		ui.Row(c).FillWidth().Wrap().Gap(4).Children(func() {
 			ui.Button(c, "预听").OnClick(func() {
 				id := m.selected
 				a.materialPreview(func(ctx context.Context, vol float64) error { return a.service.PreviewMaterial(ctx, id, vol) })
@@ -231,7 +231,7 @@ func (a *Workspace) materialShelfFields(c *ui.Context, m *materialShelf) {
 		})
 		ui.Slider(c, &m.volume, 0, 1).Label("下次预听音量").FillWidth()
 		ui.Checkbox(c, &m.linked, "引用原文件").Tooltip("关闭时复制到工程资产库。")
-		ui.Row(c).Gap(3).Children(func() {
+		ui.Row(c).FillWidth().Wrap().Gap(4).Children(func() {
 			ui.Button(c, "放入编排").Disabled(!a.projectAvailable() || a.active.ID == "").OnClick(func() {
 				a.placeMaterial(EditTarget{a.active.ID, a.active.Revision}, m.selected, a.defaultSampleTrack(), a.playPosition, m.linked, false)
 			})
@@ -240,15 +240,15 @@ func (a *Workspace) materialShelfFields(c *ui.Context, m *materialShelf) {
 			})
 		})
 		ui.TextInput(c, &m.tags).Placeholder("标签，逗号分隔").Label("素材标签").Disabled(m.busy).OnChange(func() { m.dirty = true })
-		ui.Row(c).Gap(3).Children(func() {
-			ui.TextInput(c, &m.bpm).Placeholder("BPM").Label("素材 BPM").Grow(1).Disabled(m.busy).OnChange(func() { m.dirty = true })
-			ui.TextInput(c, &m.key).Placeholder("调性").Label("素材调性").Grow(1).Disabled(m.busy).OnChange(func() { m.dirty = true })
+		ui.Row(c).FillWidth().Wrap().Gap(4).Children(func() {
+			ui.TextInput(c, &m.bpm).Placeholder("BPM").Label("素材 BPM").MinWidth(64).Grow(1).Disabled(m.busy).OnChange(func() { m.dirty = true })
+			ui.TextInput(c, &m.key).Placeholder("调性").Label("素材调性").MinWidth(64).Grow(1).Disabled(m.busy).OnChange(func() { m.dirty = true })
 		})
 		if m.meta.EstimatedBPM || m.meta.EstimatedKey {
 			ui.Text(c, "算法推断 · 可修改").FontSize(10).TextColor(c.Theme().TextMuted)
 		}
 		ui.Checkbox(c, &m.meta.Favorite, "加入收藏").Disabled(m.busy).OnChange(func() { m.dirty = true })
-		ui.Row(c).Gap(3).Children(func() {
+		ui.Row(c).FillWidth().Wrap().Gap(4).Children(func() {
 			ui.Button(c, "保存标签").Disabled(m.busy || !m.dirty).OnClick(func() { a.updateMaterialMeta(false) })
 			if m.dirty {
 				ui.Button(c, "丢弃修改").Disabled(m.busy).OnClick(func() {
@@ -297,7 +297,7 @@ func (a *Workspace) materialRow(c *ui.Context, item audioasset.Material) {
 		case ui.InputPointerDown:
 			_, height := c.Size()
 			if ev.Button != 0 || a.browserDrawer || !a.projectAvailable() || a.active.ID == "" ||
-				a.preferences.View == "piano" || height < 640 && a.preferences.View != "arrangement" {
+				!a.arrangementVisible(height) {
 				return false
 			}
 			a.chooseMaterial(item)

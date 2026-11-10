@@ -51,8 +51,9 @@ func (v *arrangementView) drawWave(c *ui.Context, p storage.Project, t project.T
 	if label == "" {
 		label = "音频片段"
 	}
-	b := ui.Button(c.Key(w.clip.ID), label).Absolute().Left(w.left).Top(top + float32(w.lane)*waveHeight).
-		Width(w.width).Height(waveHeight - 3).Background(ui.Hex("#31505b")).Label(label)
+	theme := c.Theme()
+	b := ui.Button(c.Key(w.clip.ID), label).Absolute().Left(w.left).Top(top+float32(w.lane)*waveHeight).
+		Width(w.width).Height(waveHeight-3).Background(theme.SurfaceHover).Border(1, theme.Border).Label(label)
 	b.Tooltip("打开音频片段，调整源窗口、淡变、增益、反向或拆分")
 	b.Draw(func(paint *ui.Painter, r ui.Rect) {
 		peaks := w.asset.Peaks
@@ -70,7 +71,7 @@ func (v *arrangementView) drawWave(c *ui.Context, p storage.Project, t project.T
 			p := min(len(peaks)-1, max(0, int(portion*float64(len(peaks)))))
 			h := float32(peaks[p]) / 32767 * (r.H/2 - 3)
 			x := r.X + float32(i)*r.W/float32(bins)
-			paint.Line(x, r.Y+r.H/2-h, x, r.Y+r.H/2+h, 1, ui.Hex("#5aa7b4"))
+			paint.Line(x, r.Y+r.H/2-h, x, r.Y+r.H/2+h, 1, theme.Accent)
 		}
 	})
 	if v.handles == nil {

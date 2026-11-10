@@ -65,7 +65,7 @@ func (v *arrangementView) moveGesture(x float32, p storage.Project) {
 	g.move(x + float32(float64(v.start-g.ViewStart)/float64(g.PPQ)*g.Zoom))
 }
 func (v *arrangementView) ruler(c *ui.Context, p storage.Project, start, end int64, width float32, actions arrangementActions) {
-	box := ui.Box(c).Width(width).Height(52).Focusable().Clip()
+	box := ui.Box(c).Width(width).Height(arrangementRulerHeight).Focusable().Clip()
 	box.HandleInput(func(ev ui.InputEvent) bool {
 		if ev.Kind == ui.InputPointerDown && ev.Button == 0 && v.gesture == nil {
 			tick := max(0, min(project.MaxTick*2, start+int64(math.Round(float64(ev.X)/v.zoom*float64(p.PPQ)))))
@@ -113,7 +113,7 @@ type arrangementMarquee struct {
 func (v *arrangementView) marqueeInput(ev ui.InputEvent, c *ui.Context, p storage.Project, tracks []project.Track, start, end int64, actions arrangementActions) bool {
 	switch ev.Kind {
 	case ui.InputPointerDown:
-		if ev.Button != 0 || ev.Mods&ui.Shift == 0 || ev.Y < 52 || v.marquee != nil || !actions.Writable() {
+		if ev.Button != 0 || ev.Mods&ui.Shift == 0 || ev.Y < arrangementRulerHeight || v.marquee != nil || !actions.Writable() {
 			return false
 		}
 		v.marquee = &arrangementMarquee{EditTarget{p.ID, p.Revision}, ev.X, ev.Y, ev.X, ev.Y}
@@ -143,7 +143,7 @@ func (v *arrangementView) marqueeInput(ev ui.InputEvent, c *ui.Context, p storag
 		v.marked = nil
 		var firstTrack project.Track
 		var firstClip project.Clip
-		y := float32(53)
+		y := arrangementRulerHeight + 1
 		timeline, timelineErr := playback.NewTimeline(&p.State)
 		for _, t := range tracks {
 			items, lanes := arrangementClips(t.Clips, start, end, p.PPQ, v.zoom)
@@ -156,7 +156,7 @@ func (v *arrangementView) marqueeInput(ev ui.InputEvent, c *ui.Context, p storag
 					v.marked = append(v.marked, item.Clip.ID)
 				}
 			}
-			y += max(64, float32(lanes)*clipRowHeight+8) + 1
+			y += arrangementLaneHeight(lanes) + float32(len(trackAutomation(p.State.Mixer, t.ID)))*automationRowHeight + 1
 			if timelineErr == nil {
 				_, waves := waveClips(t, nil, timeline, start, end, v.zoom)
 				y += float32(waves) * waveHeight

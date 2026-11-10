@@ -28,3 +28,40 @@
 .piano-pattern ul{position:absolute;z-index:15;top:100%;right:0;min-width:240px;max-height:180px;overflow:auto;margin:0;padding:8px 24px;background:#292d33;color:#e5e9ef;border:1px solid #596473}
 .piano-host .gsui-row.piano-scale-muted{box-shadow:inset 0 0 0 100vw #13171d29}
 .piano-host .gsui-row.piano-scale-root,.piano-host .gsuiKeys-key.piano-scale-root{box-shadow:inset 3px 0 #5dc4d8}
+
+/* Keep the editor surfaces and interaction states aligned with Native. */
+.piano-host {
+  --gsuiKeys-whiteKey-gradA: #c2ccd7;
+  --gsuiKeys-whiteKey-gradB: #edf2f7;
+  --gsuiKeys-blackKey-gradA: #222d39;
+  --gsuiKeys-blackKey-gradB: #3d4b5a;
+}
+.piano-host .gsuiPianoroll-block.piano-note-labelled span { opacity: 1; }
+.piano-host .gsuiPianoroll-block[data-selected] { outline: 1px solid var(--piano-selection, #edf1f7); outline-offset: -1px; }
+:root[data-theme=light] {
+  --piano-selection: #163b5f;
+  --piano-line: #8192a5;
+  --piano-accent: #215f94;
+  --piano-selected-point: #86470c;
+}
+:root[data-theme=light] .piano-host {
+  --gsui-col-pattern8: #36749d;
+  --gsui-col-patternSelected8: #224d76;
+  --gsuiKeys-whiteKey-gradA: #dce4ed;
+  --gsuiKeys-whiteKey-gradB: #f8fafc;
+}
+:root[data-theme=light] .gsuiPianoroll-block.piano-note-labelled span,
+:root[data-theme=light] .gsuiPianoroll-block[data-layers]::after { color: #fff; }
+:root[data-theme=light] .music-ruler line { stroke: var(--piano-line); }
+:root[data-theme=light] .music-ruler-beat line { stroke: #a8b6c5; }
+:root[data-theme=light] .gsuiTimewindow-panelUp,
+:root[data-theme=light] .gsuiTimewindow-time,
+:root[data-theme=light] .piano-aux,
+:root[data-theme=light] .piano-control { border-color: #adb8c6; }
+:root[data-theme=light] .piano-playhead { background: var(--piano-accent); }
+:root[data-theme=light] .piano-control svg { background: #e1e8f0; }
+:root[data-theme=light] .piano-control svg line { stroke: var(--piano-accent); }
+:root[data-theme=light] .piano-control svg .piano-control-guide { stroke: var(--piano-line); }
+:root[data-theme=light] .piano-control svg circle { fill: var(--piano-accent); }
+:root[data-theme=light] .piano-control svg .selected { fill: var(--piano-selected-point); stroke: #fff; stroke-width: 1; }
+:root[data-theme=light] .piano-pattern ul { background: #f8fafc; color: #243444; border-color: #adb8c6; }

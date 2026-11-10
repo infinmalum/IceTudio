@@ -146,7 +146,7 @@ func (m meterProjection) ruler(ppq int, start, end int64, zoom float64, tempo []
 func drawArrangementRuler(c *ui.Context, p storage.Project, start, end int64, zoom float64) {
 	index, err := newMeterProjection(p.PPQ, p.State.Meter)
 	if err != nil {
-		ui.Text(c, err.Error()).Height(52)
+		ui.Text(c, err.Error()).Height(arrangementRulerHeight)
 		return
 	}
 	marks, thinned := index.ruler(p.PPQ, start, end, zoom, p.State.Tempo)
@@ -179,7 +179,7 @@ func drawArrangementRuler(c *ui.Context, p storage.Project, start, end int64, zo
 		label += "；密集变化已分组合并"
 	}
 	theme := c.Theme()
-	ui.Box(c).Width(float32(float64(end-start) / float64(p.PPQ) * zoom)).Height(52).Background(c.Theme().Surface).Label(label).Tooltip(label).Draw(func(paint *ui.Painter, r ui.Rect) {
+	ui.Box(c).Width(float32(float64(end-start) / float64(p.PPQ) * zoom)).Height(arrangementRulerHeight).Background(c.Theme().Surface).Label(label).Tooltip(label).Draw(func(paint *ui.Painter, r ui.Rect) {
 		for _, m := range marks {
 			x := r.X + float32((m.Tick-float64(start))/float64(p.PPQ)*zoom)
 			y := float32(0)
@@ -196,7 +196,7 @@ func drawArrangementRuler(c *ui.Context, p storage.Project, start, end int64, zo
 				y = 14
 				ty = 14
 			}
-			paint.Line(x, r.Y+y, x, r.Y+52, 1, theme.Border)
+			paint.Line(x, r.Y+y, x, r.Y+arrangementRulerHeight, 1, theme.Border)
 			if m.Label != "" {
 				text := m.Label
 				if m.Kind == "marker" {

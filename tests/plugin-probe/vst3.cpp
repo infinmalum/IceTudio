@@ -1,5 +1,6 @@
 #include "probe.h"
 #include "editor.h"
+#include "vst3_editor.h"
 #include "transport.h"
 
 #include "pluginterfaces/gui/iplugview.h"
@@ -22,52 +23,11 @@ namespace {
 using namespace Steinberg;
 using namespace Steinberg::Vst;
 
-class Frame final : public U::Implements<U::Directly<IPlugFrame, Linux::IRunLoop>> {
-public:
-    explicit Frame(EditorWindow& window) : window(window) {}
-    EventLoop loop;
-
-    tresult PLUGIN_API resizeView(IPlugView* view, ViewRect* rect) override {
-        return view && rect && window.resize(rect->getWidth(), rect->getHeight()) ? view->onSize(rect) : kResultFalse;
-    }
-    tresult PLUGIN_API registerEventHandler(Linux::IEventHandler* handler, int fd) override {
-        if (!handler || !loop.watch(fd, POLLIN, [held = IPtr(handler), fd](short) { held->onFDIsSet(fd); }))
-            return kResultFalse;
-        descriptors.emplace(handler, fd);
-        return kResultOk;
-    }
-    tresult PLUGIN_API unregisterEventHandler(Linux::IEventHandler* handler) override {
-        auto [begin, end] = descriptors.equal_range(handler);
-        if (begin == end) return kResultFalse;
-        for (auto it = begin; it != end; ++it) loop.unwatch(it->second);
-        descriptors.erase(begin, end);
-        return kResultOk;
-    }
-    tresult PLUGIN_API registerTimer(Linux::ITimerHandler* handler, Linux::TimerInterval ms) override {
-        if (!handler || ms > 60000 || timers.contains(handler)) return kResultFalse;
-        const auto id = loop.timer(static_cast<unsigned>(ms), [held = IPtr(handler)](short) { held->onTimer(); });
-        if (!id) return kResultFalse;
-        timers.emplace(handler, id);
-        return kResultOk;
-    }
-    tresult PLUGIN_API unregisterTimer(Linux::ITimerHandler* handler) override {
-        auto it = timers.find(handler);
-        if (it == timers.end()) return kResultFalse;
-        loop.untimer(it->second);
-        timers.erase(it);
-        return kResultOk;
-    }
-private:
-    EditorWindow& window;
-    std::multimap<Linux::IEventHandler*, int> descriptors;
-    std::map<Linux::ITimerHandler*, unsigned> timers;
-};
-
 void verifyEditor(IEditController* controller) {
     require(controller, "missing VST3 editor controller");
     EditorWindow window;
     for (int attempt = 0; attempt < 2; ++attempt) {
-        auto frame = owned(new Frame(window));
+        auto frame = owned(new X11PlugFrame(window));
         auto view = owned(controller->createView(ViewType::kEditor));
         require(view && view->isPlatformTypeSupported(kPlatformTypeX11EmbedWindowID) == kResultOk,
                 "no embedded VST3 X11 editor");

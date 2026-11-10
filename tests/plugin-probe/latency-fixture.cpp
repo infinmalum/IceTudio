@@ -26,6 +26,18 @@ const clap_plugin_latency_t latencyExtension{
     [](const clap_plugin_t* plugin) { return get(plugin).latency; },
 };
 
+const clap_plugin_audio_ports_t ports{
+    [](const clap_plugin_t*, bool) -> uint32_t { return 1; },
+    [](const clap_plugin_t*, uint32_t i, bool, clap_audio_port_info_t* info) {
+        if (i) return false;
+        info->channel_count = 1;
+        info->flags = CLAP_AUDIO_PORT_IS_MAIN;
+        info->port_type = CLAP_PORT_MONO;
+        info->in_place_pair = CLAP_INVALID_ID;
+        return true;
+    },
+};
+
 const clap_plugin_t* create(const clap_host_t* host) {
     auto* instance = new (std::nothrow) Fixture{};
     if (!instance) return nullptr;
@@ -60,7 +72,9 @@ const clap_plugin_t* create(const clap_host_t* host) {
             return CLAP_PROCESS_CONTINUE;
         },
         [](const clap_plugin_t*, const char* id) -> const void* {
-            return std::strcmp(id, CLAP_EXT_LATENCY) == 0 ? &latencyExtension : nullptr;
+            if (std::strcmp(id, CLAP_EXT_LATENCY) == 0) return &latencyExtension;
+            if (std::strcmp(id, CLAP_EXT_AUDIO_PORTS) == 0) return &ports;
+            return nullptr;
         },
         [](const clap_plugin_t*) {},
     };

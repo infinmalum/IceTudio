@@ -128,6 +128,8 @@ static void dispatch(ice_engine *e, ice_event v) {
   int global = v.channel;
   if (global < 0 || global >= 1024)
     return;
+  if (e->plan && ice_mix_midi(e->plan->mix, global / 16, v.kind, global % 16, v.a, v.b, v.token))
+    return;
   int ch = physical_channel(global);
   fluid_synth_t *synth = e->synth[global / 256];
   switch (v.kind) {
@@ -323,6 +325,7 @@ void ice_render(ice_engine *e, int n, float *left, float *right) {
     }
     if (p->looping && e->frame >= p->loopb) {
       clear(e);
+      ice_mix_loop(p->mix);
       p->wrapped = 1;
       e->frame = p->loopa;
       e->index = lower(p, e->frame);
@@ -391,11 +394,12 @@ void ice_render(ice_engine *e, int n, float *left, float *right) {
         else gain *= r->sustain;
         if (i >= r->gate && r->release) gain *= 1-(float)(i-r->gate)/r->release;
         double sample = i*r->rate;
+        if (r->loop_source) sample = fmod(sample, r->source_frames);
         int64_t index = (int64_t)sample;
         if (index >= r->source_frames) continue;
         float fraction = (float)(sample-index);
         const int16_t *src = pcm->samples+(r->source+index)*2;
-        const int16_t *next = index+1<r->source_frames ? src+2 : src;
+        const int16_t *next = index+1<r->source_frames ? src+2 : r->loop_source ? pcm->samples+r->source*2 : src;
         l[out] += (src[0]+fraction*(next[0]-src[0]))*gain;
         rr[out] += (src[1]+fraction*(next[1]-src[1]))*gain;
       }
@@ -680,6 +684,13 @@ void ice_reset_meters(ice_engine *e) {
   pthread_mutex_unlock(&e->mutex);
 }
 
+int ice_plugin_override(ice_engine *e, int i, int slot, uint32_t id, float value) {
+  pthread_mutex_lock(&e->mutex);
+  int ok = e->plan && ice_mix_plugin_override(e->plan->mix, i, slot, id, value);
+  pthread_mutex_unlock(&e->mutex);
+  return ok;
+}
+
 void ice_override(ice_engine *e, int index, int slot, int parameter, float value) {
   pthread_mutex_lock(&e->mutex);
   if (e->plan) ice_mix_override(e->plan->mix, index, slot, parameter, value);
@@ -703,3 +714,19 @@ int ice_callback_p99(ice_engine *e) {
 int64_t ice_overruns(ice_engine *e) { return atomic_load(&e->overruns); }
 
 int ice_callback_frames(ice_engine *e) { return atomic_load(&e->callback_frames); }
+
+void ice_release_plan(ice_engine *e) {
+  pthread_mutex_lock(&e->mutex);
+  ice_plan *old = e->plan;
+  if (!e->playing) e->plan = NULL;
+  else old = NULL;
+  pthread_mutex_unlock(&e->mutex);
+  ice_plan_delete(old);
+}
+
+int ice_failed_plugin(ice_engine *e, int node, int slot) {
+  pthread_mutex_lock(&e->mutex);
+  int result = e->plan && e->plan->mix && ice_mix_plugin_failed(e->plan->mix, node, slot);
+  pthread_mutex_unlock(&e->mutex);
+  return result;
+}

@@ -43,7 +43,7 @@ func arrangementForTest(t *testing.T) (*arrangementHarness, *Edits) {
 	}
 	h.view = ui.NewTester(func(c *ui.Context) {
 		c.SetTheme(workspaceTheme())
-		h.v.draw(c, h.p, h.selected, h.actions, func(c *ui.Context, t project.Track) { ui.Text(c, t.Name) })
+		h.v.draw(c, h.p, h.selected, h.actions, nil, func(c *ui.Context, t project.Track) { ui.Text(c, t.Name) })
 	}, 1200, 600)
 	return h, e
 }

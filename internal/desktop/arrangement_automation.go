@@ -54,10 +54,10 @@ func (v *arrangementView) drawAutomation(c *ui.Context, lane project.Automation,
 		return
 	}
 	pts := lane.Points
-	color := ui.Hex("#9d94ef")
+	color := c.Theme().Accent
 	label := "编辑自动化 " + name
 	card := ui.Box(c.Key(lane.ID)).Absolute().Left(0).Top(top).Width(v.width).Height(automationRowHeight-2).
-		Background(ui.RGBA(110, 99, 190, .14)).Border(1, ui.RGBA(157, 148, 239, .45)).Clip().Focusable().Label(label)
+		Background(c.Theme().Surface).Border(1, c.Theme().Border).Clip().Focusable().Label(label)
 	card.Draw(func(p *ui.Painter, r ui.Rect) {
 		x := func(t int64) float32 { return r.X + float32(float64(t-start)/float64(ppq)*v.zoom) }
 		y := func(value float64) float32 { return r.Y + 3 + (r.H-6)*(1-float32((value-lo)/(hi-lo))) }

@@ -113,12 +113,12 @@ func (s scanner) scan(ctx context.Context, module Module) ([]Class, string, erro
 	return classes, problem, nil
 }
 
-func (s scanner) invoke(ctx context.Context, module Module) ([]byte, string, error) {
+func (s scanner) isolatedArgs(fileLimit string) []string {
 	args := []string{
-		"--core=0", "--as=4294967296", "--fsize=8388608", "--", s.bwrap,
+		"--core=0", "--as=4294967296", "--fsize=" + fileLimit, "--", s.bwrap,
 		"--unshare-all", "--die-with-parent", "--new-session", "--clearenv",
 		"--setenv", "HOME", "/tmp", "--setenv", "PATH", "/usr/bin",
-		"--ro-bind", "/usr", "/usr", "--ro-bind", s.helper, "/scanner",
+		"--ro-bind", "/usr", "/usr", "--ro-bind", s.helper, "/helper",
 		"--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--chdir", "/tmp",
 	}
 	for _, path := range []string{"/bin", "/lib", "/lib64"} {
@@ -128,11 +128,16 @@ func (s scanner) invoke(ctx context.Context, module Module) ([]byte, string, err
 			args = append(args, "--ro-bind", path, path)
 		}
 	}
+	return args
+}
+
+func (s scanner) invoke(ctx context.Context, module Module) ([]byte, string, error) {
+	args := s.isolatedArgs("8388608")
 	if module.Path == "" {
-		args = append(args, "/scanner", "--protocol")
+		args = append(args, "/helper", "--protocol")
 	} else {
 		target := "/module/" + filepath.Base(module.Path)
-		args = append(args, "--ro-bind", module.Path, target, "/scanner", module.Format, target)
+		args = append(args, "--ro-bind", module.Path, target, "/helper", module.Format, target)
 	}
 	cmd := exec.CommandContext(ctx, s.limit, args...)
 	cmd.WaitDelay = time.Second

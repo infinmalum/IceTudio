@@ -268,13 +268,17 @@ func (a *Workspace) applyTimeMap(f *timeMapForm) {
 	a.submitEdit(EditTarget{f.snapshot.ProjectID, f.snapshot.BaseRevision}, "edit", ops, func() { f.committed = true; f.applying = false; a.clearMap(f) })
 }
 func (a *Workspace) timeMapTools(c *ui.Context) {
-	ui.Button(c, "速度 / 拍号").Disabled(!a.projectAvailable() || !a.mapReady || a.active.ID == "").OnClick(func() { a.openTimeMap(false) })
-	if !a.mapReady && a.service != nil {
-		ui.Button(c, "重试时间图检查").OnClick(a.checkTimeMap)
-	}
-	if a.savedMap != nil && a.savedMap.Payload != "" {
-		ui.Button(c, "恢复时间图草稿").Disabled(!a.projectAvailable()).OnClick(func() { a.openTimeMap(true) })
-	}
+	ui.PopoverMenuButton(c, "速度 / 拍号", func(m *ui.Menu) {
+		if m.Item("编辑速度与拍号").Disabled(!a.projectAvailable() || !a.mapReady || a.active.ID == "").Chosen() {
+			a.openTimeMap(false)
+		}
+		if !a.mapReady && a.service != nil && m.Item("重试时间图检查").Chosen() {
+			a.checkTimeMap()
+		}
+		if a.savedMap != nil && a.savedMap.Payload != "" && m.Item("恢复时间图草稿").Disabled(!a.projectAvailable()).Chosen() {
+			a.openTimeMap(true)
+		}
+	})
 }
 func (a *Workspace) timeMapDialog(c *ui.Context) {
 	f := a.mapForm
@@ -288,83 +292,87 @@ func (a *Workspace) timeMapDialog(c *ui.Context) {
 		}
 		return
 	}
+	width, height := c.Size()
+	formWidth := min(660, width-64)
 	ui.Modal(c, &f.open, func() {
 		ui.Text(c, "速度与拍号").FontSize(18).Bold()
 		ui.Textf(c, "%s · 冻结修订 %d · 绝对整数 tick", f.snapshot.Title, f.snapshot.BaseRevision)
-		ui.Text(c, "拍号变化开启新小节；未改 BPM 的导入速度保留原始微秒值。").MaxWidth(660).FontSize(11)
-		ui.Column(c).Width(660).Gap(8).Disabled(f.applying || a.editBusy || f.writes > 32).Children(func() {
-			paginate := func(label string, page *int, count int, add func()) {
-				*page = min(*page, max(0, (count-1)/24))
-				ui.Row(c.Key(label)).Gap(6).Children(func() {
-					ui.Text(c, label).Bold()
-					ui.Button(c, "上一页").Disabled(*page == 0).OnClick(func() { *page-- })
-					ui.Textf(c, "%d/%d · %d 点", *page+1, max(1, (count+23)/24), count)
-					ui.Button(c, "下一页").Disabled((*page+1)*24 >= count).OnClick(func() { *page++ })
-					ui.Button(c, "添加").Disabled(f.writes > 32).OnClick(add)
+		ui.Text(c, "拍号变化开启新小节；未改 BPM 的导入速度保留原始微秒值。").MaxWidth(formWidth).FontSize(11)
+		ui.Scroll(c).Width(formWidth).MaxHeight(height - 200).Disabled(f.applying || a.editBusy || f.writes > 32).Children(func() {
+			ui.Column(c).FillWidth().Gap(8).Children(func() {
+				paginate := func(label string, page *int, count int, add func()) {
+					*page = min(*page, max(0, (count-1)/24))
+					ui.Row(c.Key(label)).FillWidth().Wrap().Gap(6).Children(func() {
+						ui.Text(c, label).Bold()
+						ui.Button(c, "上一页").Disabled(*page == 0).OnClick(func() { *page-- })
+						ui.Textf(c, "%d/%d · %d 点", *page+1, max(1, (count+23)/24), count)
+						ui.Button(c, "下一页").Disabled((*page+1)*24 >= count).OnClick(func() { *page++ })
+						ui.Button(c, "添加").Disabled(f.writes > 32).OnClick(add)
+					})
+				}
+				paginate("速度图", &f.tempoPage, len(f.snapshot.Draft.Tempo), func() {
+					f.snapshot.Draft.Tempo = append(f.snapshot.Draft.Tempo, tempoInput{Key: f.nextKey, Tick: strconv.FormatInt(int64(f.snapshot.PPQ)*4, 10), BPM: "120", OriginalBPM: "120", OriginalUS: 500000})
+					f.nextKey++
+					f.tempoPage = (len(f.snapshot.Draft.Tempo) - 1) / 24
+					a.checkpointMap(f)
 				})
-			}
-			paginate("速度图", &f.tempoPage, len(f.snapshot.Draft.Tempo), func() {
-				f.snapshot.Draft.Tempo = append(f.snapshot.Draft.Tempo, tempoInput{Key: f.nextKey, Tick: strconv.FormatInt(int64(f.snapshot.PPQ)*4, 10), BPM: "120", OriginalBPM: "120", OriginalUS: 500000})
-				f.nextKey++
-				f.tempoPage = (len(f.snapshot.Draft.Tempo) - 1) / 24
-				a.checkpointMap(f)
-			})
-			ui.Scroll(c).Height(150).Children(func() {
-				ui.Column(c).Gap(4).Children(func() {
-					for i := f.tempoPage * 24; i < min(len(f.snapshot.Draft.Tempo), (f.tempoPage+1)*24); i++ {
-						r := &f.snapshot.Draft.Tempo[i]
-						ui.Row(c.Key(fmt.Sprint("tempo", r.Key))).Gap(6).Children(func() {
-							ui.Text(c, "tick")
-							ui.TextInput(c, &r.Tick).Width(160).Disabled(r.Key == 0).Label(fmt.Sprint("速度位置 ", r.Key)).OnChange(func() { a.checkpointMap(f) })
-							ui.Text(c, "BPM")
-							ui.TextInput(c, &r.BPM).Width(160).Label(fmt.Sprint("速度 BPM ", r.Key)).OnChange(func() { a.checkpointMap(f) })
-							ui.Button(c, "删除点").Disabled(r.Key == 0).OnClick(func() {
-								f.snapshot.Draft.Tempo = append(f.snapshot.Draft.Tempo[:i], f.snapshot.Draft.Tempo[i+1:]...)
-								a.checkpointMap(f)
+				ui.Scroll(c).MaxHeight(150).Children(func() {
+					ui.Column(c).Gap(4).Children(func() {
+						for i := f.tempoPage * 24; i < min(len(f.snapshot.Draft.Tempo), (f.tempoPage+1)*24); i++ {
+							r := &f.snapshot.Draft.Tempo[i]
+							ui.Row(c.Key(fmt.Sprint("tempo", r.Key))).FillWidth().Wrap().Gap(6).Children(func() {
+								ui.Text(c, "tick")
+								ui.TextInput(c, &r.Tick).Width(92).Disabled(r.Key == 0).Label(fmt.Sprint("速度位置 ", r.Key)).OnChange(func() { a.checkpointMap(f) })
+								ui.Text(c, "BPM")
+								ui.TextInput(c, &r.BPM).Width(92).Label(fmt.Sprint("速度 BPM ", r.Key)).OnChange(func() { a.checkpointMap(f) })
+								ui.Button(c, "删除点").Disabled(r.Key == 0).OnClick(func() {
+									f.snapshot.Draft.Tempo = append(f.snapshot.Draft.Tempo[:i], f.snapshot.Draft.Tempo[i+1:]...)
+									a.checkpointMap(f)
+								})
 							})
-						})
-					}
+						}
+					})
 				})
-			})
-			paginate("拍号图", &f.meterPage, len(f.snapshot.Draft.Meter), func() {
-				f.snapshot.Draft.Meter = append(f.snapshot.Draft.Meter, meterInput{Key: f.nextKey, Tick: strconv.FormatInt(int64(f.snapshot.PPQ)*4, 10), Numerator: "4", Denominator: "4"})
-				f.nextKey++
-				f.meterPage = (len(f.snapshot.Draft.Meter) - 1) / 24
-				a.checkpointMap(f)
-			})
-			ui.Scroll(c).Height(150).Children(func() {
-				ui.Column(c).Gap(4).Children(func() {
-					for i := f.meterPage * 24; i < min(len(f.snapshot.Draft.Meter), (f.meterPage+1)*24); i++ {
-						r := &f.snapshot.Draft.Meter[i]
-						ui.Row(c.Key(fmt.Sprint("meter", r.Key))).Gap(6).Children(func() {
-							ui.Text(c, "tick")
-							ui.TextInput(c, &r.Tick).Width(160).Disabled(r.Key == 0).Label(fmt.Sprint("拍号位置 ", r.Key)).OnChange(func() { a.checkpointMap(f) })
-							ui.TextInput(c, &r.Numerator).Width(70).Label(fmt.Sprint("拍号分子 ", r.Key)).OnChange(func() { a.checkpointMap(f) })
-							ui.Text(c, "/")
-							ui.TextInput(c, &r.Denominator).Width(70).Label(fmt.Sprint("拍号分母 ", r.Key)).OnChange(func() { a.checkpointMap(f) })
-							ui.Button(c, "删除点").Disabled(r.Key == 0).OnClick(func() {
-								f.snapshot.Draft.Meter = append(f.snapshot.Draft.Meter[:i], f.snapshot.Draft.Meter[i+1:]...)
-								a.checkpointMap(f)
+				paginate("拍号图", &f.meterPage, len(f.snapshot.Draft.Meter), func() {
+					f.snapshot.Draft.Meter = append(f.snapshot.Draft.Meter, meterInput{Key: f.nextKey, Tick: strconv.FormatInt(int64(f.snapshot.PPQ)*4, 10), Numerator: "4", Denominator: "4"})
+					f.nextKey++
+					f.meterPage = (len(f.snapshot.Draft.Meter) - 1) / 24
+					a.checkpointMap(f)
+				})
+				ui.Scroll(c).MaxHeight(150).Children(func() {
+					ui.Column(c).Gap(4).Children(func() {
+						for i := f.meterPage * 24; i < min(len(f.snapshot.Draft.Meter), (f.meterPage+1)*24); i++ {
+							r := &f.snapshot.Draft.Meter[i]
+							ui.Row(c.Key(fmt.Sprint("meter", r.Key))).FillWidth().Wrap().Gap(6).Children(func() {
+								ui.Text(c, "tick")
+								ui.TextInput(c, &r.Tick).Width(92).Disabled(r.Key == 0).Label(fmt.Sprint("拍号位置 ", r.Key)).OnChange(func() { a.checkpointMap(f) })
+								ui.TextInput(c, &r.Numerator).Width(54).Label(fmt.Sprint("拍号分子 ", r.Key)).OnChange(func() { a.checkpointMap(f) })
+								ui.Text(c, "/")
+								ui.TextInput(c, &r.Denominator).Width(54).Label(fmt.Sprint("拍号分母 ", r.Key)).OnChange(func() { a.checkpointMap(f) })
+								ui.Button(c, "删除点").Disabled(r.Key == 0).OnClick(func() {
+									f.snapshot.Draft.Meter = append(f.snapshot.Draft.Meter[:i], f.snapshot.Draft.Meter[i+1:]...)
+									a.checkpointMap(f)
+								})
 							})
-						})
-					}
+						}
+					})
 				})
+				if f.err != "" {
+					ui.Text(c, f.err).TextColor(c.Theme().Warning).MaxWidth(640)
+				}
+				if f.writes > 0 {
+					ui.Text(c, "正在保存原始输入…")
+				}
+				if f.committed {
+					ui.Text(c, "工程已保存，仅待清理草稿；不会重复应用。")
+				}
 			})
-			if f.err != "" {
-				ui.Text(c, f.err).TextColor(c.Theme().Warning).MaxWidth(640)
-			}
-			if f.writes > 0 {
-				ui.Text(c, "正在保存原始输入…")
-			}
-			if f.committed {
-				ui.Text(c, "工程已保存，仅待清理草稿；不会重复应用。")
-			}
-			ui.Row(c).Gap(6).Justify(ui.End).Children(func() {
-				ui.Button(c, "保留草稿并返回").Disabled(f.writes > 0 || f.saveFailed).OnClick(a.dismissMap)
-				ui.Button(c, "重试保存输入").Disabled(f.writes > 0 || f.committed).OnClick(func() { a.checkpointMap(f) })
-				ui.Button(c, "丢弃 / 清理草稿").Disabled(f.writes > 0).OnClick(func() { a.clearMap(f) })
-				ui.PrimaryButton(c, "应用时间图").Disabled(f.writes > 0 || f.err != "" || f.committed || !a.writable()).OnClick(func() { a.applyTimeMap(f) })
-			})
+		})
+		ui.Row(c).Width(formWidth).Wrap().Gap(6).Justify(ui.End).Disabled(f.applying || a.editBusy || f.writes > 32).Children(func() {
+			ui.Button(c, "保留草稿并返回").Disabled(f.writes > 0 || f.saveFailed).OnClick(a.dismissMap)
+			ui.Button(c, "重试保存输入").Disabled(f.writes > 0 || f.committed).OnClick(func() { a.checkpointMap(f) })
+			ui.Button(c, "丢弃 / 清理草稿").Disabled(f.writes > 0).OnClick(func() { a.clearMap(f) })
+			ui.PrimaryButton(c, "应用时间图").Disabled(f.writes > 0 || f.err != "" || f.committed || !a.writable()).OnClick(func() { a.applyTimeMap(f) })
 		})
 	})
 }

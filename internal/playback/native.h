@@ -24,7 +24,7 @@ typedef struct {
   int64_t attack, decay, gate, release;
   double rate;
   float gain, sustain;
-  int reverse, track;
+  int reverse, track, loop_source;
 } ice_audio_region;
 int ice_plan_audio_reserve(ice_plan *p, int n);
 int ice_plan_audio(ice_plan *p, const int16_t *samples, int64_t total, int reuse,
@@ -35,11 +35,14 @@ void ice_plan_audio_limit(ice_plan *p, int64_t frame);
 void ice_plan_delete(ice_plan *p);
 void ice_install(ice_engine *e, ice_plan *p, int playing, int beats, int64_t beat_frames);
 void ice_stop(ice_engine *e);
+void ice_release_plan(ice_engine *e);
 ice_status ice_get_status(ice_engine *e);
+int ice_failed_plugin(ice_engine *e, int node, int slot);
 void ice_render(ice_engine *e, int n, float *left, float *right);
 const char *ice_version(void);
 void ice_read_meters(ice_engine *e, ice_meter *out, int count);
 void ice_reset_meters(ice_engine *e);
+int ice_plugin_override(ice_engine *e, int i, int slot, uint32_t id, float value);
 void ice_override(ice_engine *e, int index, int slot, int parameter, float value);
 int ice_callback_p99(ice_engine *e);
 int ice_callback_frames(ice_engine *e);
