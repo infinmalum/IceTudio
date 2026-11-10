@@ -58,8 +58,8 @@ func (a *Workspace) captureSmoke(dir string) error {
 	if !filepath.IsAbs(dir) {
 		return fmt.Errorf("smoke-dir 必须是绝对路径")
 	}
-	// Normal startup shows the Playlist. Mount a tall enough Piano Roll
-	// for the fixture's three pitches to be inside its virtualized viewport.
+	// Normal startup shows the Playlist. Mount the embedded page for the
+	// layout and Native-to-WebView checks.
 	if err := a.onMain(func() {
 		a.preferences.View = "split"
 		a.split = 48
@@ -74,6 +74,21 @@ func (a *Workspace) captureSmoke(dir string) error {
 		if err := a.verifyPianoViewport(); err != nil {
 			return err
 		}
+	}
+	// Wait for the independent Piano Roll to receive its full height
+	// before selecting a clip. GridSound centers once on clip mount.
+	splitHeight, err := mygo.EvalAs[int](a.piano.Page(), "innerHeight")
+	if err != nil {
+		return err
+	}
+	if err := a.onMain(func() { a.preferences.View = "piano" }); err != nil {
+		return err
+	}
+	if err := waitCondition(func() bool {
+		height, err := mygo.EvalAs[int](a.piano.Page(), "innerHeight")
+		return err == nil && height >= splitHeight+120
+	}); err != nil {
+		return fmt.Errorf("独立卷帘尚未完成尺寸分配：%w", err)
 	}
 	// Exercise the Native callback -> typed event -> bound Context -> DOM path
 	// again, with another clip, not just the page's initial read.
@@ -100,16 +115,14 @@ func (a *Workspace) captureSmoke(dir string) error {
 	if second.Clip != expected.ClipID || second.Notes != fmt.Sprint(len(expected.Notes)) {
 		return fmt.Errorf("页面上下文与 Native 不一致：%+v", second)
 	}
-	keys, err := mygo.EvalAs[string](a.piano.Page(), "JSON.stringify([...document.querySelectorAll('.gsuiBlocksManager-block[data-id]')].map(e=>e.dataset.id))")
-	if err != nil {
-		return err
-	}
+	// GridSound mounts the visible pitches after centering the new clip in
+	// requestAnimationFrame, which can follow the page's ready notification.
 	var ids []string
-	if err = json.Unmarshal([]byte(keys), &ids); err != nil {
-		return err
-	}
-	if len(ids) != len(expected.Notes) {
-		return fmt.Errorf("切换后 DOM 音符数量 %d，预期 %d", len(ids), len(expected.Notes))
+	if err := waitCondition(func() bool {
+		keys, err := mygo.EvalAs[string](a.piano.Page(), "JSON.stringify([...document.querySelectorAll('.gsuiBlocksManager-block[data-id]')].map(e=>e.dataset.id))")
+		return err == nil && json.Unmarshal([]byte(keys), &ids) == nil && len(ids) == len(expected.Notes)
+	}); err != nil {
+		return fmt.Errorf("切换后 DOM 音符数量 %d，预期 %d：%w", len(ids), len(expected.Notes), err)
 	}
 	valid := map[string]bool{}
 	for _, note := range expected.Notes {
@@ -272,7 +285,8 @@ func (a *Workspace) verifyPianoViewport() error {
 	}
 	if err := waitCondition(func() bool {
 		w, _ := mygo.EvalAs[int](a.piano.Page(), "innerWidth")
-		return w >= wide-4 && w <= wide+4
+		h, _ := size()
+		return w >= wide-4 && w <= wide+4 && h >= splitHeight-4 && h <= splitHeight+4
 	}); err != nil {
 		return fmt.Errorf("恢复宽窗口后卷帘尺寸未恢复：%w", err)
 	}
